@@ -1,0 +1,34 @@
+How to NMODL
+
+Go into powershell and use c:\Neuron\bin\nocmodl.exe PATH TO .MOD to check code and
+modlunit.exe to check units.
+
+E.g.  .\nocmodl.exe 
+
+E.g. cd E:\CLPC48\Neuron Project\Code\Models\Currents\Prototypes
+c:\Neuron\bin\nocmodl.exe Kacw	
+
+Then: 
+Use mknrdll to compile (open from start menu).
+
+
+Then:
+
+In python code, use h('load_file("nrngui.hoc")') to load nrngui which scans in new mechanisms.
+
+
+(source: http://www.neuron.yale.edu/neuron/static/docs/nmodl/mswin.html)
+
+
+IMPORTING 
+
+If the mechanism is not recognised, you may be trying to run a script without having the right path.
+
+Check the run settings in Spyder or otherwise make sure the directory with the compiled mechanism files in is on your path.
+
+You can use something like: 
+h.nrn_load_dll("E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes\\nrnmech.dll")
+
+but if you use it twice python will crash. Is there a loaded mechanism flag somewhere I could use to check this so I don't run it twice but can rerun simulations?
+
+For now, best thing to do is just use os.chdir to put us on right path to auto-load nrnmech.dll when we import neuron.

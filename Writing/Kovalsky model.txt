@@ -1,0 +1,5 @@
+Kovalsky model
+
+Aim was to find out whether addition of late and persistent Na currents (Nav 1.8 and 1.9?) to fast transient INa (1.7?) would enhance oscillatory behaviour and out of sequence electrogenesis (AP firing?). 
+
+Methods 

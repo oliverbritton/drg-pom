@@ -1,0 +1,19 @@
+Simulations needed to recreate Davidson:
+
+Input resistance protocol:
+Hyperpolarising current injection of 50 to 100 pA.
+
+Ramp protocol
+500 ms ramp, increase by 50 or 100 pA per sweep until cells reached threshold.
+
+Step protocol
+Step current injections. 800 ms duration. Increased by 50 or 100 pA per sweep until cells reached threshold.
+What was maximum current used?
+
+Rheobase mean was 1440 pA. SEM = 110 pA n = 110 so STD ~= 1100 pA so mean + 2 STD ~ 3500 pA. 
+Therefore looking at 40-80 simulations for each protocol.
+
+
+Intersweep interval - 3 to 5 s.
+
+Most neurons only evoked a single AP, but stimulus was only tested until an AP fired.

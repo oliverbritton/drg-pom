@@ -1,0 +1,17 @@
+Biomarker ideas for DRG neurons
+
+Frequency-current curve (frequency of AP firing against injected current) - slope of curve is the "gain" of the neuron
+
+Rheobase (current to fire an AP)
+
+Length of sustained firing
+
+AP amplitude
+
+AP duration (width at 50% max amplitude)
+
+Resting potential
+
+Frequency of sustained firing - calculated by inverse of mean inter-spike interval
+
+Existence of sub-threshold oscillation

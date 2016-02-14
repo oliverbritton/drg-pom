@@ -1,0 +1,2 @@
+load_file("nrngui.hoc")
+load_file("DRG_model_Kovalsky_etal.hoc")

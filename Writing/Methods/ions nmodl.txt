@@ -1,0 +1,5 @@
+
+
+Note on how NEURON deals with ions
+
+NEURON does not change the calcium concentrations automatically. To do this, we would need another mechanism defined in an NMODL file that would WRITE cai and/or cao, the intra- and extracellular calcium concentrations. However this mechanism would need to know the total calcium current ica originating from our CaT mechanism and any other mechanisms affecting calcium current. NEURON provides a means of doing this, but it is outside the scope of this tutorial.

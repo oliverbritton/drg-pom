@@ -1,0 +1,99 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[3]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+{pwman_place(0,0,0)}
+{
+xpanel("RunControl", 0)
+v_init = -80
+xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+xbutton("Init & Run","run()")
+xbutton("Stop","stoprun=1")
+runStopAt = 5
+xvalue("Continue til","runStopAt", 1,"{continuerun(runStopAt) stoprun=1}", 1, 1 )
+runStopIn = 1
+xvalue("Continue for","runStopIn", 1,"{continuerun(t + runStopIn) stoprun=1}", 1, 1 )
+xbutton("Single Step","steprun()")
+t = 0
+xvalue("t","t", 2 )
+tstop = 5
+xvalue("Tstop","tstop", 1,"tstop_changed()", 0, 1 )
+dt = 0.025
+xvalue("dt","dt", 1,"setdt()", 0, 1 )
+steps_per_ms = 40
+xvalue("Points plotted/ms","steps_per_ms", 1,"setdt()", 0, 1 )
+screen_update_invl = 0.05
+xvalue("Scrn update invl","screen_update_invl", 1,"", 0, 1 )
+realtime = 0
+xvalue("Real Time","realtime", 0,"", 0, 1 )
+xpanel(1640,0)
+}
+
+objref vboxC
+vboxC = new VBox()
+strdef read_paraV2_file, BatchRun
+
+{sprint(read_paraV2_file,"%sIO_read_paraV2.txt",DirIO)}
+{sprint(BatchRun,"%sbatch_run.txt",DirIO)}
+
+vboxC.intercept(1)
+
+sprint(IO_fileName,"%sIO_funcs_V1.txt",DirIO)
+sprint(Func_dev_FileName,"%sFuncs_dev_V1.txt",DirFuncs)
+sprint(Modelhoc,"%sModels.txt",DirModels)
+sprint(DC_file,"%smakeDC1_test.hoc",DirFibers)
+sprint(DR_file,"%smakeDR_test.hoc",DirFibers)
+
+
+{// ------------- GRAPH CONTROL PANEL --------
+xpanel("Function Load Control",0)
+xlabel("Load function file")
+
+xbutton("Load IO_funcs","xopen(IO_fileName)")
+
+xlabel("-------------------------")
+xlabel("Under development functions")
+xbutton("Funcs dev load","xopen(Func_dev_FileName)")
+xbutton("Load all V data","data_load_prerun()")
+xbutton("Read parameters","xopen(read_paraV2_file)")
+xbutton("Read batch run","xopen(BatchRun)")
+
+xlabel("-------------------------")
+xbutton("Load DC model","xopen(Modelhoc)")
+xbutton("Load DC 8.7","{prebuildDC(8.7)}")
+xbutton("Make DC fiber","{xopen(DC_file)}")
+xbutton("Load DC 11.5","{prebuildDC(11.5)}")
+xbutton("Make DC fiber","{xopen(DC_file)}")
+xlabel("-------------------------")
+xbutton("Load DR 11.5","{prebuildDR(15.0,11.5)}")
+xbutton("Make DR fiber","{xopen(DR_file)}")
+xlabel("-------------------------")
+xbutton("Load SingleShot","{xopen(SingleShot)}")
+
+xlabel("-------------------------")
+xbutton("Remove DC fiber","{remove_DC()}")
+xbutton("Remove DR fiber","{remove_DR()}")
+xlabel("-------------------------")
+xlabel("Run functions")
+xbutton("Get all data ready","{get_ready()}")
+xbutton("Move fibers","move_fibers()")
+xbutton("Save x coordi","run_func1()")
+xbutton("Load 32 channel pulse","load_pulse_wave()")
+xvalue("  Amp ","Amp",1,"Assign_pulse_ext1(secDC_DC1)",0,0)
+
+xvalue("Recording dt","DT",1,"",0,0)
+xcheckbox(" Voltage recording",&Vrecord,"Record_voltage(Vrecord,DT)")
+xcheckbox(" h gate recording",&Hrecord,"Record_hgate(Hrecord,DT)")
+xcheckbox(" m gate recording",&Mrecord,"Record_mgate(Mrecord,DT)")
+
+xlabel("-------------------------")
+xlabel("Saving data")
+xvarlabel(DataFileName)
+xvarlabel(HeaderFileName)
+xbutton("Save data now","Save_all_data()")
+xpanel(0)
+}
+vboxC.intercept(0)
+vboxC.map("Function Load Control",700, 0, 207, 570)
+
+

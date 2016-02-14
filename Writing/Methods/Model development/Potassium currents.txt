@@ -1,0 +1,44 @@
+Thoughts on potassium current models
+
+1. What are the potassium channels expressed in DRGs? In human DRGs?
+
+2. What currents are they usually grouped into? IKdr, IKA, IKM, IKNa?
+
+3. Reducing potassium channels - existing work by Prescott group.
+
+IKdr - delayed rectifier. Turns on between -60 and 40. Basic repolarising current. No inactivation gate, just 4 activation gates.
+
+All Kv3 channels are high-threshold, facilitate repolarisation, dictate AP duration but not AP threshold or inter-spike interval.
+
+Kv 3.1 and 34.2 contribute 20% of IKdr in small nociceptors, possibly some Kv 3.3. 3.4 important, measured in Gold 96, underlies TEA sensitive high-threshold transient current, important for repolarisation, which limits calcium-dependent neurotransmitter release at central nerve endings, where Kv 3.4 is localised. AP broadening = increase neurotransmission.  
+
+IKA - transient current - no steady state window of openess. Will inactivate sharply after -60 so essentially will not provide current unless membrane potential is hyperpolarised. Interesting switch in variability depending on time dependence.
+
+Caused by Kv 1.4, and Kv4 members. Activates on small depolarisations. Limits AP threshold, duration and firing frequency. Brake current. May be dominated by Kv 4.1, and soma-only Kv 4.3. Low/no Kv 4.2. A-type channel expression reduced in pain models. 
+
+IKM - non-inactivating - no inactivation gate. But IKdr also has no inactivation gate. Need to understand time constants of the two. Think IKM will have a much larger time constant - so will  turn on more slowly, but provides much more sustained current. IM sustains RMP. Regulates AP threshold and accomodation in AP trains. Central role in neuronal excitability.
+
+Based on Kv7 channels. In DRG - Kv 7.2, 7.3, 7.5. Some data to suggest 7.5 is main C-fibre channel. (King 2012). Calcium release inhibits IM?
+
+IKD - Activated by modest membrane depolarisations. Brake on excitability, carried by Kv 1.1 and 1.2, only found in certain populations of nociceptors, found more often in larger DRGs. Found in some high-threshold C-mechano-nociceptors. Potentially important current for sub-type specific modelling. Diminished activity increases RMP and can attenuate mechano and cold specific pain. Some human pain syndromes may be caused by autoimmune antibodies against Kv1 function.
+
+K2P: Two-pore channels - assemble as dimers not tetramers, unlike all other K+ channels. 
+Generate hyperpolarising leak currents. 15 members of the family, DRGs express many of them. Including:
+TWIK (2 pore weak inwardly rectifying K+ channel), TWIK-related (TR) channel, TRESK, TREK1, TRAAK and TASK1 (acid-sensitive channel). Marked reductions documented in pain states. E.g. TRESK mutation causes migraine. TREK1 coexpressed with TRPV1 in nociceptors.
+These channels modify responses to different stimuli. 
+
+KCa - all KCa channels are found in DRG.
+
+Kir - inward rectifiers - found in supporting  cells e.g. glial cells. Can conduct inward K+ currents. Along with INaK, can uptake local K+ to prevent extracellular K+ accumulation from short-circuiting AP repolarisation. GIRK channels- important for spinal analegsia. GIRK openers don't exist, but could be alternative to opiates. IKATP  - thought to set minor role in basal excitability of DRG neurons (dominated by Kv7 and K2P).
+
+
+Currents in Tigerholm:
+
+Same as CW: IKdr, IKA
+Different: IKM
+Ih - Hyperpolarization-activated cyclic nucleotide-gated channels (HCN)
+Activated by hyperpolarisation
+
+
+Not found - IKD
+

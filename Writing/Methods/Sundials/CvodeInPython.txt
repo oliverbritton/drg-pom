@@ -1,0 +1,4 @@
+http://www.maths.lth.se/na/courses/FMNN05/media/material/cv_master.html
+http://www.jmodelica.org/assimulo
+
+Possible sources of code to run Cvode
