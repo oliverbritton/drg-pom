@@ -7,13 +7,14 @@ Functions for running a population of models loop
 """
 import os
 import datetime
-from matplotlib import pyplot
+import re
+import time
+from multiprocessing import Process
 curDirectory = os.getcwd()
 os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
 from neuron import h
 os.chdir(curDirectory)
 
-import MakeDeterminedOcelot
 
 # FUNCTIONS
 
@@ -144,6 +145,7 @@ def TestStimProtocols():
 def GetModel(modelName):
     
     if modelName == 'DeterminedOcelot':
+        import MakeDeterminedOcelot
         model = MakeDeterminedOcelot.MakeDeterminedOcelot()
     else:
         assert False, 'Model name not found in GetModel!'    
@@ -195,10 +197,10 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     # Setup output vectors
     v = h.Vector()
     t = h.Vector()
-    ina_vec = h.Vector()
-    icurr_vec = h.Vector()
+    #ina_vec = h.Vector()
+    #icurr_vec = h.Vector()
 
-    # Setup simulation parameters
+    # Setup simulation parameters - MAKE INTO FUNCTION
     stim = h.IClamp(model(0.5))
     stim.delay = 100
     stim.dur = 700
@@ -235,27 +237,28 @@ def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
         f.write(str(t[i]) + " " + str(v[i]) + "\n")
 
     f.close()
+    return
 
-def StepProtocolRun():
-    
-        # Run the step protocol
-    for j, amp in enumerate(stimAmps):
-        
-        stim = h.IClamp(cell(0.5)) 
-        stim.delay = 5
-        stim.dur = stimDuration
-        stim.amp = amp 
-        
-        v_vec = h.Vector()
-        t_vec = h.Vector()
-            
-        
-        v_vec.record(cell(0.5)._ref_v, sec=cell)
-        t_vec.record(h._ref_t)
-        
-        h.finitialize(-65) # Vital! And has to go after record   
-        tstop = 1000.0
-        neuron.run(tstop)
+#def StepProtocolRun(cell, stimAmps, stimDuration):
+#    
+#        # Run the step protocol
+#    for j, amp in enumerate(stimAmps):
+#        
+#        stim = h.IClamp(cell(0.5)) 
+#        stim.delay = 5
+#        stim.dur = stimDuration
+#        stim.amp = amp 
+#        
+#        v_vec = h.Vector()
+#        t_vec = h.Vector()
+#            
+#        
+#        v_vec.record(cell(0.5)._ref_v, sec=cell)
+#        t_vec.record(h._ref_t)
+#        
+#        h.finitialize(-65) # Vital! And has to go after record   
+#        tstop = 1000.0
+#        neuron.run(tstop)
         
 def FormatOutputDirectory(outputDirectory):
     if not outputDirectory.endswith(os.sep):
@@ -273,3 +276,89 @@ def LoadNeuron():
     from neuron import h
     h('load_file("nrngui.hoc")')
     os.chdir(curDirectory)
+    return
+
+def ParseConfigFile(configFilename,pattern):
+    
+    configFile = ReadTextFile(configFilename)
+    # Define output directory from config file
+    # Format expected is: output directory: blah/blah
+    
+    #pattern = ": " # pattern to split lines between data for program and identifier
+    numOutputDirectories = 0
+    numParameterFiles = 0
+    numModels = 0
+    numSimulationNames = 0
+    numPrefixes = 0
+    numProtocols = 0
+
+    for line in configFile:
+        if re.search('output',line):
+            numOutputDirectories += 1
+            outputDirectory = ParseConfigLine(line,pattern)
+            
+        if re.search('parameter',line):
+            numParameterFiles += 1
+            parameterFilename = ParseConfigLine(line,pattern)     
+            
+        if re.search('model',line):
+            numModels += 1
+            modelName = ParseConfigLine(line,pattern)
+        
+        if re.search('simulation',line):
+            numSimulationNames += 1
+            simulationName = ParseConfigLine(line,pattern)
+            
+        if re.search('prefix',line):
+            numPrefixes += 1
+            prefix = ParseConfigLine(line,pattern)
+    
+        if re.search('protocol',line):
+            numProtocols +=1
+            protocol = ParseConfigLine(line,pattern)
+            
+    assert numOutputDirectories == 1, 'numOutputDirectories'
+    assert numParameterFiles == 1, 'numParameterFiles'
+    assert numModels == 1, 'numModels'
+    assert numSimulationNames == 1, 'numSimulationNames'
+    assert numPrefixes == 1, 'numPrefixes'
+    assert numProtocols == 1, 'numProtocols'
+    
+    return {'outputDirectory':outputDirectory, 'parameterFilename':parameterFilename,
+            'modelName':modelName, 'simulationName':simulationName, 'prefix':prefix,
+            'protocol':protocol}
+            
+            
+def RunPopulationOfModels(configFilename,pattern,numProcessors):
+    
+    cfg = ParseConfigFile(configFilename,pattern)
+    # Initialise hoc
+    h('load_file("nrngui.hoc")')
+    
+    # --- Loop  --- 
+    #Read parameter file in
+    parameters = ReadParameterFile(cfg['parameterFilename'])
+    start = time.time()
+    # --- Main solver loop --- # TO DO! Parallelise
+    
+    # Divide the number of models up between processors    
+    
+    
+    # start numProcessors worth of processes
+#    jobs = []
+#    for i in range(numProcessors):
+#        p = Process(target=g, args=(y,))
+#        p.start()        
+#        jobs.append(p)
+#        
+#    for job in jobs:
+#        job.join()
+    
+    for modelNum,parameterSet in enumerate(parameters):    
+        # Initialise new model
+        model = GetModel(cfg['modelName'])       
+        # Run simulation protocol
+        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
+        
+    end = time.time()
+    return end-start

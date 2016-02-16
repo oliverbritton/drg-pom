@@ -1,0 +1,34 @@
+Log 
+
+15/02/2016
+
+Findings:
+Vm Peak is clustered between 50 - 55 mV, mean in Davidson is around 65 mV. 
+However, surprisingly there seems to be a negative correlation between Vm Peak and GNav 1.8, with little effect by any other conductance. That is, the lowest values of GNav1.8 have the highest Vm Peak, which is weird and contradicts Choi Waxman Fig 6B.
+
+Although, the Choi Waxman model doesn't have a high enough Vm Peak either.
+
+One thing to check would be using different stimulus currents, and plot effect of step current size on Vm Peak.
+
+Paper thoughts:
+Mutation reasons remain unknown.
+We aimed to test the effects of mutation in a human in silico model. 
+Reason for modelling: determine cause
+
+Big ideas:
+Sloppiness, degeneracy, criticality
+
+INTRO
+Background:
+
+Cardiac repolarisation abnormalities are pro-arrhythmic. They can be induced unpredictably in cardiomyocytes by drug application. One source of this unpredictability is inter-individual variability in ionic current conductances. In particular, cardiomyocytes and cardiomyocytes that appear normal under benign conditions but develop repolarisation abnormalities in response to drug block are unclear.
+
+Current experimental techniques do not allow simultaneous measurement of all major conductances in cardiomyocyte preparations, therefore in this study we employ a human-specific in silico approach to understand the impact of variabilitity on susceptibiltiy of human ventricular cardiomyocytes to repolarisation abnormalities.
+
+Methods and Results: An experimentally-calibrated population of human ventricular cardiomyocyte models was constructed using the O'Hara-Rudy model as a baseline, through variation in 9 key ionic conductances, and calibrated using microelectrode recordings from 39 non-diseased human donor hearts, to characterise inter-individual variability in human ventricular action potentials. Out of 10,000 candidate models, 568 models were within the range of AP variability observed in the data and were accepted into the population.
+
+The effects of a wide range of simulated multichannel blocks of currents: IKr, IKs, IK1, and ICaL were evaluated on the population. The subpopulation of models that were most vulnerable to developing abnormalities were found to have GNaK below and GCaL above of the baseline model. Furthermore, INaK made the second largest contribution to repolarisation reserve in control simulations and the alrgest contribution following 75% IKr block.
+
+Following IKr block, reversing sodium overload alone was not sufficient to prevent abnormality occurrence in models with low sodium-potassium pump conductance, while returning the sodium-potassium pump conductance to its baseline value substantially reduced abnormality occurrence.
+
+Conclusions: Our results indicate a novel role for INaK as an important determinant of repolarisation abnormalities.  We predict that suppression of the sodium-potassium pump will amplify the pro-arrhythmic risk of IKr block and increase the likelihood of EADs.
