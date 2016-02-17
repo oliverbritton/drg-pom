@@ -201,6 +201,7 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     #icurr_vec = h.Vector()
 
     # Setup simulation parameters - MAKE INTO FUNCTION
+    # SetStimulus()
     stim = h.IClamp(model(0.5))
     stim.delay = 100
     stim.dur = 700
@@ -239,26 +240,27 @@ def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
     f.close()
     return
 
-#def StepProtocolRun(cell, stimAmps, stimDuration):
-#    
-#        # Run the step protocol
-#    for j, amp in enumerate(stimAmps):
-#        
-#        stim = h.IClamp(cell(0.5)) 
-#        stim.delay = 5
-#        stim.dur = stimDuration
-#        stim.amp = amp 
-#        
-#        v_vec = h.Vector()
-#        t_vec = h.Vector()
-#            
-#        
-#        v_vec.record(cell(0.5)._ref_v, sec=cell)
-#        t_vec.record(h._ref_t)
-#        
-#        h.finitialize(-65) # Vital! And has to go after record   
-#        tstop = 1000.0
-#        neuron.run(tstop)
+def StepProtocolRun(model, stimAmps, stimDuration):
+    
+        # Run the step protocol
+    for j, amp in enumerate(stimAmps):
+        
+        stim = h.IClamp(model(0.5)) 
+        stim.delay = 5
+        stim.dur = stimDuration
+        stim.amp = amp 
+        
+        v_vec = h.Vector()
+        t_vec = h.Vector()
+            
+        
+        v_vec.record(model(0.5)._ref_v, sec=model)
+        t_vec.record(h._ref_t)
+        
+        h.finitialize(-65) # Vital! And has to go after record   
+        tstop = 1000.0
+        neuron.run(tstop)
+        # TODO Write to file
         
 def FormatOutputDirectory(outputDirectory):
     if not outputDirectory.endswith(os.sep):
@@ -343,16 +345,16 @@ def RunPopulationOfModels(configFilename,pattern,numProcessors):
     
     # Divide the number of models up between processors    
     
-    
-    # start numProcessors worth of processes
-#    jobs = []
-#    for i in range(numProcessors):
-#        p = Process(target=g, args=(y,))
-#        p.start()        
-#        jobs.append(p)
-#        
-#    for job in jobs:
-#        job.join()
+# Might be better to use a pool    
+# start numProcessors worth of processes
+    jobs = []
+    for i in range(numProcessors):
+        p = Process(target=g, args=(y,))
+        p.start()        
+        jobs.append(p)
+        
+    for job in jobs:
+        job.join()
     
     for modelNum,parameterSet in enumerate(parameters):    
         # Initialise new model

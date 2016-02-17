@@ -1,0 +1,56 @@
+What steps do I need to take to achieve the plan.
+
+1. Ability to construct populations.
+1. a) Biomarkers work
+1. a) i) Biomarkers are implemented and tested
+1. a) ii) Biomarkers are called in simulation code and stored
+1. b) Stim protocol works
+1. b) i) We choose what stim protocol we use
+1. b) ii) We write code implementing it in the simulations whie allowing new protocols to also be run/updated
+1. c) Calibration is defined
+1. c) i) The biomarker values are put in a table
+1. c) ii) We have a function that can decide if a model is in range, or not.
+
+2. Mutations can be inserted
+2. a) Mutations are selected
+2. a) i) We find at least 1 7/8/9 mutation that causes neuropathic pain, ideally with reasons for why we chose those mutations, and with a range of effects (increased activation, decreased inactivation)
+2. a) ii) We make a database of other mutations we find along the way in case we want to switch.
+2. b) Mutation characterisation is extracted from paper
+2. b) i) Digitise figures, work out which parameters they change.
+2. c) Mutation models are constructed and tested.
+2. c) i) Build NMODL files.
+2. c) ii) Reproduce voltage clamp figures as close as possible. And reproduce wild type Nav figures for human if possible too  - we'll want this in the paper or sup mat.
+
+3. Mutations alter excitability.
+3. a) Rheobase rebasing is dealt with somehow
+3. a) i) Need to run some prelim simulations to see how this changes as conductances are altered. And just plot conductances against rheobase and multiple spike rheobase.
+3. a) ii) Decide from this info - how big a deal is it? What can we do about it (different options)? Which option is best (write down why!)?
+3. b) Populations are simulated.
+3. b) i) Run the populations and plot em.
+3. c) Simulation results are analysed
+3. c) i) What is the rate of hyperexcitability per mutation?
+3. c) ii) Does hyperexcitability correlate with any conductances? Can we predict the vulnerable models?
+3. c) iii) How do other biomarkers get affected by mutations? In particular rheobase? Do we need new biomarkers?
+
+4. Drugs are characterised.
+4. a) Which drugs we use are defined
+4. a) i) Find systematic reviews of drugs, or at least most recent papers on selective Nav blockers and lidocaine and mexelitine.
+4. a) ii) Make a database of candidates, look for well-characterised blockers (e.g. by kinetics), esp. if they're widely used or have been put through trials 
+4. b) Drug models are developed
+4. b) i) Get IC50s if possible, or at least ratios for off-target effects on other channels (e.g. on TTX-S and TTX-R)
+4. b) ii) Get kinetic effects (e.g. effective IC50 increases with an exponential curve or something like that as inactivation gate changes to closed.)
+4. c) Drugs applied to each population.
+4. c) i) Define protocol
+4. c) ii) Run simulations.
+4. d) Results are analysed and optimal combinations found.
+4. d) i) Potentially iterate c a bit. 
+4. d) ii) Define measures on effectiveness of combination.
+4. d) iii) Look for trends in effectiveness of combinations and correlations of drug conc agains conductances.
+
+5. Simulations don't take forever
+5. a) We can use our software in Archer.
+5. a) i) Run my parallel test in Archer.
+5. a) ii) Run a full population in Archer.
+5. b) We parallelise our stuff (probably using Processes if I can't make Pool work)
+5. b) i) Get code to make processes work and calculate right number of models to use or a method to give old process new work when it's done? Probably easier to give each process a defined chunk of work.
+5. b) ii) Get it running in the main pom module.

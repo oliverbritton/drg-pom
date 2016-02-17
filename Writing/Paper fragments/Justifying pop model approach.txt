@@ -1,0 +1,52 @@
+We chose to use an ensemble of different models for the following reasons.
+
+Prescott et al. have shown that the transition from normal to neuropathic nociceptor behaviour is degenerate - there are many different possible changes leading to the same change in phenotype. Therefore, evaluating the effects of even a wide range of different changes on a single "average" model neuron would not address the range of different changes that can cause neuropathic behaviour.
+
+While our population does not cover an exhaustive range of changes (which would be effectively impossible and require the  neuronal models to includeevery component of a neuron to perfect accuracy), we capture a wide range of potential balances of conductances (and variation in ion channel kinetics?). Therefore, we believe this approach improves upon a standard "average representation" approach where a single model is taken to represent a typical neuron.
+
+In this study, we constructed a popualtion of neurons that reflected the range of behaviours observed in healthy human nociceptors. Each neuron model produced a single spike firing pattern close to its rheobase and did not display hyperexcitable behaviours such as bursting or repeat firing.
+
+We then used this population as a base to generate mutant populations, using 3 mutations in voltage gated sodium channels genes, all of which have been linked to pathological alteration in pain states in humans. The mutations affect Nav 1.7, 1.8, and 1.9.
+
+Each mutation was independently inserted into the population to create 3 new populations. We found that the Nav 1.7 and Nav 1.8 mutations reproduced hyperexcitable phenotypes in (give data) of cases. Given the wide range of underlying neuronal models it is not surprising that qualitative response to the mutation was not uniform.
+
+For the Nav 1.9 mutation, which paradoxically causes gain-of-function to the Nav 1.9 current but insensitivity to pain in humans, we found ....
+
+Ratte et al. recently argued that targeting a single channel to treat neuropathic pain is likely to fail, due to degeneracy in mechanisms leading to chronic pain - many different alterations e.g. channel expression are likely to lead to similar pain states. This is backed up by failures of the singular application of selective Nav 1.7 and 1.8 blockers to reproduce the effect of loss-of-function mutations in those currents and reduce pain. 
+Blah et al. found that the concentrations required to reduce Nav 1.7 to levels that would reproduce loss-of-function in Nav 1.7 were 10x the IC50 of the compound. 
+
+A consensus is emerging that application of multiple interventions, or a single intervention with multiple targets, at lower doses than they might be applied individually, may be more successful at treating chronic pain than any individual treatment. Lower doses of individual compounds also has the advantage of reducing any individual off-target effect.
+
+We therefore developed models of 3? potential interventions: lidocaine, selective 1.7 blocker, and selective 1.8 blocker. (Could also add 1 more - a potassium channel activator?) Lidocaine, which preferentially blocks voltage-gated sodium channels that are inactivated, preventing them from recovering from inactivation, is a powerful analgesic but is not selective to nociceptor-specific ion channels, and therefore has powerful and potentially dangerous off-target effects, e.g. Nav 1.5 - the primary sodium channel in the heart (and skeletal muscle). The specific 1.7 and 1.8 blockers have less dangerous off-target effects, but both have been shown to be ineffective individually at therapeutic concentrations.
+
+###Don't do Leipold mutation in this paper. Pick a 1.7, 1.8 and 1.9 mutation that causes neuropathic pain. Think KISS 
+
+We applied these 3 interventions in combination to each mutated population, using an optimisation algorithm on, firstly, each model, to determine the optimal combination of the 3 interventions to restore normal excitability (defined by the limits in Davidson et al. and single spiking behaviour) and then optimising over the whole population, to find the  single combination of interventions that minimised hyperexcitability across each entire population. 
+
+We found....
+
+Methods:
+
+To perform the optimisation over each model, we ...
+
+Take a model with known rheobase.
+Simulate a set of different intervention/concentration combinations. For each one, refind rheobase and extract biomarkers.
+
+Best target - if we have normal excitability restored lowest combined dose (bias against lidocaine? Do we have IC50s for lidocaine? -DOn't need em, just relative block values.). If nothing fully restores, then look at reduction in spike frequency, if still tied, then measure euclidian distance in biomarker space from normal?
+
+Find the best n targets, if near, interpolate. If far, try a local search.
+
+For the whole population:
+For each intervention, score it by number restored to normality.
+Find best combination.
+Depending on computational complexity, this might argue for not doing local interpolation and just going for best in the grid.
+
+Idea - for simulations, plot and save plot for each simulation, then delete results (or never save them), if space is at a premium.
+
+Sticking points:
+Can probably get ok data on 1.7 and 1.8 blockers. Check the Pfizer paper. Depends what is known about lidocaine but there must be something! Ask pharma peoples.
+
+Assumption: Mutant does not affect IC50. I should try to find mutants that, where possible, do not alter exactly where the binding site is, or at least mention this in limitations to show I'm not a complete doof.
+
+From Payne: How they got AP trains - ap trains obtained reliably by injecting 1.5 - 2.0 x current threshold for evoking multiple APs. Current for evoking multiple APs found by stepping in increments of 200 nA in human.
+

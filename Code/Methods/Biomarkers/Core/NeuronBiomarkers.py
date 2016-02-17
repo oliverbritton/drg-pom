@@ -26,11 +26,18 @@ def SplitTraceIntoAPs(t,v):
     
 def VoltageGradient(t,v):
     ### Is there a diff function in scipy or numpy?
+    dVdt = np.zeros(len(v),float)
+    for i in range(len(v)-1):
+        dv = v[i+1]-v[i]
+        dt = t[i+1]-t[i]
+        dVdt[i] = dv/dt   
+    return dVdt
+        
     
 # --- Biomarkers ---
 def RMP(t,v):
     ### Is the a min function in scipy/numpy
-    
+    return min(v)
     
 def StepRheobase(tracesFromStepTest,duration):
 
@@ -73,13 +80,18 @@ def APSlopeMinMax(t,v)
 def APFullWidth(t,v,threshold)
     ups = []
     downs = []
-    for i in len(t):
+    for i in range(len(v)-1):
         # Find ups (cross thresh from below)
+        if v[i] < threshhold
+            if v[i+1] >= threshold # Equals here so we trigger once if we flatten off at exactly threshold
+                ups.append(i)
         #Find downs (cross thresh from above)
-        
+        if v[i] > threshold
+            if v[i+1] <= threshold
+                downs.append(i)
     numUps = len(ups)
     numDowns = len(downs)
-    ### Check what OR is in python
+
     if (numUps < 1) | (numDowns < 1):
         # Not enough crossings
         fullWidth = 'N/A'
@@ -101,11 +113,11 @@ def APFullWidth(t,v,threshold)
 def FitAfterHyperpolarisation(t,v,t2,v2):
 
     maxIdx = []
-    maxIdx[0] = np.argmax(v) ### Get idx of max(v)
-    maxIdx[1]= np.argmax(v2)#### Get idx of max(v2)
+    maxIdx[0] = np.argmax(v) # Get idx of max(v)
+    maxIdx[1]= np.argmax(v2)# Get idx of max(v2)
     
-    workingTime = ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
-    workingVoltage = ### join
+    workingTime = np.concatenate((t[maxIdx[0]:],t2[:maxIdx[1]+1),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
+    workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1),0) ### join
    
    # AHP amplitude
    [amp ampIdx] = min(workingVoltage)
@@ -115,7 +127,7 @@ def FitAfterHyperpolarisation(t,v,t2,v2):
    
    return [amp,tau]
    
- def 
+ 
 
 
 
