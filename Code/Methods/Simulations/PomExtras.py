@@ -5,5 +5,5 @@
 # Writing biomarkers to a file with provenance information
 # Important: varying the stimulus objects to do a loop of different simulations (change the IClamp object for example)
 
-def
+def Bob: 
 

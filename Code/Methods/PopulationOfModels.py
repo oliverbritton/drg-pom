@@ -8,8 +8,13 @@ Functions for running a population of models loop
 import os
 import datetime
 import re
+import pdb
 import time
+import numpy as np
+import matplotlib.pyplot as plt
+from multiprocessing import Pool
 from multiprocessing import Process
+from functools import partial
 curDirectory = os.getcwd()
 os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
 from neuron import h
@@ -51,6 +56,11 @@ def ReadTraceFile(filename):
     # Return a dictionary to allow us to add in other currents and state variables with names
     # later on
     return{'t':t, 'v':v}        
+    
+def PlotTraceFile(filename):
+    data = ReadTraceFile(filename)
+    plt.plot(data['t'],data['v'])
+    return
         
 # Parse a line of a configuration file where a pattern is found, strip out the identifier through pattern and return the data
 def ParseConfigLine(line,pattern):
@@ -219,7 +229,56 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     
     # Write output
     WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
-
+    return    
+    
+# Run parallel simulation
+def RunParallelSimulation(modelNumsAndParameters,modelName,protocol,outputDirectory,prefix):
+    
+#    curDirectory = os.getcwd()
+#    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+#    from neuron import h
+    import neuron
+#    h('load_file("nrngui.hoc")')
+#    os.chdir(curDirectory)  
+    
+    # Create model
+    model = GetModel(modelName)
+    
+    if not protocol == 'default':
+        assert False, 'Unsupported protocol'
+    
+    # Unpack model number and parameteres    
+    modelNum = int(modelNumsAndParameters[0])
+    parameters = modelNumsAndParameters[1:]
+    
+    SetModelParameters(model,parameters,modelName)    
+    
+    # Setup output vectors
+    v = h.Vector()
+    t = h.Vector()
+    #ina_vec = h.Vector()
+    #icurr_vec = h.Vector()
+    
+    # Setup simulation parameters - MAKE INTO FUNCTION
+    # SetStimulus()
+    stim = h.IClamp(model(0.5))
+    stim.delay = 100
+    stim.dur = 700
+    stim.amp = 0.5 # nA (1 nA = 100 pA)
+    
+    v.record(model(0.5)._ref_v, sec=model)
+    t.record(h._ref_t)
+    #ina_vec.record(cell(0.5)._ref_ina)
+    #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
+    h.finitialize(-65) # Vital! And has to go after record 
+    tstop = 1000.0
+    
+    # Run simulation
+    neuron.run(tstop)
+    
+    # Write output
+    WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
+    return
 
 def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
 
@@ -330,32 +389,25 @@ def ParseConfigFile(configFilename,pattern):
             'modelName':modelName, 'simulationName':simulationName, 'prefix':prefix,
             'protocol':protocol}
             
-            
-def RunPopulationOfModels(configFilename,pattern,numProcessors):
+def RunPopulationOfModels(configFilename,pattern):
     
     cfg = ParseConfigFile(configFilename,pattern)
     # Initialise hoc
+   # h('load_file("nrngui.hoc")')
+
+    curDirectory = os.getcwd()
+    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    from neuron import h
+    import neuron
     h('load_file("nrngui.hoc")')
+    os.chdir(curDirectory)    
     
     # --- Loop  --- 
     #Read parameter file in
     parameters = ReadParameterFile(cfg['parameterFilename'])
     start = time.time()
-    # --- Main solver loop --- # TO DO! Parallelise
-    
-    # Divide the number of models up between processors    
-    
-# Might be better to use a pool    
-# start numProcessors worth of processes
-    jobs = []
-    for i in range(numProcessors):
-        p = Process(target=g, args=(y,))
-        p.start()        
-        jobs.append(p)
-        
-    for job in jobs:
-        job.join()
-    
+    # --- Main solver loop --- 
+
     for modelNum,parameterSet in enumerate(parameters):    
         # Initialise new model
         model = GetModel(cfg['modelName'])       
@@ -363,4 +415,73 @@ def RunPopulationOfModels(configFilename,pattern,numProcessors):
         RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
         
     end = time.time()
-    return end-start
+    return (end-start)
+            
+            
+def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
+    
+    cfg = ParseConfigFile(configFilename,pattern)
+    # Initialise hoc
+   # h('load_file("nrngui.hoc")')
+
+    curDirectory = os.getcwd()
+    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    from neuron import h
+    import neuron
+    h('load_file("nrngui.hoc")')
+    os.chdir(curDirectory)    
+    
+    # --- Loop  --- 
+    #Read parameter file in
+    parameters = ReadParameterFile(cfg['parameterFilename'])
+#    start = time.time()
+    # --- Main solver loop --- # TO DO! Parallelise
+    
+    # Divide the number of models up between processors    
+    
+# Might be better to use a pool    
+# start numProcessors worth of processes
+
+    modelNums = range(len(parameters))
+    modelNums = np.reshape(modelNums,[len(parameters),1])    
+    ###pdb.set_trace()
+    # Make the iterable matrix
+    parametersAndModelNums = np.concatenate((modelNums,parameters),1)
+    
+    RunPartialParallelSimulation = partial(RunParallelSimulation,modelName = cfg['modelName'],protocol = cfg['protocol'],outputDirectory = cfg['outputDirectory'], prefix = cfg['prefix'])   
+#    pdb.set_trace()
+    
+    for i in parametersAndModelNums:
+        
+#       RunPartialParallelSimulation(i)
+       p1 = Process(target=RunPartialParallelSimulation, args=(i,))
+       i[0] += 100
+       p2 = Process(target=RunPartialParallelSimulation, args=(i,))
+       i[0] += 100
+       p3 = Process(target=RunPartialParallelSimulation, args=(i,))
+       i[0] += 100
+       p4 = Process(target=RunPartialParallelSimulation, args=(i,))
+       p1.start()
+       p2.start()
+       p3.start()
+       p4.start()
+       p1.join()
+       p2.join()
+       p3.join()
+       p4.join()
+    # Set up a pool and run simulations
+#    pool =  Pool(numProcessors)
+#    pool.map(RunPartialParallelSimulation, parametersAndModelNums)
+#    pool.close() 
+#    pool.join()
+
+ #p5 = Process(target=g, args=(y,))
+    
+#    for modelNum,parameterSet in enumerate(parameters):    
+#        # Initialise new model
+#        model = GetModel(cfg['modelName'])       
+#        # Run simulation protocol
+#        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
+#        
+#    end = time.time()
+    return

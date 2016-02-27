@@ -11,7 +11,7 @@ Test a 3xNa 3xK+ model
 
 """
 import os
-import sys # To append path
+import sys
 
 #import neuron
 
@@ -26,14 +26,12 @@ import time
 
 
 h('load_file("nrngui.hoc")')
-#
 
 start = time.time()
 
 cell = h.Section()
 
 # Insert channels
-
 
 # Na channels - Vasylyev Nav 1.7, Han 1.8, Huang 1.9
 

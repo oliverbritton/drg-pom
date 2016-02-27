@@ -25,47 +25,48 @@ import PopulationOfModels as pom
 # Models
 import MakeDeterminedOcelot
 
-configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\secondTest.cfg"
-pattern = ": "
-#cfg = pom.ParseConfigFile(configFilename,pattern)
-# Initialise hoc
-#h('load_file("nrngui.hoc")')
-
-# --- Loop setup --- 
-
-# Open config file
-start = time.time()
-pom.RunPopulationOfModels(configFilename,pattern)
-
+if __name__ == '__main__':
+    configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\secondTest.cfg"
+    pattern = ": "
+    #cfg = pom.ParseConfigFile(configFilename,pattern)
+    # Initialise hoc
+    #h('load_file("nrngui.hoc")')
     
-#%% Read parameter file in
-#parameters = pom.ReadParameterFile(cfg['parameterFilename'])
-
-# --- Main solver loop --- # TO DO! Parallelise
-#for modelNum,parameterSet in enumerate(parameters):
-
-    # Initialise new model
-#    model = pom.GetModel(cfg['modelName'])
+    # --- Loop setup --- 
     
-    # Update parameters
+    # Open config file
+    start = time.time()
+    pom.RunPopulationOfModels(configFilename,pattern)
     
-    # Run simulation protocol
-#    pom.RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
+        
+    #%% Read parameter file in
+    #parameters = pom.ReadParameterFile(cfg['parameterFilename'])
     
-    # For each simulation:
-    # Reinitialise model
-    # Setup output vectors
-    # Setup simulation parameters
-    # Run simulation
-    # Open output file
-    # Write to output and close
-
-# --- Cleanup ---
-# Write log file - list of parameters, stimulus protocols, date of simulation, model name, and list of all input files and all output files
-""" TODO!
-WriteLogFile()
-"""
-end = time.time()
-print "Time taken is: %f seconds." % (end-start)
+    # --- Main solver loop --- # TO DO! Parallelise
+    #for modelNum,parameterSet in enumerate(parameters):
+    
+        # Initialise new model
+    #    model = pom.GetModel(cfg['modelName'])
+        
+        # Update parameters
+        
+        # Run simulation protocol
+    #    pom.RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
+        
+        # For each simulation:
+        # Reinitialise model
+        # Setup output vectors
+        # Setup simulation parameters
+        # Run simulation
+        # Open output file
+        # Write to output and close
+    
+    # --- Cleanup ---
+    # Write log file - list of parameters, stimulus protocols, date of simulation, model name, and list of all input files and all output files
+    """ TODO!
+    WriteLogFile()
+    """
+    end = time.time()
+    print "Time taken is: %f seconds." % (end-start)
 
 

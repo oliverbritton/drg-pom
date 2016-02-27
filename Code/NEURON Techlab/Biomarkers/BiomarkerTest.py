@@ -10,13 +10,16 @@ import matplotlib.pyplot as plt
 sys.path.append('E:\CLPC48\Neuron Project\Code\Methods')
 import PopulationOfModels as pom
 import numpy as np
+import Biomarkers.Core.NeuronBiomarkers as nb
+
 
 # Read in a data file
 plotDir = 'E:/CLPC48/Neuron Project/Simulations/Techlab/SecondTest'
 plt.figure(1)
 
+numToPlot = 100
 vmaxes = []
-for i in range(100):
+for i in range(numToPlot):
     
 
     name = os.path.join(plotDir,'SecondTest_%i.dat' % i)    
@@ -52,4 +55,9 @@ for i,index in enumerate(order):
     v = data['v']
     plt.plot(t,v)
     plt.ylim([-70, 80])
+    
+# %
+    
+    
+
     

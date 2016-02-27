@@ -8,6 +8,8 @@ Created on Mon Feb 15 14:04:36 2016
 from multiprocessing import Process
 from multiprocessing import Pool
 import time
+import numpy as np
+from functools import partial
 
 def f(name):
     print 'hello', name
@@ -36,12 +38,23 @@ def TestProcesses(x,y):
     end = time.time()	
     print "Time taken with %i cores is %f seconds.\n" % (x, (end-start))    
 
+def MakeWork(x,y):
+    
+    for i in range(x[0]-y):
+        i ** (i)
+    print "yo %i %i %i\n" % (x[0], x[1])
+    
+def MakeWork2(x):
+    print x[1]
+    for i in range(x[0]):
+        i ** (i)
+    print "yo %i %i \n" % (x[0], x[1])
 
 if __name__ == '__main__':
     y = 10000
-    for i in range(1,5):
-	print i
-	TestProcesses(i,y)
+#    for i in range(1,5):
+#	print i
+#	TestProcesses(i,y)
 
 #    start = time.time()
 #    p1 = Process(target=g, args=(y,))
@@ -62,7 +75,25 @@ if __name__ == '__main__':
 #    p5.join()
 #    end = time.time()
 #    print "Total time taken is %f seconds.\n" % (end-start)
+#    
+    x = np.zeros((10,2),int)
+    x[:,0] = range(10000,10010)
+    x[:,1] = range(1,11)
+#    
+    start = time.time()
+    pool = Pool(4)
+    pool.map(MakeWork, (x,y))
+    pool.close() 
+    pool.join()
+#    end = time.time()
+#    print "Pool took %f seconds.\n" % (end-start)
+#    
+#    start = time.time()
+#    for i in x:
+#        MakeWork(i)
+#        
+    end = time.time()
     
-    
+    print "Simple loop took %f seconds.\n" % (end-start)
 
         
