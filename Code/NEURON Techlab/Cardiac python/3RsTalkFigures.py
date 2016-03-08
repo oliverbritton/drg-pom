@@ -158,27 +158,27 @@ def PlotExperimentsAndORd():
 
     n = [10000,568] 
     n[0] = 2000 # Make it less busy!
-## All pop!
-#    for i in range(n[0]):
-#        filename = populationFilename + str(i+1) + '.dat'
-#        trace = ParseSimulationFile(filename)
-#        plt.plot(trace['t'],trace['v'],linewidth=0.5,color=tableau20[1])
+# All pop!
+    for i in range(n[0]):
+        filename = populationFilename + str(i+1) + '.dat'
+        trace = ParseSimulationFile(filename)
+        plt.plot(trace['t'],trace['v'],linewidth=0.5,color=tableau20[1])
         
     print "Hard bit done"
                 #%%
-#    for i in range(n[1]):
-#        filename = calibratedFilename + str(i+1) + '.dat'
-#        trace = ParseSimulationFile(filename)
-#        plt.plot(trace['t'],trace['v'],linewidth=1.0,color=tableau20[0])    
-##        plt.plot(trace['t'],trace['v'],linewidth=0.5,color=tableau20[1])   # For plotting with just the pale color
-#
-#    filenames = pom.ReadTextFile(experimentFilenames)   
+    for i in range(n[1]):
+        filename = calibratedFilename + str(i+1) + '.dat'
+        trace = ParseSimulationFile(filename)
+        plt.plot(trace['t'],trace['v'],linewidth=1.0,color=tableau20[0])    
+#        plt.plot(trace['t'],trace['v'],linewidth=0.5,color=tableau20[1])   # For plotting with just the pale color
 
-#    for i,tracefile in enumerate(filenames):
-#        if i != 39:
-#            filename = os.path.join(directory,tracefile)
-#            trace = ParseSzegedTraceFile(filename)
-#            plt.plot(trace['t'],trace['v'],linewidth=1.0,color=tableau20[6]) # 6 for solid red # 7 for soft
+    filenames = pom.ReadTextFile(experimentFilenames)   
+
+    for i,tracefile in enumerate(filenames):
+        if i != 39:
+            filename = os.path.join(directory,tracefile)
+            trace = ParseSzegedTraceFile(filename)
+            plt.plot(trace['t'],trace['v'],linewidth=1.0,color=tableau20[6]) # 6 for solid red # 7 for soft
             
 
         
@@ -194,8 +194,8 @@ def PlotExperimentsAndORd():
 #%% Plot ORd 
 
         
-#    trace = ParseSzegedTraceFile(filenameORdBaseline)    
-#    plt.plot(trace['t'],trace['v'],linewidth=1.5,color='black')
+    trace = ParseSzegedTraceFile(filenameORdBaseline)    
+    plt.plot(trace['t'],trace['v'],linewidth=1.5,color='black')
     
 # Plot settings
     plt.tick_params(

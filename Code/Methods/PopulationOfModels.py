@@ -45,14 +45,15 @@ def ReadParameterFile(filename):
         f.close()
         return listOfLists
         
-def ReadTraceFile(filename):
+def ReadTraceFile(filename,lineskip=0):
     lines = ReadTextFile(filename)
     t = []    
     v = []
-    for line in lines:
-        values = line.split(' ')
-        t.append(float(values[0]))
-        v.append(float(values[1]))
+    for i, line in enumerate(lines):
+        if i >= lineskip:
+            values = line.split(' ')
+            t.append(float(values[0]))
+            v.append(float(values[1]))
     # Return a dictionary to allow us to add in other currents and state variables with names
     # later on
     return{'t':t, 'v':v}        
@@ -485,3 +486,5 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
 #        
 #    end = time.time()
     return
+    
+    
