@@ -85,7 +85,7 @@ def SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5):
     assert startIdx[0] == 0, "First AP doesn't start at beginning of trace."
     assert endIdx[-1] == len(v)-1, "Last AP doesn't end at end of trace."
         
-    return{'times':times, 'voltages':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
+    return{'times':times, 'voltages':voltages, 'startIndices':startIdx, 'endIndices':endIdx}  
         
     
 def VoltageGradient(t,v):
@@ -103,21 +103,11 @@ def RMP(t,v):
     ### Is the a min function in scipy/numpy
     return min(v)
     
-# Rheobase - find the first trace with an action potential
-# Assumes traces are sorted in order from smallest amplitude upwards
-def Rheobase(tracesFromStepTest,amps):
-    # Check amps is sorted
-    for i in range(len(amps)-1):
-        assert amps[i+1] > amps[i], 'Amps in rheobase biomarker not increasing monotonically!'
-    for trace,amp in zip(tracesFromStepTest,amps):
-        # Search for first trace which produces an AP        
-        result = SplitTraceIntoAPs(trace['t'],trace['v'])
-        if result['numAPs'] > 0:
-            rheobase = amp
-            break            
-    return rheobase
+def StepRheobase(tracesFromStepTest,duration):
+
+    return
     
-def APPeak(v):
+def APPeak(t,v):
     ### Is there a max function
     return max(v)
     
@@ -190,6 +180,19 @@ def FitAfterHyperpolarisation(t,v,t2,v2):
     maxIdx[0] = np.argmax(v) # Get idx of max(v)
     maxIdx[1]= np.argmax(v2)# Get idx of max(v2)
     
+<<<<<<< working copy
+    workingTime = np.concatenate((t[maxI
+dx[0]:],t2[:maxIdx[1]+1),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
+    workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1),0) ### join
+   
+   # AHP amplitude
+   [amp ampIdx] = min(workingVoltage)
+   
+   # AHP time constant
+   # TO DO!!
+   
+   return [amp,tau]
+=======
     workingTime = np.concatenate((t[maxIdx[0]:],t2[:maxIdx[1]+1]),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
     workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1]),0) ### join
        
@@ -199,38 +202,12 @@ def FitAfterHyperpolarisation(t,v,t2,v2):
     
     # AHP time constant
     # TO DO!!
-    # Look up curve fitting    
-    
-    tau = 0
+       
     return [amp,tau]
+>>>>>>> destination
    
-# Calculate average interspike interval from a divided trace calculated
-# by the SplitTraces function
-def InterSpikeInterval(dividedTrace):
-    # Get number of spikes
-    numAPs = dividedTrace['numAPs']
-    if numAPs < 2:
-        return 'N/A'
-    else:
-        # Find the peak of the first and last trace
-        startIndices = dividedTrace(['startIndices'])
-        endIndices = dividedTrace(['endIndices'])
-        voltages = dividedTrace['voltages']
-        
-        firstSpike = argmax(voltages[0])
-        lastSpike = argmax(voltages[-1])
-        
-#        # Don't think I need these
-#        firstIndex = startIndices[0] + firstSpike
-#        lastIndex = startIndices[-1] + lastSpike
-        
-        # Get the time difference
-        times = dividedTrace['times']        
-        timeDiff = times[-1][lastSpike] - times[0][firstSpike]
-        assert timeDiff > 0, 'timeDiff for ISI < 0!'
-        # Divide by (numAPs - 1)
-        interSpikeInterval = timeDiff/(numAps-1)
-        return interSpikeInterval
+ 
+
 
 
 

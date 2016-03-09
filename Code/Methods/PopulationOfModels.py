@@ -15,10 +15,15 @@ import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from multiprocessing import Process
 from functools import partial
+import NeuronProjectStart
+# Load all channel models and return to the right directory
 curDirectory = os.getcwd()
-os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+projectDir = NeuronProjectStart.GetProjectDir()
+nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
+os.chdir(os.path.join(projectDir,nrnChannelDir)
 from neuron import h
 os.chdir(curDirectory)
+
 
 
 # FUNCTIONS
@@ -190,7 +195,9 @@ def SetModelParameters(model,parameters,modelName):
 def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,modelNum):
     
     curDirectory = os.getcwd()
-    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    projectDir = NeuronProjectStart.GetProjectDir()
+    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
+    os.chdir(os.path.join(projectDir,nrnChannelDir)
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
@@ -334,7 +341,9 @@ def PlotTrace(filename):
 # Load Neuron so that all the density mechanisms get imported properly
 def LoadNeuron():
     curDirectory = os.getcwd()
-    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    projectDir = NeuronProjectStart.GetProjectDir()
+    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
+    os.chdir(os.path.join(projectDir,nrnChannelDir)    
     from neuron import h
     h('load_file("nrngui.hoc")')
     os.chdir(curDirectory)
@@ -395,9 +404,11 @@ def RunPopulationOfModels(configFilename,pattern):
     cfg = ParseConfigFile(configFilename,pattern)
     # Initialise hoc
    # h('load_file("nrngui.hoc")')
-
-    curDirectory = os.getcwd()
-    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    """ Can I just use LoadNeuron here? TODO """
+    curDirectory = os.getcwd()    
+    projectDir = NeuronProjectStart.GetProjectDir()
+    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
+    os.chdir(os.path.join(projectDir,nrnChannelDir)    
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
@@ -426,7 +437,10 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
    # h('load_file("nrngui.hoc")')
 
     curDirectory = os.getcwd()
-    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+    """ Todo loadNeuron"""
+    projectDir = NeuronProjectStart.GetProjectDir()
+    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
+    os.chdir(os.path.join(projectDir,nrnChannelDir)
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
