@@ -12,6 +12,7 @@ import pdb
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from multiprocessing import Pool
 from multiprocessing import Process
 from functools import partial
@@ -20,7 +21,7 @@ import NeuronProjectStart
 curDirectory = os.getcwd()
 projectDir = NeuronProjectStart.GetProjectDir()
 nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-os.chdir(os.path.join(projectDir,nrnChannelDir)
+os.chdir(os.path.join(projectDir,nrnChannelDir))
 from neuron import h
 os.chdir(curDirectory)
 
@@ -29,7 +30,7 @@ os.chdir(curDirectory)
 # FUNCTIONS
 
 def ReadTextFile(filename):
-    f = open(filename,"r") #opens file with name of "test.txt"
+    f = open(filename,"r")
     list = []
     for line in f:   
         list.append(line.strip())
@@ -56,9 +57,8 @@ def ReadTraceFile(filename,lineskip=0):
     v = []
     for i, line in enumerate(lines):
         if i >= lineskip:
-            values = line.split(' ')
-            t.append(float(values[0]))
-            v.append(float(values[1]))
+          t.append(float(line.split()[0]))
+          v.append(float(line.split()[1]))
     # Return a dictionary to allow us to add in other currents and state variables with names
     # later on
     return{'t':t, 'v':v}        
@@ -197,7 +197,7 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     curDirectory = os.getcwd()
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir)
+    os.chdir(os.path.join(projectDir,nrnChannelDir))
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
@@ -237,6 +237,11 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     
     # Write output
     WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
+    
+    # Calculate biomarkers TO DO
+
+    # Write biomarkers    
+    
     return    
     
 # Run parallel simulation
@@ -343,7 +348,7 @@ def LoadNeuron():
     curDirectory = os.getcwd()
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir)    
+    os.chdir(os.path.join(projectDir,nrnChannelDir))
     from neuron import h
     h('load_file("nrngui.hoc")')
     os.chdir(curDirectory)
@@ -408,7 +413,7 @@ def RunPopulationOfModels(configFilename,pattern):
     curDirectory = os.getcwd()    
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir)    
+    os.chdir(os.path.join(projectDir,nrnChannelDir))    
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
@@ -440,7 +445,7 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
     """ Todo loadNeuron"""
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir)
+    os.chdir(os.path.join(projectDir,nrnChannelDir))
     from neuron import h
     import neuron
     h('load_file("nrngui.hoc")')
@@ -501,4 +506,40 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
 #    end = time.time()
     return
     
+    def GenerateSimulationProtocol():   
+        
+    """ Basically we have a list of protocol functions that return the simulations to run
+        this function interfaces with those functions, or whatever we want to use in the future
+        and sends a dictionary back to the main run simulation function with the details it needs to 
+        run all the simulations """
     
+    # Setup simulation parameters - MAKE INTO FUNCTION
+    # SetStimulus()
+    stim = h.IClamp(model(0.5))
+    stim.delay = 100
+    stim.dur = 700
+    stim.amp = 0.5 # nA (1 nA = 100 pA)
+
+    v.record(model(0.5)._ref_v, sec=model)
+    t.record(h._ref_t)
+    #ina_vec.record(cell(0.5)._ref_ina)
+    #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
+    h.finitialize(-65) # Vital! And has to go after record 
+    tstop = 1000.0
+    
+    # Run simulation
+    neuron.run(tstop)
+    
+    # Write output
+    
+    def DefineSimulationProtocol(protocol):
+        protocolList = {}
+        protocolList['default'] = ''
+        assert protocolList.has_key(protocol), "Stimulus protocol not found"
+        
+        protocolData = pd.DataFrame()        
+        protocolData.columns()
+        if protocol == 'default':
+            # Create a data object containing all the stimulus properties
+        
+        

@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 import pdb
+from matplotlib import pyplot as plt
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
@@ -85,12 +86,12 @@ def SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5):
     assert startIdx[0] == 0, "First AP doesn't start at beginning of trace."
     assert endIdx[-1] == len(v)-1, "Last AP doesn't end at end of trace."
         
-    return{'times':times, 'voltages':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
+    return{'t':times, 'v':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
         
     
 def VoltageGradient(t,v):
     ### Is there a diff function in scipy or numpy?
-    dVdt = np.zeros(len(v),float)
+    dVdt = np.zeros(len(v)-1,float)
     for i in range(len(v)-1):
         dv = v[i+1]-v[i]
         dt = t[i+1]-t[i]
@@ -99,43 +100,52 @@ def VoltageGradient(t,v):
         
     
 # --- Biomarkers ---
-def RMP(t,v):
-    ### Is the a min function in scipy/numpy
-    return min(v)
+def RMP(v):
+    # RMP should be calculated from a quiescent trace (no stimulus)
+    RMP = min(v)
+    RMPIdx = np.argmin(v) 
+    return [RMP,RMPIdx]
     
 # Rheobase - find the first trace with an action potential
 # Assumes traces are sorted in order from smallest amplitude upwards
-def Rheobase(tracesFromStepTest,amps):
+    """ To Do - check that simulations is a bunch of simulations, not just an array """
+def Rheobase(simulations,amps):
     # Check amps is sorted
     for i in range(len(amps)-1):
         assert amps[i+1] > amps[i], 'Amps in rheobase biomarker not increasing monotonically!'
-    for trace,amp in zip(tracesFromStepTest,amps):
+        
+    for simulation,amp in zip(simulations,amps):
         # Search for first trace which produces an AP        
-        result = SplitTraceIntoAPs(trace['t'],trace['v'])
+        result = SplitTraceIntoAPs(simulation['t'],simulation['v'])
         if result['numAPs'] > 0:
-            rheobase = amp
-            break            
-    return rheobase
+            return {'rheobase':amp, 'trace':simulation}       
+    # If no APs found
+    return {'rheobase':'N/A', 'trace':[]}
     
 def APPeak(v):
     ### Is there a max function
-    return max(v)
+    peak = max(v)
+    location = np.argmax(v)
+    return [peak,location]
     
-def APRiseTime(t,v,threshold):
+    # Threshold here is a dVdt threshold in V/s!
+    # Default threshold is taken from Davidson et al. 2014, PAIN
+def APRiseTime(t,v,threshold=5):
+    assert threshold > 0, 'Rise time threshold is a gradient threshold, should be > 0!'
     dVdt = VoltageGradient(t,v)
-    peak = APPeak(t,v)
-    peakTime = peak[1]
+    peak = APPeak(v)
+    peakTime = t[peak[1]]
     
     # If dVdt is a tuple, second part is gradient
-    foundThreshold = []
-    for i,gradient in enumerate(dVdt[1]): # Is dVdt a time vector as well?
+    foundThresholds = []
+    for i,gradient in enumerate(dVdt[0:-1]): # Is dVdt a time vector as well?
         if gradient < threshold:
-            if dVdt[1][i+1] > threshold:
-                foundThreshold.append(i)
+            if dVdt[i+1] > threshold:
+                foundThresholds.append(i)
     
     numThresholds = len(foundThresholds)
     if numThresholds == 1:
-        thresholdTime = t(foundThreshold[0])
+        thresholdTime = t[foundThresholds[0]]
         riseTime = peakTime - thresholdTime
         assert riseTime >=0, 'Rise time < 0!'
     elif numThresholds == 0:
@@ -151,12 +161,12 @@ def APSlopeMinMax(t,v):
     ### Need mins and maxes
     return [slopeMin,slopeMax]
     
-def APFullWidth(t,v,threshold):
+def APFullWidth(t,v,threshold=0):
     ups = []
     downs = []
     for i in range(len(v)-1):
         # Find ups (cross thresh from below)
-        if v[i] < threshhold:
+        if v[i] < threshold:
             if v[i+1] >= threshold: # Equals here so we trigger once if we flatten off at exactly threshold
                 ups.append(i)
         #Find downs (cross thresh from above)
@@ -171,7 +181,7 @@ def APFullWidth(t,v,threshold):
         fullWidth = 'N/A'
     elif (numUps == 1) & (numDowns == 1): 
         # One crossing of threshold each way
-        fullWidth = t[downs[0]] - trace[ups[0]]
+        fullWidth = t[downs[0]] - t[ups[0]]
         
     elif (numUps > 1) | (numDowns > 1):
         # Too many crossings
@@ -184,11 +194,14 @@ def APFullWidth(t,v,threshold):
     
     return fullWidth
 
-def FitAfterHyperpolarisation(t,v,t2,v2):
+def FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold):
 
+    def expFunc(t, amp, slope, start):
+        return amp*(1 - np.exp(-slope*t)+start)    
+        
     maxIdx = []
-    maxIdx[0] = np.argmax(v) # Get idx of max(v)
-    maxIdx[1]= np.argmax(v2)# Get idx of max(v2)
+    maxIdx.append(np.argmax(v)) # Get idx of max(v)
+    maxIdx.append(np.argmax(v2))# Get idx of max(v2)
     
     workingTime = np.concatenate((t[maxIdx[0]:],t2[:maxIdx[1]+1]),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
     workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1]),0) ### join
@@ -197,12 +210,19 @@ def FitAfterHyperpolarisation(t,v,t2,v2):
     amp = min(workingVoltage)
     ampIdx = np.argmin(workingVoltage)
     
+    dvdt = VoltageGradient(workingTime[ampIdx:], workingVoltage[ampIdx:])
+#    plt.plot(workingTime[ampIdx:-1],dvdt)
+    temp = np.argwhere(dvdt > dvdtThreshold) # Temp because we only need the first element
+    takeoffIdx = temp[0][0]
+    plt.plot(workingTime[ampIdx:ampIdx+takeoffIdx],workingVoltage[ampIdx:ampIdx+takeoffIdx])
+#    plt.plot(workingTime,workingVoltage)
     # AHP time constant
     # TO DO!!
     # Look up curve fitting    
     
-    tau = 0
-    return [amp,tau]
+    tau = 'Time constant not implemented'
+    return amp, tau
+
    
 # Calculate average interspike interval from a divided trace calculated
 # by the SplitTraces function

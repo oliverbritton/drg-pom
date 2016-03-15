@@ -11,8 +11,9 @@ import os
 import sys
 
 
-def GetProjectDir():
-    f = open('project.hostconfig','r')
+def FindProjectDir():
+        
+    f = open(os.path.join(start,'E:\CLPC48\Neuron Project\project.hostconfig'),'r')
     pattern = ': '
     # Can read in more lines here as needed
     line = f.read()
@@ -21,6 +22,9 @@ def GetProjectDir():
     assert(len(components) == 2)
     projectDir = components[1]
     return projectDir
+
+def GetProjectDir():
+    return 'E:\CLPC48\Neuron Project'
 
 def SetPaths(projectDir):
     codeDir = os.path.join(projectDir,'Code')
@@ -35,10 +39,28 @@ def SetPaths(projectDir):
     sys.path.append(dataDir)
 
 def GetNrnChannelDir():
-    return os.path.join('Code','Currents','Prototypes')
+    return os.path.join('Code','Models','Currents','Prototypes')
 
+def StartScript():
+    projectDir = FindProjectDir()
+    SetPaths(projectDir)    
+    
+def get_my_path():
+    import fake
+    path = str(fake).split()[3][1:-9]
+    os.remove( os.path.join( path, 'fake.pyc' ) )
+    return path
+    
+    
 """ Run Setup """
 projectDir = GetProjectDir()
 SetPaths(projectDir)
+# __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
+#print __location__
+#print __file__
+
+import inspect
+print inspect.getfile(inspect.currentframe()) # script filename (usually with path)
+print os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script di
 
 print "All systems nominal."
