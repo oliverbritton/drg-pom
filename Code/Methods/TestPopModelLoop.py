@@ -9,6 +9,7 @@ import sys
 #import re
 #from matplotlib import pyplot
 import time
+#import pdb
 
 # Simulation 
 curDirectory = os.getcwd()

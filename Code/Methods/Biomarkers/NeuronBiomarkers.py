@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pdb
 from matplotlib import pyplot as plt
+import Data.DavidsonBiomarkers as db
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
@@ -252,8 +253,50 @@ def InterSpikeInterval(dividedTrace):
         interSpikeInterval = timeDiff/(numAps-1)
         return interSpikeInterval
 
+# ---- Calculating biomarkers over multiple traces ----
 
+def CalculateRMP(traces):
+    RMP = []
+    for i,v in enumerate(traces['v']):
+        RMP.append(nb.RMP(v))
+    return RMP
+    
+def CalculateInputRes():
+    # TODO
+    return 0
+    
+def CalculateRampAP():
+    # TODO
+    return 0
+    
+def CalculateStepRheobase():
+    # TODO
+    return 0
+    
+def CalculateThreshold():
+        
 
+# ---- I/O ----
+
+def WriteHeader(biomarkerFile):
+    string = 'Index'
+    for biomarker in db.biomarkerNames:      
+        string += (',' + biomarker)
+    string += ',' + 'stimAmp'
+    string += '\n'
+    biomarkerFile.write(string)
+    return
+        
+def WriteBiomarkers(biomarkers,biomarkerFile):
+    # Write the values of each biomarker in csv format
+    string = biomarkers['Index']    
+    for biomarker in db.biomarkerNames:        
+        string += (',' + str(biomarkers[biomarker]))
+    string += (',' + biomarkers['stimAmp'])
+    string += '\n'
+    biomarkerFile.write(string)
+    return
+        
 
 
 

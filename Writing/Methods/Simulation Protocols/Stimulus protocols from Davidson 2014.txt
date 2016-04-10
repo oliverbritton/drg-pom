@@ -1,7 +1,7 @@
 Simulations needed to recreate Davidson:
 
 Input resistance protocol:
-Hyperpolarising current injection of 50 to 100 pA.
+Hyperpolarising current injection of 50 to 100 pA. (So opposite to a normal stimulus!)
 
 Ramp protocol
 500 ms ramp, increase by 50 or 100 pA per sweep until cells reached threshold.

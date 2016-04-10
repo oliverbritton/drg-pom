@@ -17,6 +17,8 @@ from multiprocessing import Pool
 from multiprocessing import Process
 from functools import partial
 import NeuronProjectStart
+import Biomarkers.NeuronBiomarkers as nb
+import Data.DavidsonBiomarkers as db
 # Load all channel models and return to the right directory
 curDirectory = os.getcwd()
 projectDir = NeuronProjectStart.GetProjectDir()
@@ -206,41 +208,71 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     # For each simulation:
     # Reinitialise model
     model = GetModel(modelName)
-    
-    if not protocol == 'default':
-        assert False, 'Unsupported protocol'
-
     SetModelParameters(model,parameters,modelName)    
     
-    # Setup output vectors
-    v = h.Vector()
-    t = h.Vector()
-    #ina_vec = h.Vector()
-    #icurr_vec = h.Vector()
-
-    # Setup simulation parameters - MAKE INTO FUNCTION
-    # SetStimulus()
-    stim = h.IClamp(model(0.5))
-    stim.delay = 100
-    stim.dur = 700
-    stim.amp = 0.5 # nA (1 nA = 100 pA)
-
-    v.record(model(0.5)._ref_v, sec=model)
-    t.record(h._ref_t)
-    #ina_vec.record(cell(0.5)._ref_ina)
-    #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
-    h.finitialize(-65) # Vital! And has to go after record 
-    tstop = 1000.0
+    protocolData = GetSimulationProtocol(protocol)
+    numSimulations = len(protocolData.index)
     
-    # Run simulation
-    neuron.run(tstop)
+    # Set up output
+    calibrationBiomarkerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
+    allBiomarkerFile = open(outputDirectory + prefix + '_allbiomarkers.dat','w') # File for every biomarker
+    nb.WriteHeader(calibrationBiomarkerFile)
+    nb.WriteHeader(allBiomarkerFile)
+    for simulation in range(numSimulations):
     
-    # Write output
-    WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
+        # Setup output vectors
+        v = h.Vector()
+        t = h.Vector()
+        #ina_vec = h.Vector()
+        #icurr_vec = h.Vector()
     
-    # Calculate biomarkers TO DO
+        # Setup simulation parameters - MAKE INTO FUNCTION
+        # SetStimulus()
+        stim = h.IClamp(model(0.5))
+        stim.delay = protocolData.loc[simulation]['stim start']
+        stim.dur = protocolData.loc[simulation]['stim duration']
+        stim.amp = protocolData.loc[simulation]['stim amp']/1000.0 # nA (1 nA = 1000 pA) - protocols are given in pA
+    
+        v.record(model(0.5)._ref_v, sec=model)
+        t.record(h._ref_t)
+        #ina_vec.record(cell(0.5)._ref_ina)
+        #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
+        h.finitialize(-65) # Vital! And has to go after record 
+        tstop = protocolData.loc[simulation]['duration']
+        
+        # Run simulation
+        neuron.run(tstop)
+        
+        # Calculate biomarkers TO DO
+        biomarkers = CalculateBiomarkers(t,v,stim.amp,index) 
+        # TODO sort out whether stim amp and index should be called here
+        # organise better -  maybe a master function that calls calculate biomarkers and also gets stim amp and index?
 
-    # Write biomarkers    
+        # Write biomarkers
+        nb.WriteBiomarkers(biomarkers,allBiomarkerFile)        
+        
+        if biomarkers['numAPs'] > 0:
+            rheobaseOnThisBeat = True
+        else:
+            rheobaseOnThisBeat = False
+        
+        # If this is the last simulation or we found rheobase, then write the trace     
+        # TODO - write code to allow us to check for rheobase, but still get biomarkers for increasing
+        # stim amplitude to see what happens above threshold
+        if (rheobaseOnThisBeat)
+            # Write output
+            biomarkers['StepRheobase'] = stim.amp
+            nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
+            WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
+            break
+        
+        if (simulation == numSimulations-1): # -1 because range gives 0 -> n-1 if numSimulations = n
+        # We haven't found rheobase
+            nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
+            WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)            
+            
+    calibrationBiomarkerFile.close()
+    allBiomarkerFile.close()
     
     return    
     
@@ -277,7 +309,7 @@ def RunParallelSimulation(modelNumsAndParameters,modelName,protocol,outputDirect
     stim = h.IClamp(model(0.5))
     stim.delay = 100
     stim.dur = 700
-    stim.amp = 0.5 # nA (1 nA = 100 pA)
+    stim.amp = 0.5 # nA (1 nA = 1000 pA)
     
     v.record(model(0.5)._ref_v, sec=model)
     t.record(h._ref_t)
@@ -295,20 +327,16 @@ def RunParallelSimulation(modelNumsAndParameters,modelName,protocol,outputDirect
 
 def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
 
-    assert len(v) == len(t), 't and v vector length mismatch'      
-    
+    assert len(v) == len(t), 't and v vector length mismatch'          
     # Check output directory is in the correct form
-    outputDirectory = FormatOutputDirectory(outputDirectory)
-    
+    outputDirectory = FormatOutputDirectory(outputDirectory)   
     # Open output
     filename = outputDirectory + prefix + str(modelNum) + '.dat'
     f = open(filename, "w")
 
     # Write AP, two columns, end with line break 
-
     for i in range(len(t)):
         f.write(str(t[i]) + " " + str(v[i]) + "\n")
-
     f.close()
     return
 
@@ -506,20 +534,20 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
 #    end = time.time()
     return
     
-    def GenerateSimulationProtocol():   
-        
-    """ Basically we have a list of protocol functions that return the simulations to run
-        this function interfaces with those functions, or whatever we want to use in the future
-        and sends a dictionary back to the main run simulation function with the details it needs to 
-        run all the simulations """
+def GenerateSimulationProtocol():   
     
+    """ Basically we have a list of protocol functions that return the simulations to run
+    this function interfaces with those functions, or whatever we want to use in the future
+    and sends a dictionary back to the main run simulation function with the details it needs to 
+    run all the simulations """
+
     # Setup simulation parameters - MAKE INTO FUNCTION
     # SetStimulus()
     stim = h.IClamp(model(0.5))
     stim.delay = 100
     stim.dur = 700
     stim.amp = 0.5 # nA (1 nA = 100 pA)
-
+    
     v.record(model(0.5)._ref_v, sec=model)
     t.record(h._ref_t)
     #ina_vec.record(cell(0.5)._ref_ina)
@@ -531,15 +559,73 @@ def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
     neuron.run(tstop)
     
     # Write output
+
+def GetSimulationProtocol(protocol):
+    # Protocol list defines the available protocols
+    protocolList = {}
+    protocolList['default'] = 'Basic step protocol in line with Davidson et al. 2014, PAIN'
+    assert protocolList.has_key(protocol), "Stimulus protocol not found"
     
-    def DefineSimulationProtocol(protocol):
-        protocolList = {}
-        protocolList['default'] = ''
-        assert protocolList.has_key(protocol), "Stimulus protocol not found"
+    if protocol == 'default':
+        # Create a data object containing all the stimulus properties
+        # Simulations: 
+        # 1: D 1000 ms Stim 1 start = 0 amp = 0 duration = 0
+        # 2: D 1000 ms Stim 1 Start 100 Amp 50 Duration 800 
+        # 3: Same as 2 but amp+50
         
-        protocolData = pd.DataFrame()        
-        protocolData.columns()
-        if protocol == 'default':
-            # Create a data object containing all the stimulus properties
+        amps = range(0,3501,50)
+        numSimulations = len(amps)
+        durations = [1000]*numSimulations
+        starts = [100]*numSimulations
+        starts[0] = 0
+        stimDurations = [800]*numSimulations
+        stimDurations[0] = 0
         
+        data = {'duration':durations, 'stim start':starts, 'stim amp':amps, 'stim duration': stimDurations}
+        protocolData = pd.DataFrame(data,columns = ['duration', 'stim start', 'stim amp', 'stim duration'])
         
+    return protocolData
+    
+def CalculateBiomarkers(t,v,stimAmp,index):
+    # Calculate a standard set of biomarkers and return them
+    threshold = 0 # mV
+    timeThreshold = 5 # ms
+    traces = nb.SplitTraceIntoAPs(t,v,threshold,timeThreshold) 
+    numAPs = traces['numAPs']
+    
+    biomarkers = {}
+    for name in db.biomarkerNames:
+        biomarkers[name] = 'N/A'        
+        
+    biomarkers['Index'] = index
+    biomarkers['numAPs'] = numAPs
+    biomarkers['stimAmp'] = stimAmp  
+    
+    if numAPs > 0:
+    
+        # Need to calculate biomarkers for each AP in the trace
+        RMP = nb.CalculateRMP(traces)
+        
+        #TestSplitTrace(trace)
+        #TestVoltageGradient(trace)
+        #TestAPFullWidth(traces,threshold)
+        #TestAPPeak(traces)
+        #TestAPRiseTime(traces,dvdtThreshold)
+        #TestFitAfterHyperpolarisation(traces,dvdtThreshold)
+        #TestInterSpikeInterval
+        #TestRMP(traces) """ TO DO make it average the voltage after the minimum """
+        #TestRheobase([trace,trace],[50,100])
+ 
+    
+    return biomarkers
+    
+def CalibrateBiomarkers(biomarkers,ranges,biomarkerNames):
+    
+    # iterate over models
+    
+    # iterate over each biomarker to create array of 1s and 0s
+    
+    # at end of each model, if all checked biomarkers are within range, add to list of indices
+    
+    # return list of calibrated indices
+    return 

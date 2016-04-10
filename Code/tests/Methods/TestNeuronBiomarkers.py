@@ -132,10 +132,10 @@ dvdtThreshold = 5
 
 #TestSplitTrace(trace)
 #TestVoltageGradient(trace)
-#TestAPFullWidth(traces,threshold)
+TestAPFullWidth(traces,threshold)
 #TestAPPeak(traces)
 #TestAPRiseTime(traces,dvdtThreshold)
-TestFitAfterHyperpolarisation(traces,dvdtThreshold)
+#TestFitAfterHyperpolarisation(traces,dvdtThreshold)
 #TestInterSpikeInterval
 #TestRMP(traces) """ TO DO make it average the voltage after the minimum """
 #TestRheobase([trace,trace],[50,100])

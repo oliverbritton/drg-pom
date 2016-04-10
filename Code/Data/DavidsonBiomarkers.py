@@ -8,15 +8,32 @@ Created on Fri Mar 11 12:56:55 2016
 """ Calibration ranges from Davidson et al. 2014, Pain """
 import pandas as pd
 
+def CalibrationData():
+#    calibrationRanges = {}
+    lowerRanges = {}
+    upperRanges = {}
+    completeDict = {}
+    for key in DavMeans:
+        lowerRanges = DavMeans[key] - DavStds[key]
+        upperRanges = DavMeans[key] + DavStds[key]
+        completeDict[key] = [DavMeans[key], DavStds[key], lowerRanges, upperRanges]       
+    
+    davData = pd.DataFrame(completeDict,columns)
+    davData = davData.unstack().unstack()
+    return davData
+    
+def GetCalibrationRanges():
+    data = CalibrationData()
+    calibrationRanges = data[['Min','Max']]
+    return calibrationRanges
+
 # Discussion: how would we structure this data?
 # Need to play in Pandas
 
-davData = pd.DataFrame()
+biomarkerNames = ['RMP','InputRes','RampAP','StepRheobase','Threshold','APPeak','APRise',
+    'APSlopeMax','APSlopeMin','APWidth','AHPAmp','AHPTau','numAPs'] # TODO automate this from the list of keys in DavMeans
 
-biomarkers = ['RMP','InputRes','RampAP','StepRheobase','Threshold','APPeak','APRise',
-    'APSlopeMax','APSlopeMin','APWidth','AHPAmp','AHPTau']
-
-indexes = ['Mean','Std','Min','Max']
+columns = ['Mean','Std','Min','Max']
 
 # Make a data frame and read in and then we can store simulation results in the same format
 # If we need to add more biomarkers we just extend columns on the data frame
@@ -50,4 +67,6 @@ DavStds['APSlopeMin'] = 78.3
 DavStds['APWidth'] = 3.73
 DavStds['AHPAmp'] = 8.73
 DavStds['AHPTau'] = 22.1
+
+davData = CalibrationData()
 
