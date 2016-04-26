@@ -82,9 +82,9 @@ def TestFitAfterHyperpolarisation(traces,dvdtThreshold):
 #
 def TestRMP(traces):
     for t,v in zip(traces['t'],traces['v']):
-        RMP = nb.RMP(v)
+        RMP, RMPIdx = nb.RMP(v)
         plt.plot(t,v)
-        plt.scatter(t[RMP[1]],RMP[0],s=20,color=sns.xkcd_rgb["bright red"],lw=1) 
+        plt.scatter(t[RMPIdx],RMP,s=20,color=sns.xkcd_rgb["bright red"],lw=1) 
         
 def TestRheobase(simulations,amps):
     
@@ -132,11 +132,11 @@ dvdtThreshold = 5
 
 #TestSplitTrace(trace)
 #TestVoltageGradient(trace)
-TestAPFullWidth(traces,threshold)
+#TestAPFullWidth(traces,threshold)
 #TestAPPeak(traces)
 #TestAPRiseTime(traces,dvdtThreshold)
 #TestFitAfterHyperpolarisation(traces,dvdtThreshold)
 #TestInterSpikeInterval
-#TestRMP(traces) """ TO DO make it average the voltage after the minimum """
+TestRMP(traces) # TODO make it average the voltage after the minimum """
 #TestRheobase([trace,trace],[50,100])
 print "***"

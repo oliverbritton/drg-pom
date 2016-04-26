@@ -1,8 +1,4 @@
-import os
-import sys
 import numpy as np
-import pdb
-from matplotlib import pyplot as plt
 import Data.DavidsonBiomarkers as db
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
@@ -48,9 +44,9 @@ def SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5):
     times = []
     voltages = []
     # If 1 or 0 APs, return 1 trace, otherwise...
-    if (numAPs == 0) | (numAPs == 1):
-        times.append(t)
-        voltages.append(v)
+#    if (numAPs == 0) | (numAPs == 1):
+#        times.append(t)
+#        voltages.append(v)
 
     # If we have multiple APs, for each AP find the minimum value
     # of Vm before the next AP
@@ -59,31 +55,39 @@ def SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5):
     There are some commented assumptions about where traces begin and end here. The core idea is that all data points in the trace have to be assigned to 1 and only 1 AP. If areas of quiescence are a problem for particular analysis methods, they will be stripped out by other specialised functions. 
     Our goal in this function is to divide up the trace without leaving any of it out, so that we have everything for any future analysis.
     """
-    startIdx = np.zeros(numAPs,int)
-    endIdx = np.zeros(numAPs,int)
-    for AP in range(numAPs):
-        if AP == 0:
-            startIdx[0] = 0 # Start of first AP is beginning of trace
-        else:
-            startIdx[AP] = endIdx[AP-1]+1 # Start of all other APs is after last AP
-    
-        if AP == numAPs-1:
-            endIdx[AP] = len(v)-1 # End of last AP is end of trace
-        else:
-            # Calculate end of this trace - end is minimum voltage of this trace
-            # From threshold of this AP to just before beginning of next threshold
-            voltageDuringCurrentAP = v[ firstCrossings[AP]:firstCrossings[AP+1] ]
-            
-            # Get min voltage index
-            minVmIdx = np.argmin(voltageDuringCurrentAP)
-            endIdx[AP] = firstCrossings[AP] + minVmIdx # Don't think I need to minus 1 because Python indices start at 0
-            
-        times.append(t[startIdx[AP]:endIdx[AP]+1])
-        voltages.append(v[startIdx[AP]:endIdx[AP]+1]) # Add 1 to as Python slicing ends 1 before last index
-
-    for i in range(len(startIdx)-1):
-        assert endIdx[i]+1 == startIdx[i+1], "startIdx and endIdx don't match up."
+    if numAPs > 0:
+        startIdx = np.zeros(numAPs,int)
+        endIdx = np.zeros(numAPs,int)    
+        for AP in range(numAPs):
+            if AP == 0:
+                startIdx[0] = 0 # Start of first AP is beginning of trace
+            else:
+                startIdx[AP] = endIdx[AP-1]+1 # Start of all other APs is after last AP
         
+            if AP == numAPs-1:
+                endIdx[AP] = len(v)-1 # End of last AP is end of trace
+            else:
+                # Calculate end of this trace - end is minimum voltage of this trace
+                # From threshold of this AP to just before beginning of next threshold
+                voltageDuringCurrentAP = v[ firstCrossings[AP]:firstCrossings[AP+1] ]
+                
+                # Get min voltage index
+                minVmIdx = np.argmin(voltageDuringCurrentAP)
+                endIdx[AP] = firstCrossings[AP] + minVmIdx # Don't think I need to minus 1 because Python indices start at 0
+                
+            times.append(t[startIdx[AP]:endIdx[AP]+1])
+            voltages.append(v[startIdx[AP]:endIdx[AP]+1]) # Add 1 to as Python slicing ends 1 before last index
+    
+        for i in range(len(startIdx)-1):
+            assert endIdx[i]+1 == startIdx[i+1], "startIdx and endIdx don't match up."
+    # Case for no APs - numAPs causes problems here so set indices manually
+    elif numAPs == 0:
+        times.append(t)
+        voltages.append(v)
+        startIdx = np.array([0],int)
+        endIdx = np.array([len(v)-1],int)
+        
+    
     assert startIdx[0] == 0, "First AP doesn't start at beginning of trace."
     assert endIdx[-1] == len(v)-1, "Last AP doesn't end at end of trace."
         
@@ -103,9 +107,12 @@ def VoltageGradient(t,v):
 # --- Biomarkers ---
 def RMP(v):
     # RMP should be calculated from a quiescent trace (no stimulus)
-    RMP = min(v)
-    RMPIdx = np.argmin(v) 
-    return [RMP,RMPIdx]
+    # Ignore first 1% of trace to remove artifacts
+    vLen = len(v)
+    startIdx = vLen/100
+    RMP = min(v[startIdx:])
+    RMPIdx = np.argmin(v[startIdx:]) 
+    return RMP, RMPIdx
     
 # Rheobase - find the first trace with an action potential
 # Assumes traces are sorted in order from smallest amplitude upwards
@@ -135,7 +142,8 @@ def APRiseTime(t,v,threshold=5):
     assert threshold > 0, 'Rise time threshold is a gradient threshold, should be > 0!'
     dVdt = VoltageGradient(t,v)
     peak = APPeak(v)
-    peakTime = t[peak[1]]
+    peakIdx = peak[1]
+    peakTime = t[peakIdx]
     
     # If dVdt is a tuple, second part is gradient
     foundThresholds = []
@@ -148,11 +156,17 @@ def APRiseTime(t,v,threshold=5):
     if numThresholds == 1:
         thresholdTime = t[foundThresholds[0]]
         riseTime = peakTime - thresholdTime
-        assert riseTime >=0, 'Rise time < 0!'
+        if riseTime < 0:
+            riseTime = 'Rise time < 0: %.3f' % riseTime
+#        assert riseTime >=0, 'Rise time < 0!'
     elif numThresholds == 0:
         riseTime = 'N/A'
     elif numThresholds > 1:
-        assert False, 'More than 1 threshold for rise time - APs may not be clearly separated.'
+#        assert False, 'More than 1 threshold for rise time - APs may not be clearly separated.'
+        # Take the first one - later ones are probably rapid spikes e.g. on the shoulder
+        thresholdTime = t[foundThresholds[0]]
+        riseTime = peakTime - thresholdTime
+        
     return riseTime
         
 def APSlopeMinMax(t,v):
@@ -211,11 +225,11 @@ def FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold):
     amp = min(workingVoltage)
     ampIdx = np.argmin(workingVoltage)
     
-    dvdt = VoltageGradient(workingTime[ampIdx:], workingVoltage[ampIdx:])
+#    dvdt = VoltageGradient(workingTime[ampIdx:], workingVoltage[ampIdx:])
 #    plt.plot(workingTime[ampIdx:-1],dvdt)
-    temp = np.argwhere(dvdt > dvdtThreshold) # Temp because we only need the first element
-    takeoffIdx = temp[0][0]
-    plt.plot(workingTime[ampIdx:ampIdx+takeoffIdx],workingVoltage[ampIdx:ampIdx+takeoffIdx])
+#    temp = np.argwhere(dvdt > dvdtThreshold) # Temp because we only need the first element
+#    takeoffIdx = temp[0][0] # TODO This will break if there's no points above dvdtThreshold
+#    plt.plot(workingTime[ampIdx:ampIdx+takeoffIdx],workingVoltage[ampIdx:ampIdx+takeoffIdx])
 #    plt.plot(workingTime,workingVoltage)
     # AHP time constant
     # TO DO!!
@@ -256,10 +270,11 @@ def InterSpikeInterval(dividedTrace):
 # ---- Calculating biomarkers over multiple traces ----
 
 def CalculateRMP(traces):
-    RMP = []
+    RMPVals = []
     for i,v in enumerate(traces['v']):
-        RMP.append(nb.RMP(v))
-    return RMP
+        RMPValue, RMPIdx = RMP(v)
+        RMPVals.append(RMPValue)
+    return RMPVals
     
 def CalculateInputRes():
     # TODO
@@ -274,25 +289,79 @@ def CalculateStepRheobase():
     return 0
     
 def CalculateThreshold():
-        
+    #TODO
+    return 0
+
+def CalculateAPPeak(traces):
+    APPeakVals = []
+    for i,v in zip(range(len(traces['t'])),traces['v']):
+        APPeakVals.append(APPeak(v)[0])
+    return APPeakVals
+    
+def CalculateAPRiseTime(traces,dvdtthreshold=5):
+    APRiseTimeVals = []
+    for t,v in zip(traces['t'],traces['v']):
+        APRiseTimeVals.append(APRiseTime(t,v,dvdtthreshold))
+    return APRiseTimeVals
+    
+def CalculateAPSlopeMinMax(traces):
+    APSlopeMinVals = []
+    APSlopeMaxVals = [] 
+    for t,v in zip(traces['t'],traces['v']):
+        dVdt = VoltageGradient(t,v)
+        APSlopeMinVals.append(min(dVdt))
+        APSlopeMaxVals.append(max(dVdt))
+    return APSlopeMinVals, APSlopeMaxVals
+    
+def CalculateAPFullWidth(traces,threshold=0):
+    
+    APFullWidthVals = []
+    for t,v in zip(traces['t'],traces['v']):
+        APFullWidthVals.append(APFullWidth(t,v,threshold))
+    return APFullWidthVals
+    
+def CalculateAHPAmp(traces,dvdtThreshold=5):
+    AHPAmpVals = []
+    if traces['numAPs'] > 1:
+        for i in range(traces['numAPs']-1):
+            t = traces['t'][i]
+            v = traces['v'][i]
+            t2 = traces['t'][i+1]
+            v2 = traces['v'][i+1]
+            amp,tau = FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold)
+            AHPAmpVals.append(amp)
+    elif traces['numAPs'] == 1:
+        v = traces['v'][0]
+        maxIdx = np.argmax(v)
+        workingVoltage = v[maxIdx:]### join
+        amp = min(workingVoltage)
+        AHPAmpVals.append(amp)
+    
+    return AHPAmpVals
+    
+def CalculateAHPTau():
+    # TODO
+    return 0
+    
+    
 
 # ---- I/O ----
 
 def WriteHeader(biomarkerFile):
     string = 'Index'
     for biomarker in db.biomarkerNames:      
-        string += (',' + biomarker)
-    string += ',' + 'stimAmp'
+        string += (';' + biomarker)
+    string += ';' + 'stimAmp'
     string += '\n'
     biomarkerFile.write(string)
     return
         
 def WriteBiomarkers(biomarkers,biomarkerFile):
     # Write the values of each biomarker in csv format
-    string = biomarkers['Index']    
+    string = str(biomarkers['Index'])    
     for biomarker in db.biomarkerNames:        
-        string += (',' + str(biomarkers[biomarker]))
-    string += (',' + biomarkers['stimAmp'])
+        string += (';' + str(biomarkers[biomarker]))
+    string += (';' + str(biomarkers['stimAmp']))
     string += '\n'
     biomarkerFile.write(string)
     return

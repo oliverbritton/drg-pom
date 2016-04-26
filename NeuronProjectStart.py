@@ -60,7 +60,7 @@ SetPaths(projectDir)
 #print __file__
 
 import inspect
-print inspect.getfile(inspect.currentframe()) # script filename (usually with path)
-print os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script di
-
-print "All systems nominal."
+#print inspect.getfile(inspect.currentframe()) # script filename (usually with path)
+#print os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script di
+#
+#print "All systems nominal."

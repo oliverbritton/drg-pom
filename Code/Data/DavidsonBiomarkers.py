@@ -30,8 +30,8 @@ def GetCalibrationRanges():
 # Discussion: how would we structure this data?
 # Need to play in Pandas
 
-biomarkerNames = ['RMP','InputRes','RampAP','StepRheobase','Threshold','APPeak','APRise',
-    'APSlopeMax','APSlopeMin','APWidth','AHPAmp','AHPTau','numAPs'] # TODO automate this from the list of keys in DavMeans
+biomarkerNames = ['RMP','InputRes','RampAP','StepRheobase','Threshold','APPeak','APRise','APSlopeMin',
+    'APSlopeMax','APWidth','AHPAmp','AHPTau','numAPs'] # TODO automate this from the list of keys in DavMeans
 
 columns = ['Mean','Std','Min','Max']
 
@@ -46,7 +46,7 @@ DavMeans['RampAP'] = 2.45
 DavMeans['StepRheobase'] = 1.43
 DavMeans['Threshold'] = -15.73
 DavMeans['APPeak'] = 64.64
-DavMeans['APRise'] = 528.4
+DavMeans['APRise'] = 528.4/1000
 DavMeans['APSlopeMax'] = 326.9
 DavMeans['APSlopeMin'] = -100.2
 DavMeans['APWidth'] = 4.92
@@ -61,7 +61,7 @@ DavStds['RampAP'] = 2.24
 DavStds['StepRheobase'] = 1.16
 DavStds['Threshold'] = 10.0
 DavStds['APPeak'] = 9.38
-DavStds['APRise'] = 359.6
+DavStds['APRise'] = 359.6/1000
 DavStds['APSlopeMax'] = 169.4
 DavStds['APSlopeMin'] = 78.3
 DavStds['APWidth'] = 3.73

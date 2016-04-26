@@ -194,8 +194,8 @@ def SetModelParameters(model,parameters,modelName):
     
 	
     # Run simulation protocol
-def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,modelNum):
-    
+def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,modelNum,calibrationBiomarkerFile,allBiomarkerFile):
+                                                                                    # TODO biomarkers should be returned and output of biomarkers done somewhere else
     curDirectory = os.getcwd()
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
@@ -213,11 +213,7 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
     protocolData = GetSimulationProtocol(protocol)
     numSimulations = len(protocolData.index)
     
-    # Set up output
-    calibrationBiomarkerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
-    allBiomarkerFile = open(outputDirectory + prefix + '_allbiomarkers.dat','w') # File for every biomarker
-    nb.WriteHeader(calibrationBiomarkerFile)
-    nb.WriteHeader(allBiomarkerFile)
+
     for simulation in range(numSimulations):
     
         # Setup output vectors
@@ -243,8 +239,12 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
         # Run simulation
         neuron.run(tstop)
         
-        # Calculate biomarkers TO DO
-        biomarkers = CalculateBiomarkers(t,v,stim.amp,index) 
+        # Calculate biomarkers
+        t_np = np.array(t) # Transform into numpy arrays to make behaviour more understandable
+        v_np = np.array(v)
+        biomarkers = CalculateBiomarkers(t_np,v_np,stim.amp,modelNum)  # modelNum is the index variable
+        if stim.amp == 0:
+            quiescentRMP = biomarkers['RMP']
         # TODO sort out whether stim amp and index should be called here
         # organise better -  maybe a master function that calls calculate biomarkers and also gets stim amp and index?
 
@@ -259,9 +259,10 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
         # If this is the last simulation or we found rheobase, then write the trace     
         # TODO - write code to allow us to check for rheobase, but still get biomarkers for increasing
         # stim amplitude to see what happens above threshold
-        if (rheobaseOnThisBeat)
+        if (rheobaseOnThisBeat):
             # Write output
             biomarkers['StepRheobase'] = stim.amp
+            biomarkers['RMP'] = quiescentRMP # Write the RMP with the quiescent value
             nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
             WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
             break
@@ -271,8 +272,6 @@ def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,mod
             nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
             WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)            
             
-    calibrationBiomarkerFile.close()
-    allBiomarkerFile.close()
     
     return    
     
@@ -452,13 +451,27 @@ def RunPopulationOfModels(configFilename,pattern):
     parameters = ReadParameterFile(cfg['parameterFilename'])
     start = time.time()
     # --- Main solver loop --- 
+    
+    # Set up output
+    outputDirectory = cfg['outputDirectory']
+    prefix = cfg['prefix']
+    calibrationBiomarkerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
+    allBiomarkerFile = open(outputDirectory + prefix + '_allbiomarkers.dat','w') # File for every biomarker
+    nb.WriteHeader(calibrationBiomarkerFile)
+    nb.WriteHeader(allBiomarkerFile)
 
     for modelNum,parameterSet in enumerate(parameters):    
         # Initialise new model
         model = GetModel(cfg['modelName'])       
         # Run simulation protocol
-        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
-        
+        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum,calibrationBiomarkerFile,allBiomarkerFile)
+        if (modelNum % 100) == 0:
+            print "Completed model: %i" % modelNum
+    
+    # Clean up
+    calibrationBiomarkerFile.close()
+    allBiomarkerFile.close()
+    
     end = time.time()
     return (end-start)
             
@@ -573,7 +586,8 @@ def GetSimulationProtocol(protocol):
         # 2: D 1000 ms Stim 1 Start 100 Amp 50 Duration 800 
         # 3: Same as 2 but amp+50
         
-        amps = range(0,3501,50)
+#        amps = range(0,3501,50)
+        amps = range(0,51,10)        
         numSimulations = len(amps)
         durations = [1000]*numSimulations
         starts = [100]*numSimulations
@@ -590,6 +604,7 @@ def CalculateBiomarkers(t,v,stimAmp,index):
     # Calculate a standard set of biomarkers and return them
     threshold = 0 # mV
     timeThreshold = 5 # ms
+    dvdtThreshold = 5 # mV/ms
     traces = nb.SplitTraceIntoAPs(t,v,threshold,timeThreshold) 
     numAPs = traces['numAPs']
     
@@ -601,27 +616,34 @@ def CalculateBiomarkers(t,v,stimAmp,index):
     biomarkers['numAPs'] = numAPs
     biomarkers['stimAmp'] = stimAmp  
     
+    RMP = nb.CalculateRMP(traces)
+    biomarkers['RMP'] = RMP
     if numAPs > 0:
     
         # Need to calculate biomarkers for each AP in the trace
-        RMP = nb.CalculateRMP(traces)
+        APPeak = nb.CalculateAPPeak(traces)
+        APRise = nb.CalculateAPRiseTime(traces,dvdtThreshold)
+        APSlopeMin, APSlopeMax = nb.CalculateAPSlopeMinMax(traces)
+        APWidth = nb.CalculateAPFullWidth(traces,threshold)
+        AHPAmp = nb.CalculateAHPAmp(traces,dvdtThreshold)
         
-        #TestSplitTrace(trace)
-        #TestVoltageGradient(trace)
-        #TestAPFullWidth(traces,threshold)
-        #TestAPPeak(traces)
-        #TestAPRiseTime(traces,dvdtThreshold)
-        #TestFitAfterHyperpolarisation(traces,dvdtThreshold)
-        #TestInterSpikeInterval
-        #TestRMP(traces) """ TO DO make it average the voltage after the minimum """
+        biomarkers['APPeak'] = APPeak
+        biomarkers['APRise'] = APRise
+        biomarkers['APSlopeMin'] = APSlopeMin
+        biomarkers['APSlopeMax'] = APSlopeMax
+        biomarkers['APWidth'] = APWidth
+        biomarkers['AHPAmp'] = AHPAmp
+        
+
+        
         #TestRheobase([trace,trace],[50,100])
  
-    
     return biomarkers
     
-def CalibrateBiomarkers(biomarkers,ranges,biomarkerNames):
+def CalibrateBiomarkers(modelBiomarkers,calibrationRanges,biomarkerNames):
     
     # iterate over models
+#    for biomarker in 
     
     # iterate over each biomarker to create array of 1s and 0s
     
