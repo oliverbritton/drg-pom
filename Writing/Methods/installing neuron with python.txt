@@ -9,3 +9,6 @@ C:\Anaconda\Library\bin
 %CommonProgramFiles%\Microsoft Shared\Windows Live
 c:\python27
 c:\CMake\bin
+
+
+copy all dlls from python bin to python libs

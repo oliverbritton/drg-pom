@@ -1,7 +1,7 @@
 What steps do I need to take to achieve the plan.
 
 1. Ability to construct populations.
-1. a) Biomarkers work
+1. a) Biomarkers work 
 1. a) i) Biomarkers are implemented and tested
 1. a) ii) Biomarkers are called in simulation code and stored
 1. b) Stim protocol works

@@ -15,6 +15,7 @@ extern void _Nav18hw_reg();
 extern void _Nav18tf_reg();
 extern void _Nav19hw_reg();
 extern void _Nav19tf_reg();
+extern void _naiTest_reg();
 
 modl_reg(){
 	//nrn_mswindll_stdio(stdin, stdout, stderr);
@@ -33,6 +34,7 @@ fprintf(stderr," Nav18hw.mod");
 fprintf(stderr," Nav18tf.mod");
 fprintf(stderr," Nav19hw.mod");
 fprintf(stderr," Nav19tf.mod");
+fprintf(stderr," naiTest.mod");
 fprintf(stderr, "\n");
     }
 _KAtf_reg();
@@ -47,4 +49,5 @@ _Nav18hw_reg();
 _Nav18tf_reg();
 _Nav19hw_reg();
 _Nav19tf_reg();
+_naiTest_reg();
 }

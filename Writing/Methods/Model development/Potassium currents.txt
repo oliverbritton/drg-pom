@@ -10,7 +10,7 @@ IKdr - delayed rectifier. Turns on between -60 and 40. Basic repolarising curren
 
 All Kv3 channels are high-threshold, facilitate repolarisation, dictate AP duration but not AP threshold or inter-spike interval.
 
-Kv 3.1 and 34.2 contribute 20% of IKdr in small nociceptors, possibly some Kv 3.3. 3.4 important, measured in Gold 96, underlies TEA sensitive high-threshold transient current, important for repolarisation, which limits calcium-dependent neurotransmitter release at central nerve endings, where Kv 3.4 is localised. AP broadening = increase neurotransmission.  
+Kv 3.1 and 3.2 contribute 20% of IKdr in small nociceptors, possibly some Kv 3.3. 3.4 important, measured in Gold 96, underlies TEA sensitive high-threshold transient current, important for repolarisation, which limits calcium-dependent neurotransmitter release at central nerve endings, where Kv 3.4 is localised. AP broadening = increase neurotransmission.  
 
 IKA - transient current - no steady state window of openess. Will inactivate sharply after -60 so essentially will not provide current unless membrane potential is hyperpolarised. Interesting switch in variability depending on time dependence.
 
@@ -40,5 +40,6 @@ Ih - Hyperpolarization-activated cyclic nucleotide-gated channels (HCN)
 Activated by hyperpolarisation
 
 
-Not found - IKD
+Not found - IKD - Might be information in Gold et al 96, also Rasband 2001, Zhao 2013, Everill 1998 (see eLife Bennett paper) - sensory neuron cell body.
+Also found in mechano-nociceptor terminals and brake on cold sensitivity in axons.
 

@@ -44,6 +44,9 @@ cell.insert('kdrtf')
 cell.insert('katf')
 cell.insert('kmtf')
 
+cell.insert('naiTest')
+
+
 # Modify conductances
 cell.gnabar_nav17vw = cell.gnabar_nav17vw*1.0
 cell.gnabar_nav18hw = cell.gnabar_nav18hw*0.9
@@ -88,7 +91,7 @@ ina_vec.record(cell(0.5)._ref_ina)
 icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=cell)
 
 h.finitialize(-65) # Vital! And has to go after record
-
+cell.nai = 10
 tstop = 1000.0
 
 
