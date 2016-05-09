@@ -131,7 +131,7 @@ def Rheobase(simulations,amps):
     return {'rheobase':'N/A', 'trace':[]}
     
 def APPeak(v):
-    ### Is there a max function
+
     peak = max(v)
     location = np.argmax(v)
     return [peak,location]
