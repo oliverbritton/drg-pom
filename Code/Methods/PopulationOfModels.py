@@ -18,7 +18,7 @@ from multiprocessing import Process
 from functools import partial
 import NeuronProjectStart
 import Biomarkers.NeuronBiomarkers as nb
-import Data.DavidsonBiomarkers as db
+import Biomarkers.DavidsonBiomarkers as db
 # Load all channel models and return to the right directory
 curDirectory = os.getcwd()
 projectDir = NeuronProjectStart.GetProjectDir()
@@ -32,13 +32,10 @@ os.chdir(curDirectory)
 # FUNCTIONS
 
 def ReadTextFile(filename):
-    f = open(filename,"r")
-    list = []
-    for line in f:   
-        list.append(line.strip())
-        
-    f.close()
-    return list
+
+    with open(filename,'rt') as f:
+        text = f.readlines()
+    return text
 
 def ReadParameterFile(filename):
     

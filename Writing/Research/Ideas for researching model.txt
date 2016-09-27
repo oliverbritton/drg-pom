@@ -1,0 +1,16 @@
+Use a paper research database in pandas.
+
+One dataframe contains every paper I've read to build the model
+with date and a unique ID.
+
+Then another dataframe hoovers up notes from either txt, csv, excel,
+sqllite or exported evernote notes and creates a second dataframe where
+each row is information from a paper with the paper ID and which current and 
+specific property the quote relates to. 
+
+Then I can search for everything on Nav 1.7, and specify activation gate time constant, 
+gating structure, activation voltage dependence, full current formulation, etc.
+
+Or everything on rat DRG AP.
+
+And so on. 
