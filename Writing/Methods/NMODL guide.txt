@@ -33,4 +33,4 @@ ASSIGNED{}
 BREAKPOINT{}
 
 
-E
+Neuron's default value of celsium is 6.3. Maybe I should do the q10 adjustments manually in the channel models.
