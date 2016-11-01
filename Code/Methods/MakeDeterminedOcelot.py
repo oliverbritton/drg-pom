@@ -4,14 +4,14 @@ Created on Mon Feb 08 11:06:00 2016
 
 @author: Oliver Britton
 """
-import os
-curDirectory = os.getcwd()
-os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
+
 from neuron import h
-os.chdir(curDirectory)
+from Methods.Simulations.loadneuron import load_neuron_mechanisms
 
 
 def MakeDeterminedOcelot():
+    
+    load_neuron_mechanisms()    
     
     cell = h.Section()
 
@@ -54,4 +54,15 @@ def MakeDeterminedOcelot():
 
     #print cell.gnabar_nav19hw
     #print "Cell constructed!"
+    return cell
+    
+def MakeDeterminedOcelotIonic():
+    
+    cell = MakeDeterminedOcelot()
+    
+    # Add ionic trackers
+    cell.insert('k_conc')
+    cell.insert('na_conc')    
+    
+    
     return cell

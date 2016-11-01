@@ -7,7 +7,7 @@ ENDCOMMENT
 
 NEURON {
         SUFFIX naiTest
-        USEION na READ ina, nai WRITE nai
+        USEION na WRITE nai
         RANGE nai0
 }
 
