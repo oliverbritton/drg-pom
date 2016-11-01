@@ -36,14 +36,11 @@ extern double hoc_Exp(double);
 #define t _nt->_t
 #define dt _nt->_dt
 #define nai0 _p[0]
-#define nao _p[1]
-#define nai _p[2]
-#define Dnai _p[3]
-#define Dnao _p[4]
-#define v _p[5]
-#define _ion_ina	*_ppvar[0]._pval
-#define _ion_nai	*_ppvar[1]._pval
-#define _style_na	*((int*)_ppvar[2]._pvoid)
+#define nai _p[1]
+#define Dnai _p[2]
+#define v _p[3]
+#define _ion_nai	*_ppvar[0]._pval
+#define _style_na	*((int*)_ppvar[1]._pvoid)
  
 #if MAC
 #if !defined(v)
@@ -91,10 +88,8 @@ extern Memb_func* memb_func;
 };
  static HocParmUnits _hoc_parm_units[] = {
  "nai0_naiTest", "milli/liter",
- "nao_naiTest", "milli/liter",
  0,0
 };
- static double nao0 = 0;
  /* connect global user variables to hoc */
  static DoubScal hoc_scdoub[] = {
  0,0
@@ -113,7 +108,6 @@ static void nrn_state(_NrnThread*, _Memb_list*, int);
  "nai0_naiTest",
  0,
  0,
- "nao_naiTest",
  0,
  0};
  static Symbol* _na_sym;
@@ -123,20 +117,19 @@ extern Prop* need_memb(Symbol*);
 static void nrn_alloc(Prop* _prop) {
 	Prop *prop_ion;
 	double *_p; Datum *_ppvar;
- 	_p = nrn_prop_data_alloc(_mechtype, 6, _prop);
+ 	_p = nrn_prop_data_alloc(_mechtype, 4, _prop);
  	/*initialize range parameters*/
  	nai0 = 10;
  	_prop->param = _p;
- 	_prop->param_size = 6;
- 	_ppvar = nrn_prop_datum_alloc(_mechtype, 3, _prop);
+ 	_prop->param_size = 4;
+ 	_ppvar = nrn_prop_datum_alloc(_mechtype, 2, _prop);
  	_prop->dparam = _ppvar;
  	/*connect ionic variables to this model*/
  prop_ion = need_memb(_na_sym);
  nrn_check_conc_write(_prop, prop_ion, 1);
  nrn_promote(prop_ion, 3, 0);
- 	_ppvar[0]._pval = &prop_ion->param[3]; /* ina */
- 	_ppvar[1]._pval = &prop_ion->param[1]; /* nai */
- 	_ppvar[2]._pvoid = (void*)(&(prop_ion->dparam[0]._i)); /* iontype for na */
+ 	_ppvar[0]._pval = &prop_ion->param[1]; /* nai */
+ 	_ppvar[1]._pvoid = (void*)(&(prop_ion->dparam[0]._i)); /* iontype for na */
  
 }
  static void _initlists();
@@ -156,7 +149,7 @@ extern void _cvode_abstol( Symbol**, double*, int);
  _mechtype = nrn_get_mechtype(_mechanism[1]);
      _nrn_setdata_reg(_mechtype, _setdata);
      _nrn_thread_reg(_mechtype, 2, _update_ion_pointer);
-  hoc_register_prop_size(_mechtype, 6, 3);
+  hoc_register_prop_size(_mechtype, 4, 2);
  	nrn_writes_conc(_mechtype, 0);
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
  	ivoc_help("help ?1 naiTest E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/naiTest.mod\n");
@@ -172,13 +165,11 @@ static int _match_recurse=1;
 static void _modl_cleanup(){ _match_recurse=1;}
  extern void nrn_update_ion_pointer(Symbol*, Datum*, int, int);
  static void _update_ion_pointer(Datum* _ppvar) {
-   nrn_update_ion_pointer(_na_sym, _ppvar, 0, 3);
-   nrn_update_ion_pointer(_na_sym, _ppvar, 1, 1);
+   nrn_update_ion_pointer(_na_sym, _ppvar, 0, 1);
  }
 
 static void initmodel(double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt) {
   int _i; double _save;{
-  nao = nao0;
  {
    nai = nai0 ;
    }
@@ -206,8 +197,6 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
     _v = NODEV(_nd);
   }
  v = _v;
-  ina = _ion_ina;
-  nai = _ion_nai;
   nai = _ion_nai;
  initmodel(_p, _ppvar, _thread, _nt);
   _ion_nai = nai;
@@ -242,8 +231,6 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  _break = t + .5*dt; _save = t;
  v=_v;
 {
-  ina = _ion_ina;
-  nai = _ion_nai;
   nai = _ion_nai;
   _ion_nai = nai;
 }}

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar 15 09:40:22 2016
+Created on Tue Apr 12 14:21:37 2016
 
 @author: Oliver Britton
 """
@@ -12,10 +12,8 @@ Created on Tue Mar 15 09:40:22 2016
 # A test of the ability to run population of model simulations in neuron through python
 import os
 import sys
-#import datetime
-#import re
-#from matplotlib import pyplot
 import time
+#import pdb
 
 # Simulation 
 curDirectory = os.getcwd()
@@ -33,40 +31,16 @@ import PopulationOfModels as pom
 import MakeDeterminedOcelot
 
 if __name__ == '__main__':
-    configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\DO\\firstPop.cfg"
+    configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\DO\\DO_NC3Rs.cfg"
     pattern = ": "
     #cfg = pom.ParseConfigFile(configFilename,pattern)
     # Initialise hoc
     #h('load_file("nrngui.hoc")')
     
-    # --- Loop setup --- 
-    
-    # Open config file
+    # --- Main loop setup --- 
+
     start = time.time()
     pom.RunPopulationOfModels(configFilename,pattern)
-    
-        
-    #%% Read parameter file in
-    #parameters = pom.ReadParameterFile(cfg['parameterFilename'])
-    
-    # --- Main solver loop --- # TO DO! Parallelise
-    #for modelNum,parameterSet in enumerate(parameters):
-    
-        # Initialise new model
-    #    model = pom.GetModel(cfg['modelName'])
-        
-        # Update parameters
-        
-        # Run simulation protocol
-    #    pom.RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
-        
-        # For each simulation:
-        # Reinitialise model
-        # Setup output vectors
-        # Setup simulation parameters
-        # Run simulation
-        # Open output file
-        # Write to output and close
     
     # --- Cleanup ---
     # Write log file - list of parameters, stimulus protocols, date of simulation, model name, and list of all input files and all output files

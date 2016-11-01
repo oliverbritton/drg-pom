@@ -69,6 +69,7 @@ def PlotTraceFile(filename):
         
 # Parse a line of a configuration file where a pattern is found, strip out the identifier through pattern and return the data
 def ParseConfigLine(line,pattern):
+    line = line.rstrip('\n') # Remove new line
     components = line.split(pattern)
     assert(len(components) == 2)
     return components[1]
@@ -157,19 +158,22 @@ def TestStimProtocols():
 	t = 111
 	assert(SquareStimProtocol(amp,t,dur,delay) == 0)
  
-def GetModel(modelName):
+def GetModel(model_name):
     
-    if modelName == 'DeterminedOcelot':
+    if model_name == 'DeterminedOcelot':
         import MakeDeterminedOcelot
         model = MakeDeterminedOcelot.MakeDeterminedOcelot()
+    elif model_name == 'DeterminedOcelotIonic':
+        import MakeDeterminedOcelot
+        model = MakeDeterminedOcelot.MakeDeterminedOcelotIonic()
     else:
         assert False, 'Model name not found in GetModel!'    
     
     return model
 
-def SetModelParameters(model,parameters,modelName):
+def SetModelParameters(model,parameters,model_name):
 
-    if modelName == 'DeterminedOcelot':
+    if (model_name == 'DeterminedOcelot') or (model_name == 'DeterminedOcelotIonic'):
         
         numParameters = 6
         assert len(parameters) == numParameters, 'number of parameters is wrong' 

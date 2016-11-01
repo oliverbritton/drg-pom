@@ -15,6 +15,10 @@ extern void _Nav18hw_reg();
 extern void _Nav18tf_reg();
 extern void _Nav19hw_reg();
 extern void _Nav19tf_reg();
+extern void _k_conc_reg();
+extern void _na_accu_reg();
+extern void _na_conc_reg();
+extern void _nadifl_reg();
 extern void _naiTest_reg();
 
 modl_reg(){
@@ -34,6 +38,10 @@ fprintf(stderr," Nav18hw.mod");
 fprintf(stderr," Nav18tf.mod");
 fprintf(stderr," Nav19hw.mod");
 fprintf(stderr," Nav19tf.mod");
+fprintf(stderr," k_conc.mod");
+fprintf(stderr," na_accu.mod");
+fprintf(stderr," na_conc.mod");
+fprintf(stderr," nadifl.mod");
 fprintf(stderr," naiTest.mod");
 fprintf(stderr, "\n");
     }
@@ -49,5 +57,9 @@ _Nav18hw_reg();
 _Nav18tf_reg();
 _Nav19hw_reg();
 _Nav19tf_reg();
+_k_conc_reg();
+_na_accu_reg();
+_na_conc_reg();
+_nadifl_reg();
 _naiTest_reg();
 }
