@@ -98,9 +98,9 @@ def default_mech_list():
     
 " -- Tests --- "
 def test_load_mechanisms():
-"""
-Load multiple times, if we don't crash, we're good!
-"""    
+    """
+    Load multiple times, if we don't crash, we're good!
+    """    
     load_neuron_mechanisms()
     load_neuron_mechanisms()
     load_neuron_mechanisms()

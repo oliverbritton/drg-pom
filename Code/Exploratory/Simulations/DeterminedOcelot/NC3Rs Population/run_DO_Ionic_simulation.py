@@ -5,7 +5,7 @@ Created on Tue Apr 12 14:21:37 2016
 @author: Oliver Britton
 """
 
-# Test population of models loop
+# Test running DO with ionic and new neuron mechanism  load
 # 2/2/2016 
 # Oliver Britton
 
@@ -16,22 +16,24 @@ import time
 #import pdb
 
 # Simulation 
+"""
 curDirectory = os.getcwd()
 os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
 from neuron import h
 h('load_file("nrngui.hoc")')
 os.chdir(curDirectory)
-
 sys.path.append('E:\CLPC48\Neuron Project\Code\Methods')
-import PopulationOfModels as pom
+"""
+
+import Methods.PopulationOfModels as pom
+from Methods.Simulations.loadneuron import load_neuron_mechanisms
 
 
 """ Setup """
-# Models
-import MakeDeterminedOcelot
+load_neuron_mechanisms()
 
 if __name__ == '__main__':
-    configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\DO\\DO_NC3Rs.cfg"
+    configFilename = "E:\\CLPC48\\Neuron Project\\Simulations\\Input\\cfg\\DO\\DO_Ionic.cfg"
     pattern = ": "
     #cfg = pom.ParseConfigFile(configFilename,pattern)
     # Initialise hoc
