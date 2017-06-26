@@ -8,17 +8,18 @@ Functions for running a population of models loop
 import os
 import datetime
 import re
-import pdb
+#import pdb
 import time
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-from multiprocessing import Pool
+import matplotlib.pyplot as plt
+
+#from multiprocessing import Pool
 from multiprocessing import Process
 from functools import partial
 import NeuronProjectStart
-import Biomarkers.NeuronBiomarkers as nb
-import Biomarkers.DavidsonBiomarkers as db
+import Methods.Biomarkers.NeuronBiomarkers as nb
+import Methods.Biomarkers.DavidsonBiomarkers as db
 # Load all channel models and return to the right directory
 curDirectory = os.getcwd()
 projectDir = NeuronProjectStart.GetProjectDir()
@@ -37,6 +38,7 @@ def ReadTextFile(filename):
         text = f.readlines()
     return text
 
+" To do - replace with pandas "
 def ReadParameterFile(filename):
     
     listOfLists = []
@@ -50,7 +52,9 @@ def ReadParameterFile(filename):
         f.close()
         return listOfLists
         
+" To do - replace with acs.readtrace "
 def ReadTraceFile(filename,lineskip=0):
+    filename = filename.rstrip('\n') # Chomp off new line chars
     lines = ReadTextFile(filename)
     t = []    
     v = []
@@ -60,7 +64,13 @@ def ReadTraceFile(filename,lineskip=0):
           v.append(float(line.split()[1]))
     # Return a dictionary to allow us to add in other currents and state variables with names
     # later on
-    return{'t':t, 'v':v}        
+    return{'t':t, 'v':v}     
+    
+def read_trace(filename, skiprows=0):
+    # Refactored to use numpy from pom.ReadTraceFile,
+    data = np.loadtxt(filename,skiprows=skiprows)
+    trace = {'t':data[:,0], 'v':data[:,1]}
+    return trace
     
 def PlotTraceFile(filename):
     data = ReadTraceFile(filename)
@@ -195,8 +205,8 @@ def SetModelParameters(model,parameters,model_name):
     
 	
     # Run simulation protocol
-def RunSimulation(model,parameters,modelName,protocol,outputDirectory,prefix,modelNum,calibrationBiomarkerFile,allBiomarkerFile):
-                                                                                    # TODO biomarkers should be returned and output of biomarkers done somewhere else
+def RunSimulation(model, parameters, modelName, protocol, outputDirectory, prefix, modelNum, calibrationBiomarkerFile, allBiomarkerFile):
+    # TODO biomarkers should be returned and output of biomarkers done somewhere else
     curDirectory = os.getcwd()
     projectDir = NeuronProjectStart.GetProjectDir()
     nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
@@ -372,6 +382,7 @@ def PlotTrace(filename):
     return
     
 # Load Neuron so that all the density mechanisms get imported properly
+" Deprecated - can use the loadneuron module to load density mechanisms now."
 def LoadNeuron():
     curDirectory = os.getcwd()
     projectDir = NeuronProjectStart.GetProjectDir()
@@ -396,6 +407,9 @@ def ParseConfigFile(configFilename,pattern):
     numPrefixes = 0
     numProtocols = 0
 
+    " To do - could refactor this to make the dict first, then fill it in with each line. "
+    " This would be neater as we could have a list of tokens to look for, and then loop over them "
+    " rather than having a separate if statement for each one. "    
     for line in configFile:
         if re.search('output',line):
             numOutputDirectories += 1
@@ -432,7 +446,7 @@ def ParseConfigFile(configFilename,pattern):
             'modelName':modelName, 'simulationName':simulationName, 'prefix':prefix,
             'protocol':protocol}
             
-def RunPopulationOfModels(configFilename,pattern):
+def RunPopulationOfModels(configFilename, pattern, parameter_modifiers={}):
     
     cfg = ParseConfigFile(configFilename,pattern)
     # Initialise hoc
@@ -456,18 +470,28 @@ def RunPopulationOfModels(configFilename,pattern):
     # Set up output
     outputDirectory = cfg['outputDirectory']
     prefix = cfg['prefix']
-    calibrationBiomarkerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
+    
+    " !!!TO CHANGE - replace with dataframes "
+    calibrationBiomrakerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
     allBiomarkerFile = open(outputDirectory + prefix + '_allbiomarkers.dat','w') # File for every biomarker
     nb.WriteHeader(calibrationBiomarkerFile)
     nb.WriteHeader(allBiomarkerFile)
+    " !!!To CHANGE "
 
     for modelNum,parameterSet in enumerate(parameters):    
         # Initialise new model
         model = GetModel(cfg['modelName'])       
+        # Modify parameters (to do, include this info in CFG)       
+        if parameter_modifiers:
+            assert type(parameter_modifiers) == dict
+            for param_index, param_val in parameter_modifiers.iteritems():
+                print("Old parameter set was {}".format(parameterSet))
+                parameterSet[param_index] = param_val
+                print("Modified parameter set is {}".format(parameterSet))
         # Run simulation protocol
         RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum,calibrationBiomarkerFile,allBiomarkerFile)
         if (modelNum % 100) == 0:
-            print "Completed model: %i" % modelNum
+            print("Completed model: {}".format(modelNum))
     
     # Clean up
     calibrationBiomarkerFile.close()

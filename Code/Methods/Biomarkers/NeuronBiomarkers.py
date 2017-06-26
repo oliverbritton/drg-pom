@@ -1,5 +1,5 @@
 import numpy as np
-import DavidsonBiomarkers as db
+import Methods.Biomarkers.DavidsonBiomarkers as db
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too

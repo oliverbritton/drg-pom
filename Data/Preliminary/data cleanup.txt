@@ -1,0 +1,2 @@
+Delete last row from slow inactivation as it is incomplete. Otherwise import of csv adds
+unwanted columns or nans or other unwanted behaviour.

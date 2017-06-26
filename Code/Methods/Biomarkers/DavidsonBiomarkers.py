@@ -68,5 +68,9 @@ DavStds['APWidth'] = 3.73
 DavStds['AHPAmp'] = 8.73
 DavStds['AHPTau'] = 22.1
 
+
+biomarker_names = sorted(DavMeans.keys())
+biomarkerNames = biomarker_names
+
 davData = CalibrationData()
 

@@ -11,7 +11,7 @@ import Methods.PopulationOfModels as pom
 import seaborn as sns
 import pandas as pd
 import numpy as np
-import Data.DavidsonBiomarkers as dav
+import Methods.Biomarkers.DavidsonBiomarkers as dav
 import ast
 
 def FixDF(df,biomarkerList):

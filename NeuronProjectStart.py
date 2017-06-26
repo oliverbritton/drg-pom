@@ -9,11 +9,12 @@ Created on Tue Mar 08 10:19:01 2016
 
 import os
 import sys
-
+from winsound import Beep
+import time
 
 def FindProjectDir():
         
-    f = open(os.path.join(start,'E:\CLPC48\Neuron Project\project.hostconfig'),'r')
+    f = open(os.path.join(start,'E:\\CLPC48\\Neuron Project\\project.hostconfig'),'r')
     pattern = ': '
     # Can read in more lines here as needed
     line = f.read()
@@ -24,7 +25,7 @@ def FindProjectDir():
     return projectDir
 
 def GetProjectDir():
-    return 'E:\CLPC48\Neuron Project'
+    return 'E:\\CLPC48\\Neuron Project'
 
 def SetPaths(projectDir):
     codeDir = os.path.join(projectDir,'Code')
@@ -50,7 +51,11 @@ def get_my_path():
     path = str(fake).split()[3][1:-9]
     os.remove( os.path.join( path, 'fake.pyc' ) )
     return path
-    
+
+def rdy():
+    for i in range(3,8):
+        Beep(i*100,450)
+        time.sleep(0.01)
     
 """ Run Setup """
 projectDir = GetProjectDir()
