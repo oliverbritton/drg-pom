@@ -2,6 +2,7 @@ TITLE IKdr from Choi/Waxman
 
 COMMENT
 IKdr from Choi and Waxman 2011
+Recorded at 22
 
 ENDCOMMENT
 
@@ -15,12 +16,12 @@ UNITS {
 NEURON {
 		 SUFFIX kdrcw
 		 USEION k READ ek WRITE ik
-		 RANGE gkbar, gk, ik	
+		 RANGE gbar, gk, ik	
 	     GLOBAL ninf, ntau
 }
 
 PARAMETER {
-		 gkbar = 0.0035 (S/cm2) <0,1e9>		 
+		 gbar = 0.0035 (S/cm2) <0,1e9>		 
 }
 
 STATE {
@@ -43,7 +44,7 @@ LOCAL nexp
 ? currents
 BREAKPOINT {
         SOLVE states METHOD cnexp
-        gk = gkbar*n
+        gk = gbar*n
 		ik = gk*(v - ek)
 }
 

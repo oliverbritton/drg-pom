@@ -19,7 +19,7 @@ def load_neuron_mechanisms(mech_type='prototype'):
     """
     #global mechanisms_loaded
     if are_mechanisms_loaded() == False:
-        h.nrn_load_dll(os.path.join(get_mechanism_dir(),"nrnmech.dll"))
+        h.nrn_load_dll(os.path.join(get_mechanism_dir(mech_type),"nrnmech.dll"))
         "Mechanisms loaded!"
 
 def get_mechanism_dir(mech_type='prototype'):
@@ -32,6 +32,8 @@ def get_mechanism_dir(mech_type='prototype'):
     " Leave room for different dirs in the future "
     if mech_type == 'prototype':
         mech_dir = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
+    if mech_type == 'IClamp':
+        mech_dir = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\IClamp'
     return mech_dir
     
 " Prototype for checking number and names of mechanisms "

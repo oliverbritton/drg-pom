@@ -3,10 +3,29 @@ import scipy.integrate
 
 from Methods.currents import get_voltage_clamp_vector, voltage_clamp
 
+"""
+Classes that implement current models with all parameters named so we can manipulate them easily 
+e.g. for sensitivity analyses
+
+TO DOs:
+
+* Possibly make a virtual base class if it is useful, but current models can be quite different from one another 
+so I don't know if this will save time. If we repeat ourselves 3 times then I will do this.
+
+* Add Q10 modelling, by coding in the model's base temperature, and creating Q10, temperature, and flag parameters to enable Q10 scaling. 
+
+"""
+
+class current(object):
+        return
+    
+
 class nav17vw(object):
+    " Nav 1.7 current model from Vasylev Waxman "
     
     def __init__(self, g = 0.18, e_rev=88.5):
     
+        self.names = {'gates':['m', 'h'], 'parameters':['rates', 'vshifts', 'vwidths']}
         # Standard gate has two rates
         # Closed -> open (alpha)
         # Open -> closed (beta)
@@ -24,6 +43,7 @@ class nav17vw(object):
                                    }
         # Initital conditions
         self.initial_conditions = [0,1]
+        self.num_state_vars = len(self.initial_conditions)
         self.g = g
         self.e_rev = e_rev
     
@@ -46,7 +66,7 @@ class nav17vw(object):
 
         return [minf, mtau, hinf, htau]
             
-    def calc_I(self, v):
+    def calc_IV(self, v):
         " Calculate steady state current at a particular voltage "
         [minf, mtau, hinf, htau] = self.calc_terms(v) # Calc steady states
         I = self.g*minf*minf*minf*hinf*(v-self.e_rev)
@@ -70,3 +90,18 @@ class nav17vw(object):
         h = solution[:,1]
         I = self.g*m*m*m*h*(v-self.e_rev)
         return [v,I]
+        
+        
+class kdr_tf(object):
+    " IKdr model used in Tigerholm et al., 2103 from Sheets et al. 2007"
+        
+    def __init__(self, g = 0.0018, e_rev=-100.05):
+        
+        self.names = {'gates':['n'], 'parameters':['vshifts', 'vwidths']}
+        self.vshifts = {'n':45.0}
+        self.vwidths
+        
+        self.initial_conditions = [0]
+        self.num_state_vars = len(self.initial_conditions)
+        self.g = g
+        self.e_rev = e_rev

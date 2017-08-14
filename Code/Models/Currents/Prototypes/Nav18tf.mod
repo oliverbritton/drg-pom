@@ -15,12 +15,12 @@ UNITS {
 NEURON {
 		 SUFFIX nav18tf
 		 USEION na READ ena WRITE ina
-		 RANGE gnabar, gna, ina	
+		 RANGE gbar, gna, ina	
 	     GLOBAL minf, hinf, sinf, uinf, mtau, htau, stau, utau
 }
 
 PARAMETER {
-		 gnabar = 0.2427124 (S/cm2) <0,1e9>		 
+		 gbar = 0.2427124 (S/cm2) <0,1e9>		 
 }
 
 STATE {
@@ -43,7 +43,7 @@ LOCAL mexp, hexp, sexp, uexp
 ? currents
 BREAKPOINT {
         SOLVE states METHOD cnexp
-        gna = gnabar*m*m*m*h*s*u
+        gna = gbar*m*m*m*h*s*u
 		ina = gna*(v - ena)
 }
 
@@ -60,6 +60,8 @@ DERIVATIVE states {
 		rates(v)
 		m' = (minf-m)/mtau
 		h' = (hinf-h)/htau
+		s' = (sinf-s)/stau
+		u' = (uinf-u)/utau
 }
 
 :LOCAL q10
@@ -67,8 +69,8 @@ DERIVATIVE states {
 ? rates
 PROCEDURE rates(v(mV)) { : Computes rate and other constants at current v.
 						 : Call once from HOC to initialize inf at resting v.
-						 LOCAL alpha_m, beta_m
-						 TABLE minf, mtau, hinf, htau DEPEND celsius FROM -100 TO 100 WITH 200
+						 LOCAL alpha_m, beta_m, alpha_s, beta_s, alpha_u, beta_u
+						 TABLE minf, mtau, hinf, htau, sinf, stau, uinf, utau DEPEND celsius FROM -100 TO 100 WITH 200
 						 
 UNITSOFF
 		alpha_m = 2.85 - 2.839/(1 + exp((v-1.159)/13.95))
@@ -89,7 +91,7 @@ UNITSOFF
 		alpha_u =  0.002 * 2.0434 / (1 + exp((v+67.499)/19.51))
 		beta_u =  0.002 * 1.9952 / (1 + exp(-(v+30.963)/14.792))
 		
-		uinf = 1/(1+exp((v+51.0)/8)
+		uinf = 1/(1+exp((v+51.0)/8))
 		utau = 1/(alpha_s + beta_s) 
 }
 UNITSON

@@ -15,12 +15,12 @@ UNITS {
 NEURON {
 		 SUFFIX kacw
 		 USEION k READ ek WRITE ik
-		 RANGE gkbar, gk, ik	
+		 RANGE gbar, gk, ik	
 	     GLOBAL ninf, hinf, ntau, htau
 }
 
 PARAMETER {
-		 gkbar = 0.0055 (S/cm2) <0,1e9>		 
+		 gbar = 0.0055 (S/cm2) <0,1e9>		 
 }
 
 STATE {
@@ -43,7 +43,7 @@ LOCAL nexp, hexp
 ? currents
 BREAKPOINT {
         SOLVE states METHOD cnexp
-        gk = gkbar*n*h
+        gk = gbar*n*h
 		ik = gk*(v - ek)
 }
 

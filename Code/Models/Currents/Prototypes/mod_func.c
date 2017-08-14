@@ -3,11 +3,13 @@
 #define IMPORT extern __declspec(dllimport)
 IMPORT int nrnmpi_myid, nrn_nobanner_;
 
+extern void _IRamp_reg();
 extern void _KAtf_reg();
 extern void _KMtf_reg();
 extern void _Kacw_reg();
 extern void _Kdrcw_reg();
 extern void _Kdrtf_reg();
+extern void _Kleak_reg();
 extern void _Nav17cw_reg();
 extern void _Nav17vw_reg();
 extern void _Nav17vw_new_reg();
@@ -27,11 +29,13 @@ modl_reg(){
     if (!nrn_nobanner_) if (nrnmpi_myid < 1) {
 	fprintf(stderr, "Additional mechanisms from files\n");
 
+fprintf(stderr," IRamp.mod");
 fprintf(stderr," KAtf.mod");
 fprintf(stderr," KMtf.mod");
 fprintf(stderr," Kacw.mod");
 fprintf(stderr," Kdrcw.mod");
 fprintf(stderr," Kdrtf.mod");
+fprintf(stderr," Kleak.mod");
 fprintf(stderr," Nav17cw.mod");
 fprintf(stderr," Nav17vw.mod");
 fprintf(stderr," Nav17vw_new.mod");
@@ -47,11 +51,13 @@ fprintf(stderr," nadifl.mod");
 fprintf(stderr," naiTest.mod");
 fprintf(stderr, "\n");
     }
+_IRamp_reg();
 _KAtf_reg();
 _KMtf_reg();
 _Kacw_reg();
 _Kdrcw_reg();
 _Kdrtf_reg();
+_Kleak_reg();
 _Nav17cw_reg();
 _Nav17vw_reg();
 _Nav17vw_new_reg();

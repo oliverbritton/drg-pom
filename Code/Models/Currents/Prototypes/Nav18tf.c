@@ -35,7 +35,7 @@ extern double hoc_Exp(double);
  
 #define t nrn_threads->_t
 #define dt nrn_threads->_dt
-#define gnabar _p[0]
+#define gbar _p[0]
 #define gna _p[1]
 #define ina _p[2]
 #define m _p[3]
@@ -113,7 +113,7 @@ extern Memb_func* memb_func;
  double uinf = 0;
  /* some parameters have upper and lower limits */
  static HocParmLimits _hoc_parm_limits[] = {
- "gnabar_nav18tf", 0, 1e+009,
+ "gbar_nav18tf", 0, 1e+009,
  "usetable_nav18tf", 0, 1,
  0,0,0
 };
@@ -122,7 +122,7 @@ extern Memb_func* memb_func;
  "htau_nav18tf", "ms",
  "stau_nav18tf", "ms",
  "utau_nav18tf", "ms",
- "gnabar_nav18tf", "S/cm2",
+ "gbar_nav18tf", "S/cm2",
  "gna_nav18tf", "S/cm2",
  "ina_nav18tf", "mA/cm2",
  0,0
@@ -166,7 +166,7 @@ static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  static const char *_mechanism[] = {
  "6.2.0",
 "nav18tf",
- "gnabar_nav18tf",
+ "gbar_nav18tf",
  0,
  "gna_nav18tf",
  "ina_nav18tf",
@@ -186,7 +186,7 @@ static void nrn_alloc(Prop* _prop) {
 	double *_p; Datum *_ppvar;
  	_p = nrn_prop_data_alloc(_mechtype, 13, _prop);
  	/*initialize range parameters*/
- 	gnabar = 0.242712;
+ 	gbar = 0.242712;
  	_prop->param = _p;
  	_prop->param_size = 13;
  	_ppvar = nrn_prop_datum_alloc(_mechtype, 4, _prop);
@@ -234,6 +234,10 @@ extern void _cvode_abstol( Symbol**, double*, int);
  static double *_t_mtau;
  static double *_t_hinf;
  static double *_t_htau;
+ static double *_t_sinf;
+ static double *_t_stau;
+ static double *_t_uinf;
+ static double *_t_utau;
 static int _reset;
 static char *modelname = "Nav 1.8 from Tigerholm";
 
@@ -247,7 +251,7 @@ static int rates(double);
 static int _ode_spec1(_threadargsproto_);
 /*static int _ode_matsol1(_threadargsproto_);*/
  static void _n_rates(double);
- static int _slist1[2], _dlist1[2];
+ static int _slist1[4], _dlist1[4];
  static int states(_threadargsproto_);
  
 /*CVODE*/
@@ -256,6 +260,8 @@ static int _ode_spec1(_threadargsproto_);
    rates ( _threadargscomma_ v ) ;
    Dm = ( minf - m ) / mtau ;
    Dh = ( hinf - h ) / htau ;
+   Ds = ( sinf - s ) / stau ;
+   Du = ( uinf - u ) / utau ;
    }
  return _reset;
 }
@@ -263,6 +269,8 @@ static int _ode_spec1(_threadargsproto_);
  rates ( _threadargscomma_ v ) ;
  Dm = Dm  / (1. - dt*( ( ( ( - 1.0 ) ) ) / mtau )) ;
  Dh = Dh  / (1. - dt*( ( ( ( - 1.0 ) ) ) / htau )) ;
+ Ds = Ds  / (1. - dt*( ( ( ( - 1.0 ) ) ) / stau )) ;
+ Du = Du  / (1. - dt*( ( ( ( - 1.0 ) ) ) / utau )) ;
  return 0;
 }
  /*END CVODE*/
@@ -271,6 +279,8 @@ static int _ode_spec1(_threadargsproto_);
    rates ( _threadargscomma_ v ) ;
     m = m + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / mtau)))*(- ( ( ( minf ) ) / mtau ) / ( ( ( ( - 1.0) ) ) / mtau ) - m) ;
     h = h + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / htau)))*(- ( ( ( hinf ) ) / htau ) / ( ( ( ( - 1.0) ) ) / htau ) - h) ;
+    s = s + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / stau)))*(- ( ( ( sinf ) ) / stau ) / ( ( ( ( - 1.0) ) ) / stau ) - s) ;
+    u = u + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / utau)))*(- ( ( ( uinf ) ) / utau ) / ( ( ( ( - 1.0) ) ) / utau ) - u) ;
    }
   return 0;
 }
@@ -292,6 +302,10 @@ static int _ode_spec1(_threadargsproto_);
     _t_mtau[_i] = mtau;
     _t_hinf[_i] = hinf;
     _t_htau[_i] = htau;
+    _t_sinf[_i] = sinf;
+    _t_stau[_i] = stau;
+    _t_uinf[_i] = uinf;
+    _t_utau[_i] = utau;
    }
    _sav_celsius = celsius;
   }
@@ -313,6 +327,10 @@ static int _ode_spec1(_threadargsproto_);
   mtau = _xi;
   hinf = _xi;
   htau = _xi;
+  sinf = _xi;
+  stau = _xi;
+  uinf = _xi;
+  utau = _xi;
   return;
  }
  if (_xi <= 0.) {
@@ -320,12 +338,20 @@ static int _ode_spec1(_threadargsproto_);
  mtau = _t_mtau[0];
  hinf = _t_hinf[0];
  htau = _t_htau[0];
+ sinf = _t_sinf[0];
+ stau = _t_stau[0];
+ uinf = _t_uinf[0];
+ utau = _t_utau[0];
  return; }
  if (_xi >= 200.) {
  minf = _t_minf[200];
  mtau = _t_mtau[200];
  hinf = _t_hinf[200];
  htau = _t_htau[200];
+ sinf = _t_sinf[200];
+ stau = _t_stau[200];
+ uinf = _t_uinf[200];
+ utau = _t_utau[200];
  return; }
  _i = (int) _xi;
  _theta = _xi - (double)_i;
@@ -333,17 +359,29 @@ static int _ode_spec1(_threadargsproto_);
  mtau = _t_mtau[_i] + _theta*(_t_mtau[_i+1] - _t_mtau[_i]);
  hinf = _t_hinf[_i] + _theta*(_t_hinf[_i+1] - _t_hinf[_i]);
  htau = _t_htau[_i] + _theta*(_t_htau[_i+1] - _t_htau[_i]);
+ sinf = _t_sinf[_i] + _theta*(_t_sinf[_i+1] - _t_sinf[_i]);
+ stau = _t_stau[_i] + _theta*(_t_stau[_i+1] - _t_stau[_i]);
+ uinf = _t_uinf[_i] + _theta*(_t_uinf[_i+1] - _t_uinf[_i]);
+ utau = _t_utau[_i] + _theta*(_t_utau[_i+1] - _t_utau[_i]);
  }
 
  
 static int  _f_rates (  double _lv ) {
-   double _lalpha_m , _lbeta_m ;
+   double _lalpha_m , _lbeta_m , _lalpha_s , _lbeta_s , _lalpha_u , _lbeta_u ;
   _lalpha_m = 2.85 - 2.839 / ( 1.0 + exp ( ( _lv - 1.159 ) / 13.95 ) ) ;
    _lbeta_m = 7.6205 / ( 1.0 + exp ( ( _lv + 46.463 ) / 8.8289 ) ) ;
    minf = _lalpha_m / ( _lalpha_m + _lbeta_m ) ;
    mtau = 1.0 / ( _lalpha_m + _lbeta_m ) ;
    hinf = 1.0 / ( 1.0 + exp ( ( _lv + 32.2 ) / 4.0 ) ) ;
    htau = 1.218 + 42.043 * exp ( - ( pow( ( _lv + 38.1 ) , 2.0 ) ) / ( 2.0 * pow( 15.19 , 2.0 ) ) ) ;
+   _lalpha_s = 0.001 * 5.4203 / ( 1.0 + exp ( ( _lv + 79.816 ) / 16.269 ) ) ;
+   _lbeta_s = 0.001 * 5.0757 / ( 1.0 + exp ( - ( _lv + 15.968 ) / 11.542 ) ) ;
+   sinf = 1.0 / ( 1.0 + exp ( ( _lv + 45.0 ) / 8.0 ) ) ;
+   stau = 1.0 / ( _lalpha_s + _lbeta_s ) ;
+   _lalpha_u = 0.002 * 2.0434 / ( 1.0 + exp ( ( _lv + 67.499 ) / 19.51 ) ) ;
+   _lbeta_u = 0.002 * 1.9952 / ( 1.0 + exp ( - ( _lv + 30.963 ) / 14.792 ) ) ;
+   uinf = 1.0 / ( 1.0 + exp ( ( _lv + 51.0 ) / 8.0 ) ) ;
+   utau = 1.0 / ( _lalpha_s + _lbeta_s ) ;
     return 0; }
  
 static void _hoc_rates(void) {
@@ -353,7 +391,7 @@ static void _hoc_rates(void) {
  hoc_retpushx(_r);
 }
  
-static int _ode_count(int _type){ return 2;}
+static int _ode_count(int _type){ return 4;}
  
 static void _ode_spec(_NrnThread* _nt, _Memb_list* _ml, int _type) {
    Datum* _thread;
@@ -371,7 +409,7 @@ static void _ode_spec(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 static void _ode_map(int _ieq, double** _pv, double** _pvdot, double* _pp, Datum* _ppd, double* _atol, int _type) { 
  	int _i; _p = _pp; _ppvar = _ppd;
 	_cvode_ieq = _ieq;
-	for (_i=0; _i < 2; ++_i) {
+	for (_i=0; _i < 4; ++_i) {
 		_pv[_i] = _pp + _slist1[_i];  _pvdot[_i] = _pp + _dlist1[_i];
 		_cvode_abstol(_atollist, _atol, _i);
 	}
@@ -440,7 +478,7 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }}
 
 static double _nrn_current(double _v){double _current=0.;v=_v;{ {
-   gna = gnabar * m * m * m * h * s * u ;
+   gna = gbar * m * m * m * h * s * u ;
    ina = gna * ( v - ena ) ;
    }
  _current += ina;
@@ -546,9 +584,15 @@ static void _initlists() {
   if (!_first) return;
  _slist1[0] = &(m) - _p;  _dlist1[0] = &(Dm) - _p;
  _slist1[1] = &(h) - _p;  _dlist1[1] = &(Dh) - _p;
+ _slist1[2] = &(s) - _p;  _dlist1[2] = &(Ds) - _p;
+ _slist1[3] = &(u) - _p;  _dlist1[3] = &(Du) - _p;
    _t_minf = makevector(201*sizeof(double));
    _t_mtau = makevector(201*sizeof(double));
    _t_hinf = makevector(201*sizeof(double));
    _t_htau = makevector(201*sizeof(double));
+   _t_sinf = makevector(201*sizeof(double));
+   _t_stau = makevector(201*sizeof(double));
+   _t_uinf = makevector(201*sizeof(double));
+   _t_utau = makevector(201*sizeof(double));
 _first = 0;
 }

@@ -35,7 +35,7 @@ extern double hoc_Exp(double);
  
 #define t nrn_threads->_t
 #define dt nrn_threads->_dt
-#define gkbar _p[0]
+#define gbar _p[0]
 #define gk _p[1]
 #define ik _p[2]
 #define n _p[3]
@@ -99,13 +99,13 @@ extern Memb_func* memb_func;
  double usetable = 1;
  /* some parameters have upper and lower limits */
  static HocParmLimits _hoc_parm_limits[] = {
- "gkbar_kdrtf", 0, 1e+009,
+ "gbar_kdrtf", 0, 1e+009,
  "usetable_kdrtf", 0, 1,
  0,0,0
 };
  static HocParmUnits _hoc_parm_units[] = {
  "ntau_kdrtf", "ms",
- "gkbar_kdrtf", "S/cm2",
+ "gbar_kdrtf", "S/cm2",
  "gk_kdrtf", "S/cm2",
  "ik_kdrtf", "mA/cm2",
  0,0
@@ -140,7 +140,7 @@ static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  static const char *_mechanism[] = {
  "6.2.0",
 "kdrtf",
- "gkbar_kdrtf",
+ "gbar_kdrtf",
  0,
  "gk_kdrtf",
  "ik_kdrtf",
@@ -157,7 +157,7 @@ static void nrn_alloc(Prop* _prop) {
 	double *_p; Datum *_ppvar;
  	_p = nrn_prop_data_alloc(_mechtype, 7, _prop);
  	/*initialize range parameters*/
- 	gkbar = 0.0018;
+ 	gbar = 0.0018;
  	_prop->param = _p;
  	_prop->param_size = 7;
  	_ppvar = nrn_prop_datum_alloc(_mechtype, 4, _prop);
@@ -294,9 +294,9 @@ static int _ode_spec1(_threadargsproto_);
 
  
 static int  _f_rates (  double _lv ) {
-    _zq10 = 3.3 ;
+    _zq10 = 1.0 ;
    ninf = 1.0 / ( 1.0 + exp ( - ( _lv + 45.0 ) / 15.4 ) ) ;
-   ntau = _zq10 * taucalc ( _threadargscomma_ _lv ) ;
+   ntau = taucalc ( _threadargscomma_ _lv ) * _zq10 ;
     return 0; }
  
 static void _hoc_rates(void) {
@@ -405,7 +405,7 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }}
 
 static double _nrn_current(double _v){double _current=0.;v=_v;{ {
-   gk = gkbar * n * n * n * n ;
+   gk = gbar * n * n * n * n ;
    ik = gk * ( v - ek ) ;
    }
  _current += ik;

@@ -15,12 +15,12 @@ UNITS {
 NEURON {
 		 SUFFIX kdrtf
 		 USEION k READ ek WRITE ik
-		 RANGE gkbar, gk, ik	
+		 RANGE gbar, gk, ik	
 	     GLOBAL ninf, ntau
 }
 
 PARAMETER {
-		 gkbar = 0.0018 (S/cm2) <0,1e9>		 
+		 gbar = 0.0018 (S/cm2) <0,1e9>		 
 }
 
 STATE {
@@ -43,7 +43,7 @@ LOCAL nexp
 ? currents
 BREAKPOINT {
         SOLVE states METHOD cnexp
-        gk = gkbar*n*n*n*n
+        gk = gbar*n*n*n*n
 		ik = gk*(v - ek)
 }
 
@@ -66,9 +66,9 @@ PROCEDURE rates(v(mV)) { : Computes rate and other constants at current v.
 						 TABLE ninf, ntau DEPEND celsius FROM -100 TO 100 WITH 200
 						 
 UNITSOFF
-		q10 = 3.3
+		q10 = 1.0 : 3.3 Disable q10 for now
 		ninf = 1/(1 + exp(-(v+45)/15.4))
-		ntau = q10*taucalc(v)
+		ntau = taucalc(v)*q10 : needs an extra factor of ^(deltaT/10) to get right q10
 }
 UNITSON
 

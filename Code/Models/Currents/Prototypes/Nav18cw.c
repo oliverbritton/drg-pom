@@ -35,7 +35,7 @@ extern double hoc_Exp(double);
  
 #define t nrn_threads->_t
 #define dt nrn_threads->_dt
-#define gnabar _p[0]
+#define gbar _p[0]
 #define gna _p[1]
 #define ina _p[2]
 #define m _p[3]
@@ -101,14 +101,14 @@ extern Memb_func* memb_func;
  double usetable = 1;
  /* some parameters have upper and lower limits */
  static HocParmLimits _hoc_parm_limits[] = {
- "gnabar_nav18cw", 0, 1e+009,
+ "gbar_nav18cw", 0, 1e+009,
  "usetable_nav18cw", 0, 1,
  0,0,0
 };
  static HocParmUnits _hoc_parm_units[] = {
  "mtau_nav18cw", "ms",
  "htau_nav18cw", "ms",
- "gnabar_nav18cw", "S/cm2",
+ "gbar_nav18cw", "S/cm2",
  "gna_nav18cw", "S/cm2",
  "ina_nav18cw", "mA/cm2",
  0,0
@@ -146,7 +146,7 @@ static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  static const char *_mechanism[] = {
  "6.2.0",
 "nav18cw",
- "gnabar_nav18cw",
+ "gbar_nav18cw",
  0,
  "gna_nav18cw",
  "ina_nav18cw",
@@ -164,7 +164,7 @@ static void nrn_alloc(Prop* _prop) {
 	double *_p; Datum *_ppvar;
  	_p = nrn_prop_data_alloc(_mechtype, 9, _prop);
  	/*initialize range parameters*/
- 	gnabar = 0.026;
+ 	gbar = 0.026;
  	_prop->param = _p;
  	_prop->param_size = 9;
  	_ppvar = nrn_prop_datum_alloc(_mechtype, 4, _prop);
@@ -414,7 +414,7 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }}
 
 static double _nrn_current(double _v){double _current=0.;v=_v;{ {
-   gna = gnabar * m * h ;
+   gna = gbar * m * h ;
    ina = gna * ( v - ena ) ;
    }
  _current += ina;

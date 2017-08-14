@@ -178,8 +178,122 @@ def nav18cw(Y,t,voltage_clamp_func,voltage_clamp_params):
     
 " -- Nav 1.9 models -- "
 
+def nav19hw(Y,t,voltage_clamp_func,voltage_clamp_params):
+    " Nav 1.9 model from Huang Waxman 2014"
+    m = Y[0]
+    h = Y[1]
+    s = Y[2]
+    
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    
+    alpha_m = 0.751/(1 + np.exp(-(v+32.26)/13.71))
+    beta_m = 5.68/(1 + np.exp((v+123.71)/13.94))
+    minf = alpha_m/(alpha_m + beta_m)
+    mtau = 1/(alpha_m + beta_m)
+
+    alpha_h = 0.082/(1 + np.exp((v+113.69)/17.4))
+    beta_h = 0.24/(1 + np.exp(-(v-10.1)/17.2))
+    hinf = alpha_h/(alpha_h + beta_h)
+    htau = 1/(alpha_h + beta_h)
+    
+    alpha_s = 0.019/(1 + np.exp((v+154.51)/11.46))
+    beta_s = 0.000376/(1 + np.exp(-(v+60.92)/15.79))
+    sinf = alpha_s/(alpha_s + beta_s)
+    stau = 1/(alpha_s + beta_s)
+    
+    dm = (minf-m)/mtau
+    dh = (hinf-h)/htau
+    ds = (sinf-s)/stau
+        
+    return [dm, dh, ds]
+    
+def nav19md(Y,t,voltage_clamp_func,voltage_clamp_params):
+    " Nav 1.9 model from Maingret 2008"
+    m = Y[0]
+    h = Y[1]
+    s = Y[2]
+    
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    
+    alpgha
+    
+    return [dm, dh, ds]
 
 " Kv models "
+
+def kdr_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
+    " Tigerholm version of the Sheets et al. IKdr model "
+    " Model was developed from data recorded at 21 oC "
+    
+    
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    n = Y[0]
+    q10 = 1.0#3.3 # Preserved in case it is useful but disabled
+    
+    if v > -31.0:
+        tau = 0.16+0.8*np.exp(-0.0267*(v+11))
+    else:
+        tau = 1000*(0.000688 + 1/(np.exp((v+75.2)/6.5) + np.exp(-(v-131.5)/(34.8))))
+		
+    ninf = 1/(1 + np.exp(-(v+45)/15.4))
+    ntau = tau/q10
+    
+    dn = (ninf-n)/ntau
+    return [dn]
+    
+def km_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
+    """ Tigerholm version of the IM current. Current is from multiple sources:
+    The voltage dependence of steady-state activation forthe KM current is from
+    Maingret et al. (2008), which was derived from Passmore 2003. The KM channel activation has a fast and a slow 
+    time constant as described by Passmore et al. (2003). To account for the 
+    two time constants, weimplemented one fast (nf) and one slow (ns) gate, 
+    combined as follows.
+    """
+    # g = gbar * (0.25*ns + 0.75*nf)
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    ns = Y[0]
+    nf = Y[1]
+    q10 = 1.0#3.3 # Preserved in case it is useful but disabled
+    
+    if v < -60.0:
+        nstau = 219.0*q10
+    else:
+        nstau = 13.0*v + 1000.0*q10
+        
+    nftau_alpha = 0.00395*np.exp((v+30.0)/40.0)
+    nftau_beta = 0.00395*np.exp(-(v+30.0)/20.0)*q10
+    nftau = 1.0/(nftau_alpha + nftau_beta)
+    
+    ninf = 1.0/(1.0 + np.exp(-(v+30.0)/6.0)) # Threshold is around -30 mV
+    
+    dns = (ninf-ns)/nstau
+    dnf = (ninf-nf)/nftau
+    
+    return [dns,dnf]
+    
+def ka_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
+    """ Tigerholm version of IA.
+    """
+    # g = gbar * n * h
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    n = Y[0]
+    h = Y[1]
+    q10 = 1.0#3.3 # Preserved in case it is useful but disabled
+    
+    ninf = (1.0/(1.0 + np.exp(-(v+5.4+15)/16.4)))**4
+    ntau = 0.25 + 10.04*np.exp((-(v+24.67)**2)/(2*34.8**2))*q10
+		
+    hinf = 1.0/(1.0 + np.exp((v+49.9 + 15.0)/4.6))
+    htau = 20.0 + 50.0 * np.exp((-(v+40.0)**2)/(2.0*40.0**2))*q10
+    
+    # Trap for htau following Sheets /ChoiWaxman/Tigerholm - set it to 5 ms if less than 5 ms
+    if htau < 5.0:
+        htau = 5.0
+
+    dn = (ninf-n)/ntau
+    dh = (hinf-h)/htau
+    
+    return [dn,dh]
 
 " HCN models "
 def hcn_tf(Y,t,voltage_clamp_func,voltage_clamp_params):

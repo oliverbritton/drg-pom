@@ -15,12 +15,12 @@ UNITS {
 NEURON {
 		 SUFFIX kmtf
 		 USEION k READ ek WRITE ik
-		 RANGE gkbar, gk, ik	
+		 RANGE gbar, gk, ik	
 	     GLOBAL ninf, nsTau, nfTau
 }
 
 PARAMETER {
-		 gkbar = 0.0018 (S/cm2) <0,1e9>		 
+		 gbar = 0.0018 (S/cm2) <0,1e9>		 
 }
 
 STATE {
@@ -43,7 +43,7 @@ LOCAL nexp
 ? currents
 BREAKPOINT {
         SOLVE states METHOD cnexp
-        gk = gkbar*(ns/4 + 3*nf/4)
+        gk = gbar*(ns/4 + 3*nf/4)
 		ik = gk*(v - ek)
 }
 
@@ -86,6 +86,6 @@ FUNCTION nsTauCalc(x,q10) {  : Equation for nsTau
 		if (x < -60) {
 				 nsTauCalc =  219*q10
 		}else{
-				nsTauCalc = 13*x + 10000*q10
+				nsTauCalc = 13*x + 1000*q10
 		}
 }

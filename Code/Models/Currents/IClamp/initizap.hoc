@@ -1,0 +1,141 @@
+// Demonstrates Izap mechanism on a single compartment model with hh mechanism.
+// After end of simulation confirms frequency of applied current
+// by determining the instantaneous angular frequency from the recorded values.
+
+load_file("nrngui.hoc")
+
+load_file("rig.ses")
+
+objref yvec, tvec, fvec
+yvec = new Vector()
+tvec = new Vector()
+fvec = new Vector()
+
+yvec.record(&Izap[0].i)
+tvec.record(&t)
+fvec.record(&Izap[0].f) // will later compare this with inst freq
+  // computed from the zap waveform itself
+
+/*
+Confirm the time-dependence of frequency.
+The zap wave is simply sin(theta)
+where theta is a function of time.
+The instantaneous frequency of a sine wave in radians/sec is
+dtheta/dt = w
+where
+w = 2*PI*f
+so instantaneous frequency in hz is f = (dtheta/dt) / (2*PI)
+
+The strategy:
+Normalize the amplitude of the sine wave.
+From the time course of sin(theta), calculate the time course of theta.
+We don't have asin, but we do have atan.
+However, atan returns values from -PI/2 to PI/2, 
+and can't distinguish between quadrants II-III and IV-I,
+so its output requires some processing.
+*/
+
+func sin2tan() { local bar
+  bar = $1^2
+  if (bar==1) {
+    if ($1>0) {
+      bar = 1e9
+    } else {
+      bar = -1e9
+    }
+  } else {
+    bar = $1/sqrt(1 - bar)
+  }
+  return bar
+}
+
+obfunc calc_finst() { local ii, fix  localobj tmpvec, dyvec, theta, foo, finst
+  tmpvec = yvec.c
+  tmpvec.div(Izap[0].amp) // normalize the amplitude of the sine wave
+  // from the time course of sin(theta), calculate the time course of theta
+  // we don't have asin, but we do have atan
+  // however, atan returns values from -PI/2 to PI/2
+  // and can't distinguish between quadrants II-III and IV-I
+  // so its output requires some processing.
+  tmpvec.apply("sin2tan")
+  tmpvec.apply("atan") // runs only from -PI/2 to PI/2
+    // and switches direction at each extremum
+  dyvec = yvec.c
+  dyvec.deriv(1) // Euler difference
+  for ii=1,dyvec.size()-1 {
+    if (dyvec.x[ii]<0) {
+      if (yvec.x[ii]>0) {
+        tmpvec.x[ii] = PI - tmpvec.x[ii]
+      } else {
+        tmpvec.x[ii] = -PI - tmpvec.x[ii]
+      }
+    }
+  }
+  // tmpvec now repeatedly runs monotonically from -PI to PI, then jumps back to -PI
+  // must eliminate the jumps
+  theta = tmpvec.c
+  foo = tmpvec.c
+
+  fix = 0
+  for ii=1,theta.size()-1 {
+    if (foo.x[ii]-foo.x[ii-1] < 0) {
+      fix += 2*PI
+    }
+    theta.x[ii] = theta.x[ii] + fix
+  }
+
+  // theta now increases monotonically with time
+  finst = theta.c
+  finst.deriv(0.001*dt, 2) // central difference derivative this time
+    // 0.001 factor is because dt is in ms, not seconds!
+  finst.div(2*PI)
+  return finst
+}
+
+objref finst, gfinst
+
+proc plot_results() {
+  gfinst = new Graph(0)
+  gfinst.size(0,tstop,Izap[0].f0,Izap[0].f1)
+  {gfinst.view(0, Izap[0].f0, tstop, Izap[0].f1, 689, 553, 300.48, 200.32)}
+  gfinst.label(0.127796, 0.838658, "instantaneous freq", 2, 1, 0, 0, 1)
+  finst.plot(gfinst, tvec)
+}
+
+/*
+Calculate and plot the difference between the frequency reported by Izap.f
+and the actual instantaneous frequency calculated by analyzing 
+the zap current's waveform.  Call this difference the "frequency error"
+and plot it as a function of time.
+*/
+
+objref ferror, gferror
+
+proc plot_err() {
+  ferror = finst.c.sub(fvec)
+  gferror = new Graph(0)
+  gferror.size(0,tstop,Izap[0].f0,Izap[0].f1)
+  {gferror.view(0, Izap[0].f0, tstop, Izap[0].f1, 689, 289, 300.48, 200.32)}
+  gferror.label(0.127796, 0.838658, "frequency error", 2, 1, 0, 0, 1)
+
+  ferror.plot(gferror, tvec)
+  gferror.exec_menu("View = plot")
+}
+
+
+// custom proc run() launches a simulation
+// then analyzes results and displays analysis findings
+
+proc run() {
+  running_ = 1
+  stdinit()
+  continuerun(tstop)
+  // end of standard proc run()
+  // now analyze results
+  finst = calc_finst()
+  plot_results()
+  plot_err()
+}
+
+run()
+
