@@ -1,11 +1,15 @@
 import numpy as np
+from scipy import optimize
 import Methods.Biomarkers.DavidsonBiomarkers as db
+import Methods.simulation_helpers as sh
+from matplotlib import pyplot as plt
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
 
 
-def SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5):
+def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
+    " Threshold is at +20 mV to avoid RF causing spurious AP detection "
 	
     # Units for defaults
     # t, timeThreshold - ms
@@ -107,9 +111,9 @@ def VoltageGradient(t,v):
 # --- Biomarkers ---
 def RMP(v):
     # RMP should be calculated from a quiescent trace (no stimulus)
-    # Ignore first 1% of trace to remove artifacts
+    # Ignore first 90% of trace to remove artifacts
     vLen = len(v)
-    startIdx = vLen/100
+    startIdx = 90*vLen/100
     RMP = min(v[startIdx:])
     RMPIdx = np.argmin(v[startIdx:]) 
     return RMP, RMPIdx
@@ -209,8 +213,98 @@ def APFullWidth(t,v,threshold=0):
     
     return fullWidth
 
-def FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold):
-
+def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
+    """ 
+    Gather afterhyperpolarisation regions from a set of traces and fit them to a model 
+    of a single exponential (other models can be added as needed)
+    """
+    # Define model to fit AHP to
+    if ahp_model == 'single_exp':
+        def model(x, a, b, c):
+            return a - b * np.exp(-x/c)
+    else:
+        assert False
+    
+    # Arrange data to contain each interval between peak
+    num_APs = traces['numAPs']
+    if num_APs < 1:
+        return False
+      
+    elif num_APs == 1:
+        # With only one AP the interval is from the peak to the end of the trace
+        _t = traces['t'][0]
+        _v = traces['v'][0]
+        max_idx = np.argmax(_v)
+        ts = [_t[max_idx+1:]] # Single element lists from just after peak to end of trace
+        vs = [_v[max_idx+1:]]
+        
+    elif num_APs > 1:
+        # Divide data into intervals between peaks for each interval
+        ts = []
+        vs = []
+        for i in range(num_APs-1):
+            _ts = [traces['t'][idx] for idx in [i, i+1]]
+            _vs = [traces['v'][idx] for idx in [i, i+1]]
+            max_idxs = [np.argmax(_v) for _v in _vs]
+            # Concatenate the two parts of the interval from each trace
+            _t_start = _ts[0][max_idxs[0]:]
+            _t_end =  _ts[1][:max_idxs[1]-1]
+            _v_start =_vs[0][max_idxs[0]:]
+            _v_end =  _vs[1][:max_idxs[1]-1] 
+            
+            _t = np.concatenate([_t_start, _t_end], axis=0)
+            _v = np.concatenate([_v_start, _v_end], axis=0)
+            ts.append(_t)
+            vs.append(_v)
+            
+    # For the trace from each interval, fit an AHP and store parameters
+    amps = []
+    taus = []
+    if full_output: # Storage if interval traces are requested
+        output_ts = []
+        output_vs = []
+        popts = []
+        
+    for t,v in zip(ts,vs):
+        # Start from the minimum, until dvdt exceeds the threshold given as input
+        min_idx  = np.argmin(v)
+        dvdt = np.gradient(v)/np.gradient(t)
+        threshold_exceeded = dvdt > dvdt_threshold
+        if any(threshold_exceeded):
+            cutoff_idx = np.where(threshold_exceeded)[0][0] - 1
+        else: # Use the whole trace
+            cutoff_idx = len(t)-1
+        
+        t = t[min_idx:cutoff_idx]
+        v = v[min_idx:cutoff_idx]
+        
+        # use scipy.optimise.curvefit to fit curve - another option would be to use the more complex 
+        # LMFIT library, but I have no experience with it's advantages over the basic scipy lsq fit function
+        if ahp_model == 'single_exp':
+            t = t - t[0] # Zero out t as model assumes this
+            popt, pcov = optimize.curve_fit(model, t, v) # Do the fitting
+        else:
+            assert False, "ahp_model not found"
+        
+        amps.append(popt[0] - popt[1]) # calculate amp
+        taus.append(popt[2]) # get tau
+        
+        if full_output:
+            output_ts.append(t)
+            output_vs.append(v)
+            popts.append(popt)
+    
+    # Return non averaged output and cutoff times and voltages if full output requested "
+    if full_output == True:
+        return amps, taus, output_ts, output_vs, popts
+        # Otherwise just return mean amplitude and time constant of the AHP "
+    else:
+        amp = np.mean(amps)
+        tau = np.mean(taus)
+        return amp, tau
+        
+    #return amp, tau
+    """
     def expFunc(t, amp, slope, start):
         return amp*(1 - np.exp(-slope*t)+start)    
         
@@ -237,35 +331,25 @@ def FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold):
     
     tau = 'Time constant not implemented'
     return amp, tau
-
-   
-# Calculate average interspike interval from a divided trace calculated
-# by the SplitTraces function
-def InterSpikeInterval(dividedTrace):
-    # Get number of spikes
-    numAPs = dividedTrace['numAPs']
+    """
+def InterSpikeInterval(traces):
+    # Calculate average interspike interval from a divided set of traces
+    numAPs = traces['numAPs']
     if numAPs < 2:
-        return 'N/A'
+        print('ISI cannot be calculated with < 2 APs')
     else:
         # Find the peak of the first and last trace
-        startIndices = dividedTrace(['startIndices'])
-        endIndices = dividedTrace(['endIndices'])
-        voltages = dividedTrace['voltages']
-        
-        firstSpike = argmax(voltages[0])
-        lastSpike = argmax(voltages[-1])
-        
-#        # Don't think I need these
-#        firstIndex = startIndices[0] + firstSpike
-#        lastIndex = startIndices[-1] + lastSpike
-        
+        voltages = traces['v']
+        first_spike = np.argmax(voltages[0])
+        last_spike = np.argmax(voltages[-1])
+
         # Get the time difference
-        times = dividedTrace['times']        
-        timeDiff = times[-1][lastSpike] - times[0][firstSpike]
-        assert timeDiff > 0, 'timeDiff for ISI < 0!'
-        # Divide by (numAPs - 1)
-        interSpikeInterval = timeDiff/(numAps-1)
-        return interSpikeInterval
+        times = traces['t']        
+        time_diff = times[-1][last_spike] - times[0][first_spike]
+        assert time_diff > 0, 'time_diff for ISI < 0'
+        # Divide by number of intervals (numAPs - 1) to get mean ISI
+        inter_spike_interval = time_diff/(numAPs-1)
+        return inter_spike_interval
 
 # ---- Calculating biomarkers over multiple traces ----
 
@@ -284,12 +368,32 @@ def CalculateRampAP():
     # TODO
     return 0
     
-def CalculateStepRheobase():
-    # TODO
-    return 0
+def CalculateRheobase(cell_model, amp_step=0.1, amp_max=5, make_plot=False,):
+    " Run a series of simulations to calculate rheobase "
+    " Rheobase is defined as the threshold current for an infinite duration pulse "
+    " We'll try 2 seconds "
     
-def CalculateThreshold():
-    #TODO
+    amps = np.arange(0,amp_max,amp_step) # (nA)
+
+    # Run simulations until we reach the limit or we find an AP and return rheobase
+    # Return NaN if rheobase not found
+
+    for amp in amps:
+        t,v = sh.simulation(amp=amp, dur=2000., delay=1000., interval=0, num_stims=1, mechanisms=None, t_stop=3000., make_plot=False, plot_type='default', model=cell_model)
+        
+        # Look for an AP (after the delay), if one is found then return amp as rheobase amplitude
+        traces = SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5)
+        if traces['numAPs'] > 0: # rheobase found
+            if make_plot:
+                plot_traces(traces)
+            rheobase = amp
+            return rheobase
+
+    # No APs found - return not a number
+    return np.nan
+    
+def CalculateThreshold(model):
+
     return 0
 
 def CalculateAPPeak(traces):
@@ -343,7 +447,11 @@ def CalculateAHPTau():
     # TODO
     return 0
     
-    
+# ---- Plotting ----
+
+def plot_traces(traces):
+        for t,v in zip(traces['t'], traces['v']):
+            plt.plot(t,v)
 
 # ---- I/O ----
 

@@ -21,6 +21,7 @@ import NeuronProjectStart
 import Methods.Biomarkers.NeuronBiomarkers as nb
 import Methods.Biomarkers.DavidsonBiomarkers as db
 # Load all channel models and return to the right directory
+" TODO - can I refactor this to use load neuron library?"
 curDirectory = os.getcwd()
 projectDir = NeuronProjectStart.GetProjectDir()
 nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()

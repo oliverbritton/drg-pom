@@ -41,7 +41,7 @@ def TestSplitTrace(trace):
 def TestAPFullWidth(traces,threshold):    
     
     count = 0
-    for t,v in zip(traces['t'],traces['v']):
+    for idx,(t,v) in enumerate(zip(traces['t'],traces['v']),1):
         cl = sns.color_palette()[count]
         count += 1
         APFullWidth = nb.APFullWidth(t,v,threshold)
@@ -49,6 +49,7 @@ def TestAPFullWidth(traces,threshold):
         i = np.argmax(v)
         tPeak = t[i]        
         plt.plot([tPeak,tPeak+APFullWidth],[threshold]*2,color=cl)
+        print "Trace {}: Width = {} ms".format(idx, APFullWidth)
     
     
     
@@ -60,26 +61,29 @@ def TestAPPeak(traces):
     
 
 def TestAPRiseTime(traces,dvdtthreshold):
-    for t,v in zip(traces['t'],traces['v']):
+    for idx,(t,v) in enumerate(zip(traces['t'],traces['v']),1):
         APRiseTime = nb.APRiseTime(t,v,dvdtthreshold)
-        print APRiseTime
         i = np.argmax(v)
         plt.plot(t,v)     
         plt.plot([t[i]-APRiseTime,t[i]],2*[0],color=sns.xkcd_rgb["bright red"],lw=1) 
+        print "Trace {}: APRiseTime = {} ms".format(idx,APRiseTime)
         
 
 def TestFitAfterHyperpolarisation(traces,dvdtThreshold):    
-    
-#    FitAfterHyperpolarisation(t,v,t2,v2):
-    for i in range(traces['numAPs']-1):
-        t = traces['t'][i]
-        v = traces['v'][i]
-        t2 = traces['t'][i+1]
-        v2 = traces['v'][i+1]
-        amp,tau = nb.FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold)
-#
-#def TestInterSpikeInterval():
-#
+        amps, taus, ts, vs, popts = nb.FitAfterHyperpolarisation(traces,5,full_output=True)
+        for amp,tau,t,v,popt in zip(amps,taus,ts,vs,popts):
+            plt.figure()
+            plt.title("Amp = {} mV, tau = {} ms".format(amp,tau))
+            plt.plot(t,v)
+            plt.plot(t, popt[0] - popt[1] * np.exp(-t/popt[2]))
+
+def TestInterSpikeInterval(traces):
+    for t,v in zip(traces['t'],traces['v']):
+        plt.plot(t,v)
+    inter_spike_interval = nb.InterSpikeInterval(traces)
+    print('ISI = {} ms'.format(inter_spike_interval))
+    print('Frequency = {} Hz'.format(1000./inter_spike_interval))
+
 def TestRMP(traces):
     for t,v in zip(traces['t'],traces['v']):
         RMP, RMPIdx = nb.RMP(v)
@@ -123,6 +127,30 @@ def LoadTestRheobaseTraces():
     i = 1
     for amp in amps:
         filename = os.path.join(testTraceDir,prefix,str(amp),'_',str(i),'.dat')
+        
+def TestAllBiomarkers(traces, model):
+    " Calculate every biomarker and output to dict "
+    " TODO: Use the rheobase to work out what simulation to run to calculate biomarkers "
+    " off of (at rheobase) "
+    biomarkers = {}
+    # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+
+    biomarkers['APFullWidth'] = np.mean(nb.CalculateAPFullWidth(traces,threshold=0))
+    biomarkers['APPeak'] = np.mean(nb.CalculateAPPeak(traces))
+    biomarkers['APRiseTime'] =  np.mean(nb.CalculateAPRiseTime(traces,dvdtthreshold=5))
+    APSlopeMinVals, APSlopeMaxVals = nb.CalculateAPSlopeMinMax(traces)
+    biomarkers['APSlopeMin'] = np.mean(APSlopeMinVals)
+    biomarkers['APSlopeMax'] = np.mean(APSlopeMaxVals)
+    amp, tau = nb.FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    biomarkers['AHPAmp'] =  amp
+    biomarkers['AHPTau'] =  tau
+    biomarkers['ISI'] = nb.InterSpikeInterval(traces)
+    biomarkers['RMP'] =  np.mean(nb.CalculateRMP(traces))
+    # Need to do rheobase separately
+    biomarkers['Rheobase'] =  nb.CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
+    
+    return biomarkers
+    
 
 """ Setup """
 trace = LoadTestTrace()
@@ -137,6 +165,6 @@ dvdtThreshold = 5
 #TestAPRiseTime(traces,dvdtThreshold)
 #TestFitAfterHyperpolarisation(traces,dvdtThreshold)
 #TestInterSpikeInterval
-TestRMP(traces) # TODO make it average the voltage after the minimum """
+#TestRMP(traces) # TODO make it average the voltage after the minimum """
 #TestRheobase([trace,trace],[50,100])
-print "***"
+#print "***"

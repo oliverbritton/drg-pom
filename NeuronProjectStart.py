@@ -32,13 +32,15 @@ def SetPaths(projectDir):
     figsDir = os.path.join(projectDir,'Figures') 
     simDir = os.path.join(projectDir,'Simulations')
     dataDir = os.path.join(projectDir,'Data')
-
+    testDir = os.path.join(projectDir,'tests')
+    
     sys.path.append(projectDir)
     sys.path.append(codeDir)    
     sys.path.append(figsDir)     
     sys.path.append(simDir)
     sys.path.append(dataDir)
-
+    sys.path.append(testDir)
+    
 def GetNrnChannelDir():
     return os.path.join('Code','Models','Currents','Prototypes')
 

@@ -13,7 +13,7 @@ if 'mechanisms_loaded' not in locals():
     mechanisms_loaded = False
 
 " Main load function "
-def load_neuron_mechanisms(mech_type='prototype'):
+def load_neuron_mechanisms(mech_type='prototype', verbose=False):
     """
     Load neuron mechanisms, if not already loaded.
     """
@@ -21,6 +21,11 @@ def load_neuron_mechanisms(mech_type='prototype'):
     if are_mechanisms_loaded() == False:
         h.nrn_load_dll(os.path.join(get_mechanism_dir(mech_type),"nrnmech.dll"))
         "Mechanisms loaded!"
+    if verbose:
+        if are_mechanisms_loaded():
+            print("Mechanisms are loaded.")
+        else:
+            print("Mechanisms NOT loaded!")
 
 def get_mechanism_dir(mech_type='prototype'):
     """
@@ -50,7 +55,7 @@ def thingy():
         print sref[0]
     return mt.count()
     
-def are_mechanisms_loaded():
+def are_mechanisms_loaded(verbose=False):
     """
     Checks if mechanisms have been loaded. Assumes a certain set of mechanisms are loaded by default
     and that if a dll has been loaded it will contain other mechanisms. 
@@ -77,7 +82,8 @@ def are_mechanisms_loaded():
     if not non_default_mechanisms :
         # List is empty
         loaded = False
-        print("No non-default mechanisms detected, ready to load nrnmech.dll.")
+        if verbose:
+            print("No non-default mechanisms detected, ready to load nrnmech.dll.")
     else:
         loaded = True
     return loaded    

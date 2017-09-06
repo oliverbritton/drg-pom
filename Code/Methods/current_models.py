@@ -296,9 +296,37 @@ def ka_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
     return [dn,dh]
 
 " HCN models "
-def hcn_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
-    " Tigerholm version of the Kouranova Ih model (original Kouranova model is different - no separate Na and K parts) "
+def hcn_kn(Y,t,voltage_clamp_func,voltage_clamp_params):
+    """ 
+    Kouranova Ih model with non-specific current (reversal potential should be set at -30 mV 
+    """
+
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    n_s = Y[0]
+    n_f = Y[1]
+
+    ninf_s = 1/(1 + np.exp((v+87.2)/9.7))
+    ninf_f = ninf_s
+
+    if v > -70.0:
+        tau_ns = 300.0 + 542.0 * np.exp((v+25.0)/20.0)
+        tau_nf = 140.0 + 50.0 * np.exp(-(v+25.0)/20.0)
+    else:
+        tau_ns = 2500.0 + 100.0 * np.exp((v+240.0)/50.0)
+        tau_nf = 250.0 + 12.0 * np.exp((v+240.0)/50.0)
+
+    dns = (ninf_s - n_s)/tau_ns
+    dnf = (ninf_f - n_f)/tau_nf
+
+    return [dns, dnf]
     
+def hcn_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
+    """
+    Tigerholm version of the Kouranova Ih model which is identical except
+    that when you calculate the current you don't use a nonspecific reversal potential and instead split the current between Na+ and K+, 50/50.    
+    """
+    
+    v = voltage_clamp_func(t,voltage_clamp_params)
     n_s = Y[0]
     n_f = Y[1]
     
