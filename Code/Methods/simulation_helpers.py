@@ -11,6 +11,7 @@ import os
 import sys
 import numpy as np
 from matplotlib import pyplot as plt
+import pyDOE
 
 # Load Neuron and DRG code
 sys.path.append('E:\\CLPC48\\Neuron Project')
@@ -20,23 +21,31 @@ import NeuronProjectStart
 from neuron import h
 import neuron
 
-def init_model(mechanisms):
+def init_model(mechanisms,
+    L=30., 
+    diam=46., 
+    cm=20.2/1000., 
+    Ra=123., 
+    ko=3., 
+    ki=135., 
+    nao=145., 
+    nai=5.,
+    ):
+    """
+    Initialise a cylindrical cell model, with the specified ionic mechanisms embedded.
+    """
     cell = h.Section()
-    # Add IKdr and Nav 1.8
     for mechanism in mechanisms:
         cell.insert(mechanism)
-
-    cell.L = 30 # microns
-    cell.diam = 23*2 #microns
-    cell.cm = (20.2)/1000  # uF/cm2
-    cell.Ra = 123 # ohm-cm
+    cell.L = L # microns
+    cell.diam = diam #microns
+    cell.cm = cm  # uF/cm2
+    cell.Ra = Ra # ohm-cm
     
-    cell.ko = 3.
-    cell.ki = 135.
-    
-    cell.nao = 145.
-    cell.nai = 5.
-    
+    cell.ko = ko
+    cell.ki = ki
+    cell.nao = nao
+    cell.nai = nai
     return cell
 
 def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=None):
@@ -114,6 +123,44 @@ def record_currents(cell, current_set='default'):
         currents['ikdr'].record(cell(0.5)._ref_ik_kdrtf, sec=cell)
         currents['ia'].record(cell(0.5)._ref_ik_katf, sec=cell)
         return currents
+        
+def build_sim_protocols(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, t_stop=1000., v_init=-65.,):
+
+    sim_protocols = {'amp':amp, 'dur':dur, 'delay':delay, 'interval':interval, 'num_stims':num_stims, 'stim_func':stim_func, 't_stop':t_stop, 'v_init':v_init,}
+    return sim_protocols
+    
+def build_parameter_set_details(num_models, num_parameters, min, max, output_filename, parameter_names=None):
+    " Parameter set details ... "
+    param_set_details = {}
+    param_set_details['num_models'] = num_models
+    param_set_details['num_parameters'] = num_parameters
+    param_set_details['min'] = min
+    param_set_details['max'] = max
+    param_set_details['output_filename'] = output_filename
+    param_set_details['parameter_names'] = parameter_names
+    
+    return param_set_details
+
+def build_parameter_set(num_models, num_parameters, minimum, maximum, output_filename=None, parameter_names=None, save=False):
+    
+    parameter_sets = pyDOE.lhs(num_parameters, num_models)
+    # Transform parameter set using minimumimum and maximumimum
+    # Scale size of range
+    parameter_sets *= (maximum-minimum)
+    # Scale to right minimumimum (and right maximumimum if we scaled range right)
+    parameter_sets += minimum    
+    
+    if output_filename:
+        if parameter_names:
+            assert num_parameters == len(parameter_names), "Number of parameters != length of parameter names list."
+            header = ', '.join(parameter_names)
+        else:
+            header = ''
+        
+        if save:
+            np.savetxt(output_filename, parameter_sets, fmt='%.3f', header=header, comment='') # Write to 3 d.p precision 
+    return parameter_sets
+    
 
 def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None):
     

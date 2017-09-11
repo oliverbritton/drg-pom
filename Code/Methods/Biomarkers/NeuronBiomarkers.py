@@ -7,6 +7,28 @@ from matplotlib import pyplot as plt
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
 
+def calculate_biomarkers(traces, model):
+    " Calculate every biomarker and output to dict "
+    " TODO: Use the rheobase to work out what simulation to run to calculate biomarkers "
+    " off of (at rheobase) "
+    biomarkers = {}
+    # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+
+    biomarkers['APFullWidth'] = np.mean(CalculateAPFullWidth(traces,threshold=0))
+    biomarkers['APPeak'] = np.mean(CalculateAPPeak(traces))
+    biomarkers['APRiseTime'] =  np.mean(CalculateAPRiseTime(traces,dvdtthreshold=5))
+    APSlopeMinVals, APSlopeMaxVals = CalculateAPSlopeMinMax(traces)
+    biomarkers['APSlopeMin'] = np.mean(APSlopeMinVals)
+    biomarkers['APSlopeMax'] = np.mean(APSlopeMaxVals)
+    amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    biomarkers['AHPAmp'] =  amp
+    biomarkers['AHPTau'] =  tau
+    biomarkers['ISI'] = InterSpikeInterval(traces)
+    biomarkers['RMP'] =  np.mean(CalculateRMP(traces))
+    # Need to do rheobase separately
+    biomarkers['Rheobase'] =  CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
+    
+    return biomarkers
 
 def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
     " Threshold is at +20 mV to avoid RF causing spurious AP detection "
