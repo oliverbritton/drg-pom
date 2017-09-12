@@ -464,10 +464,16 @@ class PopulationOfModels(object):
         " To dos: "
         " 1. Support non-conductance parameters through updating sh.build_model "
         # -- Check parameters are defined and consistent with model_details --
-        self.num_mechanisms = len(model_details['mechanisms'])
+        self.num_mechanisms = len(model_details['mechanisms']) 
+        assert self.num_mechanisms == 
         
         # -- Load parameters --
         self.setup_parameters()
+        
+        # Setup calibration
+        self.calibration_complete = False # Has calibration been performed?
+        self.calibration = None # Dataframe showing of each parameter set and each biomarker showing whether each parameter set passeed calibration for each biomarker
+        self.calibrated_indices = None # Indices of parameter sets that have passed calibration to for all tested biomarkers
         
         # -- Setup simulation protocols --
         # Stimulus protocols
@@ -521,7 +527,15 @@ class PopulationOfModels(object):
     
     def load_calibration_ranges(self, calibration_ranges=None, calibration_filename=None):
     " Load calibration ranges from a dataframe or a file "
-        pass
+        if calibration_filename:
+            calibration_ranges = pd.read_csv(calibration_filename)
+            self.calibration_ranges = calibration_ranges
+        elif calibration_ranges:
+            assert type(calibration_ranges) == pd.DataFrame, "Supplied calibration ranges are not a pandas DataFrame"
+            self.calibration_ranges = calibration_ranges
+        else:
+            raise ValueError("No calibration range or filename supplied.")
+    
     
     " --- Simulation functions --- "
     
@@ -534,15 +548,27 @@ class PopulationOfModels(object):
             self.active_model = sh.build_model(mechanisms=self.mechanisms, conductances=self.active_parameters)
             
         
-    def calibrate_population(self):
-    " Calibrate the current parameter sets, saving the data on calibration criteria passing to a dataframe and optionally updating the new parameter set as the activate parameter set "
+    def calibrate_population(self, biomarker_names, simulation_conditions):
+        """ 
+        Calibrate the current parameter sets, saving the data on calibration criteria passing to a dataframe which is set as the
+        active calibration.
+        """
+        
+        " First check that we have a set of results (parameters and biomarkers) that contain data for the appropriate biomarkers under the right simulation conditions")
+        
+        results = self.results # Main results dataframe
+
+        # See pandas notebook for how to build results
+        results_conditions = results[]
+        
         pass
         
     " --- Analysis functions --- "
     
     " --- Storage functions --- "
     def change_parameters_to_calibrated_set(self):
-        pass
+        if self.calibration_complete:
+        self.parameters
         
     
 
