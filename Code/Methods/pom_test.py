@@ -7,6 +7,7 @@ Functions for running a population of models loop
 """
 import os
 import datetime
+import time
 import re
 #import pdb
 import time
@@ -25,8 +26,8 @@ from neuron import h
 import neuron
 
 # Load ion channel models
-from Methods.Simulations.loadneuron import load_neuron_mechanisms
-load_neuron_mechanisms(verbose=False)
+import Methods.Simulations.loadneuron as ln
+ln.load_neuron_mechanisms(verbose=False)
 
 # FUNCTIONS
 
@@ -443,11 +444,10 @@ class PopulationOfModels(object):
 
     def __init__(self, 
         sim_protocols,
-        biomarker_filename,
         model_details,
         parameter_filename=None, 
-        generate_new_parameter_set=False, 
         parameter_set_details=None,
+        biomarker_filename=None,
     ):
         """
         Steps for running a population of models simulation:
@@ -462,21 +462,101 @@ class PopulationOfModels(object):
         9. (Optional) Analyse biomarkers and present summary data and/or visualisations if asked for
         """
         " To dos: "
-        " 1. Support non-conductance parameters through updating sh.build_model "
-        # -- Check parameters are defined and consistent with model_details --
-        self.num_mechanisms = len(model_details['mechanisms']) 
-        assert self.num_mechanisms == 
+        " 1. Support non-conductance parameters through updating sh.build_model "  
         
-        # -- Load parameters --
-        self.setup_parameters()
+        # Load mechanism and parameter names
+        self.model_details = model_details
+        self.setup_mechanisms() # Get mechanism names, parameter names, parameter designations and parameter ranges
+
+        # Load parameters
+        if (parameter_filename is not None) & (parameter_set_details is not None): # Check only one option for parameters is set
+            raise ValueError("Both parameter filename and parameter details have been provided, choose one or the other.")
+            
+        self.setup_parameters(parameter_filename=parameter_filename, parameter_set_details=parameter_set_details)
         
+        self.model_description = self.get_model_description()
+        
+        # Initialise results 
+        self.setup_results()
+       
         # Setup calibration
         self.calibration_complete = False # Has calibration been performed?
+        self.calibration_applied = False # Has calibration been applied on to results?
         self.calibration = None # Dataframe showing of each parameter set and each biomarker showing whether each parameter set passeed calibration for each biomarker
         self.calibrated_indices = None # Indices of parameter sets that have passed calibration to for all tested biomarkers
-        
+            
         # -- Setup simulation protocols --
         # Stimulus protocols
+        self.setup_simulation_protocols(sim_protocols=sim_protocols)
+        self.current_set = None
+        print "TO DO CURRENT SET TO DO CURRENT SET "
+        self.celsius = 32. # In line with Davidson et al., 2014, PAIN
+        
+        
+        # Drug blocks
+        self.blocks = {}
+        # To do - add in blocks to build_sim_protocols function and here when necessary
+            
+        
+    " --- Setup functions --- "
+    def setup_results(self):
+        """
+        Setup the main results dataframe to store parameters, biomarkers and model metadata. Load parameters and model information into the dataframe as part of the setup process.
+        """
+        self.results = self.parameters.copy(deep=True)
+        param_names = self.results.columns
+        arrays = [['Parameters']*len(param_names), param_names]
+        columns = pd.MultiIndex.from_arrays(arrays, names=['',''])
+        self.results.columns = columns
+        self.results.index.name = 'Model'
+
+    
+    def setup_mechanisms(self):
+        " Load mechanism details from model details "
+        self.mechanisms = self.model_details['mechanisms']
+        self.mechanism_names = self.mechanisms.keys() # gives the list of mechanisms to insert
+        self.parameter_names = [] # Public-facing name of each parameter (e.g. GNav17, GKdr)
+        self.parameter_designations = {} # Map of parameter names to designations of each parameter in neuron mod file
+        for mechanism in self.mechanisms:
+            self.parameter_names.extend(self.mechanisms[mechanism].keys())
+            self.parameter_designations.update(self.mechanisms[mechanism])
+            
+        assert len(self.mechanism_names) == len(set(self.mechanism_names)), "Mechanism names are not all unique."
+        assert len(self.parameter_names) == len(set(self.parameter_names)), "Parameter names are not all unique."
+        assert len(self.parameter_designations) == len(set(self.parameter_designations)), "Parameter designations are not all unique."
+        
+    
+    def setup_parameters(self, parameter_filename=None, parameter_set_details=None):
+        " Load or generate a parameter set for simulations. "    
+        # If parameter_filename is provided, load parameters from there "
+        if parameter_filename: 
+            parameters, header = self.load_parameter_set(parameter_filename, load_comment=True, comment='#')    
+        # If there is no parameter filename and parameter set details have been provided, generate a new parameter set using the parameters, and optionally save it. "
+        elif parameter_set_details:
+            num_models = parameter_set_details['num_models']
+            parameter_data = parameter_set_details['parameter_data']
+            save = parameter_set_details['save']
+            output_filename = parameter_set_details['output_filename']
+            if isinstance(parameter_data, list):
+                minimum = parameter_set_details['minimum']
+                maximum = parameter_set_details['maximum']
+            else:
+                minimum = None
+                maximum = None
+            parameters, header = sh.build_parameter_set(num_models=num_models, parameter_data=parameter_data, minimum=minimum, maximum=maximum, filename=output_filename, save=save)
+        else:
+            raise ValueError('No filename to load or details provided to set up parameters.')
+        # Finally, set parameters
+        self.parameters = parameters
+        self.parameter_details = header
+    
+    def setup_simulation_protocols(self, sim_protocols):
+        
+        if 'biomarker_protocol' in sim_protocols.keys():
+            self.biomarker_protocol = sim_protocols['biomarker_protocol']
+        else:
+            self.biomarker_protocol = None
+        
         self.delay = sim_protocols['delay']
         self.amp = sim_protocols['amp']
         self.dur = sim_protocols['dur']
@@ -485,39 +565,10 @@ class PopulationOfModels(object):
         self.stim_func = sim_protocols['stim_func']
         self.t_stop = sim_protocols['t_stop']
         self.v_init = sim_protocols['v_init']
-        self.currents_to_record = currents_to_record
-        
-        # Drug blocks
-        self.blocks = {}
-        # To do - add in blocks to build_sim_protocols function and here when necessary
-        
-        # Define number of simulations
-        self.num_simulations = self.parameters.shape[0]
-        
-    " --- Setup functions --- "
-    def setup_parameters(self, parameter_filename=None, parameter_set_details=None, save=False, output_filename=None):
-        " Load or generate a parameter set for simulations. "
-        
-        " If parameter_filename is set, load parameters from there "
-        if parameter_filename: 
-            self.parameters = load_parameters(parameter_filename)
-            
-        " If there is no parameter filename and parameter set details have been provided, generate a new parameter set using the parameters, and optionally save it. "
-        elif (parameter_set_details):
-            # Generate a new parameter set using LHS and save it if save=True
-            num_models = parameter_set_details['num_models']
-            num_parameters = parameter_set_details['num_parameters']
-            minimum = parameter_set_details['minimum']
-            maximum = parameter_set_details['maximum']
-            parameter_names = parameter_set_details['parameter_names']
-            
-           self.parameters = sh.build_parameter_set(num_models, num_parameters, minimum, maximum, output_filename=output_filename parameter_names=parameter_names, save=save)
-        else:
-            assert False, "No way to set up parameters."
-            
+        self.currents_to_record = sim_protocols['currents_to_record']
     
     def setup_current_recording(self):
-    " Temp function to remind me to do current recording using exec somehow "
+        " Temp function to remind me to do current recording using exec somehow "
         if self.currents_to_record:
             self.currents = {}
             for current in self.currents_to_record:
@@ -526,7 +577,7 @@ class PopulationOfModels(object):
                 exec("currents[current].record(self.active_model(0.5)._ref_{}, sec=active_model".format(current))
     
     def load_calibration_ranges(self, calibration_ranges=None, calibration_filename=None):
-    " Load calibration ranges from a dataframe or a file "
+        " Load calibration ranges from a dataframe or a file "
         if calibration_filename:
             calibration_ranges = pd.read_csv(calibration_filename)
             self.calibration_ranges = calibration_ranges
@@ -536,41 +587,193 @@ class PopulationOfModels(object):
         else:
             raise ValueError("No calibration range or filename supplied.")
     
-    
+    def get_model_description(self):
+        """
+        Construct a string describing the model attached to a parameter set.
+        Model description format:
+        'Population of models with currents: x, y and z, varying parameters i, j, k, l,m,n,o. Population class constructed on -date-.'
+        """
+        mechanisms = ', '.join(self.mechanism_names)
+        parameter_details = self.parameter_details
+        date = time.strftime("%d/%m/%Y")
+
+        model_description = 'Population of models with mechanisms: {0}. Parameters: {1}. Population class initialized on {2}.'.format(mechanisms, parameter_details, date)
+        return model_description
+            
     " --- Simulation functions --- "
     
-    def run_simulations(self):
-    
-        for i, parameter_set in enumerate(self.parameters):   
-            print("Simulation {} of {} started.".format(i+1, self.num_simulations))
-            self.active_parameters = parameter_set
+    def run_simulations(self, simulation_name='Standard', sampling_freq_hz=20000):
+        """
+        Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
-            self.active_model = sh.build_model(mechanisms=self.mechanisms, conductances=self.active_parameters)
+        """
+        # TODO: Add parallelisation here - see parallelisation in https://github.com/mirams/PyHillFit/blob/master/python/PyHillFit.py
+        
+        # Check simulation isn't already here
+        if simulation_name in self.results.columns.levels[0]:
+            raise ValueError('simulation_name is already present in results.')
+        else:
+            biomarker_results = pd.DataFrame(index=self.results.index)
+        parameters = self.results['Parameters']
+
+        start_time = time.time()
+        num_sims = len(self.results.index)
+        for i, model_idx in enumerate(self.results.index):   
+            now = time.time()
+            if i > 0:
+                print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start_time, (num_sims-i)*(now-start_time)/i))
+            else:
+                print("Simulation set of {} simulations begun.".format(num_sims))
+                
+            # --- Setup model ----
+            self.active_parameters = parameters.loc[model_idx]
+            mechanisms = {self.parameter_designations[param]:val for param, val in self.active_parameters.iteritems()} # iteritems over pd.Series to get key value pairs and generate a dict from them
+            # To do - allow different cellular parameters and ionic concs to be input here or in bespoke_simulation, as well as variation in parameters
             
+            # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
+            self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True) 
+            
+            # Set temperature
+            h.celsius = self.celsius # In line with Davidson et al., 2014, PAIN
+            # Set ionic conditions (update reversal potentials in line with ionic conditions)
+            # To do - check which ions exist and only set conditions for them
+            oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=self.active_model)
+            oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=self.active_model)
+            
+            # --- Run simulations ---
+            
+            # Rheobase simulation
+            rheobase = nb.CalculateRheobase(self.active_model, amp_step=0.1, amp_max=5, make_plot=False,)
+            
+            # All other biomarkers simulation at rheobase
+            # Set stimuli
+            stims = []
+            for stim_idx in range(self.num_stims):
+                stims.append(self.stim_func(0.5, sec=self.active_model))
+                stims[-1].dur = self.dur
+                stims[-1].amp = rheobase
+                stims[-1].delay = self.delay + stim_idx*(self.dur + self.interval)
+            
+            " To do - roll these into the pom class (sh.set_vt and sh.record_currents) "
+            v,t = sh.set_vt(cell=self.active_model)
+            currents = sh.record_currents(cell=self.active_model, current_set='default')
+            
+            h.finitialize(self.v_init) # Vital! And has to go after record
+            
+            # --- Run simulation ---
+            neuron.run(self.t_stop)
+            v,t = np.array(v), np.array(t)
+            
+            # Sampling
+            if sampling_freq_hz == 20000:
+                " To do - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). "
+                t = t[::2]; v = v[::2] # 20 kHz
+            else:
+                raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
+                
+            # --- Analyse simulation for biomarkers ---
+            traces = nb.SplitTraceIntoAPs(t,v)
+            biomarkers = nb.calculate_simple_biomarkers(traces,self.active_model)
+            # RMP
+            rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=self.active_model)
+            # Could change sampling freq here but probably not necessary for RMP
+            rmp_traces = nb.SplitTraceIntoAPs(rmp_t,rmp_v)
+            biomarkers['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
+            # Add rheobase
+            biomarkers['Rheobase'] = rheobase
+            
+            # Save biomarkers into results
+            for biomarker in biomarkers:
+                biomarker_results.loc[model_idx, biomarker] = biomarkers[biomarker]
+            
+        # At end of all simulations, build a multiarray with the simulation name and the biomarker results.
+        self.biomarker_results = pd.DataFrame(columns=pd.MultiIndex.from_product([[simulation_name], biomarker_results.columns]), index=self.results.index)
+        # Then concatenate it into the main results dataframe.
+        self.results = pd.concat([self.results, self.biomarker_results], axis=1)
+        print("Simulation {} complete in {} s.".format(simulation_name,time.time()-start_time))
+            
+    def run_bespoke_simulation(self, sim_name, sim_protocols, biomarkers_to_calculate):
+        """
+        Run a non-standard simulation, e.g. with drug block, or supra-threshold stimuli and save
+        """
         
+        # Build model, checking for optional other parameters in sim protocols
+        
+        # Setup stim protocols from sim_protocols
+        
+        # Do the simulation on the current parameter sets
+        
+        # Calculate the biomarkers
+        
+        # Save to results under "sim_name"
+    
+    
+    
     def calibrate_population(self, biomarker_names, simulation_conditions):
         """ 
         Calibrate the current parameter sets, saving the data on calibration criteria passing to a dataframe which is set as the
         active calibration.
         """
         
-        " First check that we have a set of results (parameters and biomarkers) that contain data for the appropriate biomarkers under the right simulation conditions")
+        # First check that we have a set of results (parameters and biomarkers) that contain data for the appropriate biomarkers under the right simulation conditions
         
         results = self.results # Main results dataframe
 
         # See pandas notebook for how to build results
-        results_conditions = results[]
+        results_conditions = results['put_right_thing_here']
         
         pass
         
     " --- Analysis functions --- "
     
-    " --- Storage functions --- "
-    def change_parameters_to_calibrated_set(self):
-        if self.calibration_complete:
-        self.parameters
-        
     
+    
+    " --- Storage functions --- "
+    def load_parameter_set(self, filename, load_comment=False, comment='#'):
+        """
+        Load a parameter set CSV file and return as a dataframe. Optionally, also
+        return any commented lines at the top of the file. 
+        """
+
+        parameters = pd.read_csv(filename, sep=',', comment=comment,index_col=0)  
+        if load_comment:
+            comments = ''
+            with open(filename, 'r') as f:
+                while True:
+                    line = f.readline()
+                    if line[0] == comment:
+                        comments += ' {}'.format(line)
+                    else:
+                        break # Just return commented lines
+            return parameters, comments
+        else:
+            return parameters
+        
+    def apply_calibration(self):
+        """
+        Update self.results to only include the results for the calibrated parameters. Store
+        the old results in self.uncalibrated_results.
+        """
+        if self.calibration_complete:
+            self.uncalibrated_results = self.results.copy(deep=True)
+            self.results=self.results.loc[self.calibration.all(axis=1)]
+            self.calibration_applied = True
+        else:
+            print("Calibration not performed yet.")
+
+    def remove_calibration(self):
+        """
+        Remove the last applied calibration and store the calibrated results if required.
+        Applying then removing a calibration should return self.results back to where it started, however calibrated_results and uncalibrated_results will now exist as separate dataframes. This may be unwanted behaviour in the future, so there may need to be a cleanup function.
+        """
+        if self.calibration_applied:
+            self.calibrated_results = self.results.copy(deep=True)
+            self.results = self.uncalibrated_results.copy(deep=True)
+            self.calibration_applied = False
+        else:
+            print("Calibration not currently applied to results.")
+        
+        
 
 def RunPopulationOfModels(configFilename, pattern, parameter_modifiers={}):
     

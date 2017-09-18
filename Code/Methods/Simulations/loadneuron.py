@@ -88,6 +88,17 @@ def are_mechanisms_loaded(verbose=False):
         loaded = True
     return loaded    
 
+def get_mechanism_list():
+    " Return list of loaded mechanism names "
+    current_mechanisms = h.MechanismType(0)
+    str_ref = h.ref('') # hoc string reference
+    current_mechanism_names = []
+    for i in range(int(current_mechanisms.count())):
+        current_mechanisms.select(i)
+        current_mechanisms.selected(str_ref)
+        current_mechanism_names.append(str_ref[0])
+    return  current_mechanism_names
+
 
 def default_mech_list():
     """

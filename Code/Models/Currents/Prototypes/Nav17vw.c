@@ -321,7 +321,7 @@ static int  _f_rates (  double _lv ) {
    minf = _lalpha_m / ( _lalpha_m + _lbeta_m ) ;
    mtau = 1.0 / ( _lalpha_m + _lbeta_m ) ;
    _lalpha_h = 0.0744 / ( 1.0 + exp ( ( _lv + 99.76 ) / 11.07 ) ) ;
-   _lbeta_h = 2.54 + 2.54 / ( 1.0 + exp ( - ( _lv + 7.8 ) / 10.68 ) ) ;
+   _lbeta_h = 2.54 - 2.54 / ( 1.0 + exp ( ( _lv + 7.8 ) / 10.68 ) ) ;
    hinf = _lalpha_h / ( _lalpha_h + _lbeta_h ) ;
    htau = 1.0 / ( _lalpha_h + _lbeta_h ) ;
     return 0; }

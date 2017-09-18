@@ -76,7 +76,7 @@ UNITSOFF
 		mtau = 1/(alpha_m + beta_m)
 		
 		alpha_h = 0.0744/(1 + exp((v+99.76)/11.07))
-		beta_h = 2.54 + 2.54/(1 + exp(-(v+7.8)/10.68))
+		beta_h = 2.54 - 2.54/(1 + exp((v+7.8)/10.68))
 		
 		hinf = alpha_h/(alpha_h + beta_h)
 		htau = 1/(alpha_h + beta_h)

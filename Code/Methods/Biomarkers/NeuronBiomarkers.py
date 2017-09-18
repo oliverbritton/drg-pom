@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 from scipy import optimize
 import Methods.Biomarkers.DavidsonBiomarkers as db
@@ -11,23 +13,65 @@ def calculate_biomarkers(traces, model):
     " Calculate every biomarker and output to dict "
     " TODO: Use the rheobase to work out what simulation to run to calculate biomarkers "
     " off of (at rheobase) "
-    biomarkers = {}
     # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
 
-    biomarkers['APFullWidth'] = np.mean(CalculateAPFullWidth(traces,threshold=0))
-    biomarkers['APPeak'] = np.mean(CalculateAPPeak(traces))
-    biomarkers['APRiseTime'] =  np.mean(CalculateAPRiseTime(traces,dvdtthreshold=5))
-    APSlopeMinVals, APSlopeMaxVals = CalculateAPSlopeMinMax(traces)
-    biomarkers['APSlopeMin'] = np.mean(APSlopeMinVals)
-    biomarkers['APSlopeMax'] = np.mean(APSlopeMaxVals)
-    amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
-    biomarkers['AHPAmp'] =  amp
-    biomarkers['AHPTau'] =  tau
-    biomarkers['ISI'] = InterSpikeInterval(traces)
+    biomarkers = calculate_simple_biomarkers(traces, model)
     biomarkers['RMP'] =  np.mean(CalculateRMP(traces))
     # Need to do rheobase separately
     biomarkers['Rheobase'] =  CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
     
+    return biomarkers
+    
+def average_biomarker_values(biomarkers, how_to_handle_nans='return'):
+    " Average biomarker values for multiple APs while handling biomarkers that "
+    if how_to_handle_nans == 'return': # Advantage is we return nan if there are any nans - good for calibration and trouble shooting - shows up weird models easily. 
+        pass
+    elif how_to_handle_nans == 'remove': # Risky option. Advantage is we still get a number back in mixed cases of nan and non-nan biomarkers, which is potentially risky as it hides a problem in one or more APs.
+        biomarkers = biomarkers[~np.isnan(biomarkers)]
+    else:
+        raise ValueError('Not an accepted value.')
+        
+    mean_result = np.mean(biomarkers)
+    return mean_result
+    
+def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
+    " Calculate every biomarker that can be calculated from a normal simulation trace and output to dict - rheobase and RMP need to be calculated separately."
+    biomarkers = {}
+    # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+    def error_handle(filename, traces): # Error handler for finding out why biomarkers are throwing errors.
+        import pickle
+        print sys.exc_info()
+        print traces['numAPs']
+        plt.figure()
+        for t,v in zip(traces['t'],traces['v']):
+            plt.plot(t,v)
+        with open(filename, 'wb') as handle:
+            pickle.dump(traces, handle)
+        print("Error, traces dumped to {}.".format(filename))
+
+    try:
+        biomarkers['APFullWidth'] = average_biomarker_values(CalculateAPFullWidth(traces,threshold=0), how_to_handle_nans)
+    except:
+        error_handle('fullwidth.pickle',traces)
+    biomarkers['APPeak'] = average_biomarker_values(CalculateAPPeak(traces),how_to_handle_nans)
+    
+    try:
+        biomarkers['APRiseTime'] = average_biomarker_values(CalculateAPRiseTime(traces,dvdtthreshold=5),how_to_handle_nans)
+    except:
+        error_handle('risetime.pickle',traces)
+    APSlopeMinVals, APSlopeMaxVals = CalculateAPSlopeMinMax(traces)
+    biomarkers['APSlopeMin'] = average_biomarker_values(APSlopeMinVals, how_to_handle_nans)
+    biomarkers['APSlopeMax'] = average_biomarker_values(APSlopeMaxVals, how_to_handle_nans)
+    try:
+        amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    except:
+        error_handle('fitahp.pickle',traces)
+        amp=0
+        tau=0
+    biomarkers['AHPAmp'] =  amp
+    biomarkers['AHPTau'] =  tau
+    biomarkers['ISI'] = InterSpikeInterval(traces)
+        
     return biomarkers
 
 def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
@@ -154,7 +198,7 @@ def Rheobase(simulations,amps):
         if result['numAPs'] > 0:
             return {'rheobase':amp, 'trace':simulation}       
     # If no APs found
-    return {'rheobase':'N/A', 'trace':[]}
+    return {'rheobase':np.nan, 'trace':[]}
     
 def APPeak(v):
 
@@ -183,10 +227,11 @@ def APRiseTime(t,v,threshold=5):
         thresholdTime = t[foundThresholds[0]]
         riseTime = peakTime - thresholdTime
         if riseTime < 0:
-            riseTime = 'Rise time < 0: %.3f' % riseTime
+            #riseTime = 'Rise time < 0: %.3f' % riseTime
+            riseTime = np.nan
 #        assert riseTime >=0, 'Rise time < 0!'
     elif numThresholds == 0:
-        riseTime = 'N/A'
+        riseTime = np.nan
     elif numThresholds > 1:
 #        assert False, 'More than 1 threshold for rise time - APs may not be clearly separated.'
         # Take the first one - later ones are probably rapid spikes e.g. on the shoulder
@@ -219,7 +264,7 @@ def APFullWidth(t,v,threshold=0):
 
     if (numUps < 1) | (numDowns < 1):
         # Not enough crossings
-        fullWidth = 'N/A'
+        fullWidth = np.nan
     elif (numUps == 1) & (numDowns == 1): 
         # One crossing of threshold each way
         fullWidth = t[downs[0]] - t[ups[0]]
@@ -290,7 +335,9 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
     for t,v in zip(ts,vs):
         # Start from the minimum, until dvdt exceeds the threshold given as input
         min_idx  = np.argmin(v)
-        dvdt = np.gradient(v)/np.gradient(t)
+        dv = np.gradient(v)
+        dt = np.gradient(t)
+        dvdt = dv/dt
         threshold_exceeded = dvdt > dvdt_threshold
         if any(threshold_exceeded):
             cutoff_idx = np.where(threshold_exceeded)[0][0] - 1
@@ -299,6 +346,18 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
         
         t = t[min_idx:cutoff_idx]
         v = v[min_idx:cutoff_idx]
+        
+        # If the membrane potential slowly monotonically decreases after a spike, then the min_idx will be the
+        # last element of the trace, and so t and v will be empty.
+        
+        # Also, if the AHP part of the trace has a very small number of elements, then the calculation might not work. So we will impose a minimum length threshold for the ahp. With dt = 0.05 ms after downsampling, and a real AHP tau of order 10 ms, any trace of less than length 100 (5 ms) is probably no good, and any trace less than length 10 (0.5 ms) is almost certainly not going to contain a viable AHP. This does assume the default dt though, so we should check it is not larger than about 0.1 ms, which would equate to a 1 ms minimum AHP duration.
+        
+        length_threshold = 10
+        assert np.mean(dt) < 0.1, "dt is large, check length_threshold"
+        if (len(t) <= length_threshold) | (len(v) <= length_threshold):
+            return np.nan, np.nan
+        # We can check for this and return np.nan if it is the case. To do: think about whether this is the best
+        # way to handle the lack of an ahp. There could also be cases where we have an AP with no AHP, and these might give odd tau and amp readings that should not be averaged. For calibration this is fine, but for mechanistic investigation it might not be so good. 
         
         # use scipy.optimise.curvefit to fit curve - another option would be to use the more complex 
         # LMFIT library, but I have no experience with it's advantages over the basic scipy lsq fit function
