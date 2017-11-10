@@ -14,6 +14,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import numbers
 import pyDOE
+import itertools
 
 # Load Neuron and DRG code
 sys.path.append('E:\\CLPC48\\Neuron Project')
@@ -27,14 +28,14 @@ import Methods.Simulations.loadneuron as ln
 ln.load_neuron_mechanisms(verbose=False)
 
 def init_model(mechanisms,
-    L=30., 
-    diam=46., 
-    cm=20.2/1000., 
+    L=30.,  # uM
+    diam=46., # uM
+    cm=1., # uF/cm^2
     Ra=123., 
-    ko=3., 
-    ki=135., 
-    nao=145., 
-    nai=5.,
+    ko=3., # mM
+    ki=135.,  # mM
+    nao=145., # mM
+    nai=5., # mM
     ):
     """
     Initialise a cylindrical cell model, with the specified ionic mechanisms embedded.
@@ -59,15 +60,15 @@ def get_init_model_values(name='first'):
     model_values = {}
     if name not in allowed_names:
         raise ValueError('Name of init model value set not found, allowed names are: {}.'.format(', '.join(allowed_names)))
-    elif name == 'first': # Uses Choi/Waxman geometry and Davidson ionic concentrations.
-        model_values['L'] = 30.
-        model_values['diam'] = 46.
-        model_values['cm'] = 20.2/1000.
+    elif name == 'first': # Uses Choi/Waxman geometry, standard cm, and Davidson ionic concentrations.
+        model_values['L'] = 30. # uM
+        model_values['diam'] = 46. # uM
+        model_values['cm'] = 1. # I uF/cm^2
         model_values['Ra'] = 123.
-        model_values['ko'] = 3.
-        model_values['ki'] = 135.
-        model_values['nao'] = 145.
-        model_values['nai'] = 5.
+        model_values['ko'] = 3. # mM
+        model_values['ki'] = 135. # mM
+        model_values['nao'] = 145. # mM
+        model_values['nai'] = 5. # mM
         
     return model_values
         
@@ -179,6 +180,11 @@ def record_currents(cell, current_set='default'):
         currents['ikdr'].record(cell(0.5)._ref_ik_kdrtf, sec=cell)
         currents['ia'].record(cell(0.5)._ref_ik_katf, sec=cell)
         currents['im'].record(cell(0.5)._ref_ik_kmtf, sec=cell)
+    elif current_set == 'simple':
+        for i in ['ina', 'ik']:
+            currents[i] = h.Vector()
+        currents['ina'].record(cell(0.5)._ref_ina, sec=cell)
+        currents['ik'].record(cell(0.5)._ref_ik, sec=cell)
     elif current_set == None:
         pass
     else:
@@ -189,6 +195,8 @@ def build_sim_protocols(amp, dur, delay, interval, num_stims=40, stim_func=h.ICl
 
     sim_protocols = {'amp':amp, 'dur':dur, 'delay':delay, 'interval':interval, 'num_stims':num_stims, 'stim_func':stim_func, 't_stop':t_stop, 'v_init':v_init,}
     return sim_protocols
+
+" -- Functions related to building parameter sets -- "
     
 def build_parameter_set_details(num_models, num_parameters, min, max, output_filename, parameter_names=None):
     " Parameter set details ... "
@@ -217,6 +225,7 @@ def build_parameter_set(num_models, parameter_data, minimum=None, maximum=None, 
     
     parameter_names = [name for name in parameter_data] # works for lists and dicts
     num_parameters = len(parameter_names)
+    # Build baseline LHS
     parameter_array = pyDOE.lhs(num_parameters, samples=num_models)
     parameter_sets = pd.DataFrame(parameter_array,columns=parameter_names)
     
@@ -260,12 +269,20 @@ def build_empty_model_details():
     # mechanism val format is {name of mechanism in neuron : {public facing parameter name:name of parameter in neuron}}
     model_details = {'mechanisms':mechanism_vals}
     return  model_details
+
+def construct_parameter_names(list_of_terms):
+    parameter_parts = list(itertools.product(*list_of_terms))
+    parameter_names = ['_'.join(parameter) for parameter in parameter_parts]    
+    return parameter_names
+    
+"-- Simulation functions --"
+    
     
 def build_empty_sim_protocols():
     sim_protocols_keys = ['delay', 'amp', 'dur', 'interval', 'num_stims', 'stim_func', 't_stop', 'v_init', 'currents_to_record'] 
 
 
-def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None):
+def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K']):
     
     # Build a model if one is not supplied
     if not model:
@@ -277,9 +294,13 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
     h.celsius = 32. # In line with Davidson et al., 2014, PAIN
     
     # Set ionic conditions
-    oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
-    oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=cell)
-    
+    if 'K' in ions:
+        oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
+    if 'Na' in ions:
+        oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=cell)
+    if 'Ca' in ions:
+        oldstyle = h.ion_style("ca_ion", 1, 2, 1, 1, 0,sec=cell)
+        
     #stims = set_stims(amp=amp, dur=dur, delay=delay, interval=interval, num_stims=num_stims, stim_func=stim_func, cell=cell)
     stims = []
     for i in range(num_stims):
@@ -289,7 +310,12 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
         stims[-1].delay = delay + i*(dur + interval)
 
     v,t = set_vt(cell=cell)
-    currents = record_currents(cell=cell, current_set=plot_type)
+    
+    if make_plot == True:
+        current_set = plot_type
+    else:
+        current_set = None
+    currents = record_currents(cell=cell, current_set=current_set)
 
     h.finitialize(-65) # Vital! And has to go after record
     # Run simulation
@@ -357,29 +383,6 @@ def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClam
     plt.plot(t,ia)
     plt.plot(t,ik)
     return
-    
-def compute_model_biomarkers(mechanisms, make_plot=True):
-    model = sh.build_model(mechanisms)
-
-    # Get rheobase:
-    rheobase = nb.CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
-
-    # Get all other biomarkers
-
-    t,v = sh.simulation(amp=rheobase,dur=2000,delay=1000,interval=0,num_stims=1,t_stop=3000.,make_plot=make_plot,mechanisms=mechanisms, plot_type='simple')
-
-    t = t[::2]; v = v[::2] # 20 kHz
-
-    traces = nb.SplitTraceIntoAPs(t,v)
-    biomarkers = tnb.TestAllBiomarkers(traces,model)
-
-    # RMP
-    rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=make_plot,model=model, plot_type='simple')
-    rmp_t = rmp_t[::2]; rmp_v = rmp_v[::2] # 20 kHz
-    rmp_traces = nb.SplitTraceIntoAPs(rmp_t,rmp_v)
-    biomarkers['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
-
-    return biomarkers
     
 def get_biomarker_list(biomarker_set='default'):
     """ 

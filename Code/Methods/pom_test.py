@@ -14,6 +14,8 @@ import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import pickle
+from IPython.display import clear_output
 
 #from multiprocessing import Pool
 from multiprocessing import Process
@@ -253,6 +255,7 @@ def RunSimulation(model, parameters, modelName, protocol, outputDirectory, prefi
         # TODO sort out whether stim amp and index should be called here
         # organise better -  maybe a master function that calls calculate biomarkers and also gets stim amp and index?
 
+        na_accu 
         # Write biomarkers
         nb.WriteBiomarkers(biomarkers,allBiomarkerFile)        
         
@@ -338,7 +341,7 @@ def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
     filename = outputDirectory + prefix + str(modelNum) + '.dat'
     f = open(filename, "w")
 
-    # Write AP, two columns, end with line break 
+    # Write AP, two columns, end with line break
     for i in range(len(t)):
         f.write(str(t[i]) + " " + str(v[i]) + "\n")
     f.close()
@@ -426,7 +429,7 @@ def ParseConfigFile(configFilename,pattern):
             prefix = ParseConfigLine(line,pattern)
     
         if re.search('protocol',line):
-            numProtocols +=1
+            numProtocols += 1
             protocol = ParseConfigLine(line,pattern)
             
     assert numOutputDirectories == 1, 'numOutputDirectories'
@@ -443,6 +446,7 @@ def ParseConfigFile(configFilename,pattern):
 class PopulationOfModels(object):
 
     def __init__(self, 
+        name,
         sim_protocols,
         model_details,
         parameter_filename=None, 
@@ -462,22 +466,25 @@ class PopulationOfModels(object):
         9. (Optional) Analyse biomarkers and present summary data and/or visualisations if asked for
         """
         " To dos: "
-        " 1. Support non-conductance parameters through updating sh.build_model "  
-        
-        # Load mechanism and parameter names
+        " 1. Support non-conductance parameters through updating sh.build_model "
+        " 2. Parallelised simulations. "
+        " 3. Support multi-compartment models and simulations (possibly in a separate class?). "
+                
+        # Set population name and mechanism and parameter names
+        self.name = name
         self.model_details = model_details
         self.setup_mechanisms() # Get mechanism names, parameter names, parameter designations and parameter ranges
 
-        # Load parameters
+        # Load parameter values
         if (parameter_filename is not None) & (parameter_set_details is not None): # Check only one option for parameters is set
             raise ValueError("Both parameter filename and parameter details have been provided, choose one or the other.")
             
         self.setup_parameters(parameter_filename=parameter_filename, parameter_set_details=parameter_set_details)
-        
         self.model_description = self.get_model_description()
         
-        # Initialise results 
+        # Initialise results data structures
         self.setup_results()
+        self.traces = {}
        
         # Setup calibration
         self.calibration_complete = False # Has calibration been performed?
@@ -489,12 +496,12 @@ class PopulationOfModels(object):
         # Stimulus protocols
         self.setup_simulation_protocols(sim_protocols=sim_protocols)
         self.current_set = None
-        print "TO DO CURRENT SET TO DO CURRENT SET "
         self.celsius = 32. # In line with Davidson et al., 2014, PAIN
         
-        
-        # Drug blocks
+        # Drug blocks and other stuff
+        " To do! "
         self.blocks = {}
+        # Blocks format - {'Simulation name': {'GNa':0.5, 'GKdr':0.1}}
         # To do - add in blocks to build_sim_protocols function and here when necessary
             
         
@@ -527,7 +534,7 @@ class PopulationOfModels(object):
         
     
     def setup_parameters(self, parameter_filename=None, parameter_set_details=None):
-        " Load or generate a parameter set for simulations. "    
+        """ Load or generate a parameter set for simulations. """    
         # If parameter_filename is provided, load parameters from there "
         if parameter_filename: 
             parameters, header = self.load_parameter_set(parameter_filename, load_comment=True, comment='#')    
@@ -568,16 +575,16 @@ class PopulationOfModels(object):
         self.currents_to_record = sim_protocols['currents_to_record']
     
     def setup_current_recording(self):
-        " Temp function to remind me to do current recording using exec somehow "
+        """ Temp function to remind me to do current recording using exec somehow """
         if self.currents_to_record:
             self.currents = {}
             for current in self.currents_to_record:
                 currents[current] = h.Vector()
                 # Use exec to record the right current variable (e.g. ik_kdrtf)
-                exec("currents[current].record(self.active_model(0.5)._ref_{}, sec=active_model".format(current))
+                exec('currents[current].record(self.active_model(0.5)._ref_{}, sec=active_model'.format(current))
     
     def load_calibration_ranges(self, calibration_ranges=None, calibration_filename=None):
-        " Load calibration ranges from a dataframe or a file "
+        """ Load calibration ranges from a dataframe or a file """
         if calibration_filename:
             calibration_ranges = pd.read_csv(calibration_filename)
             self.calibration_ranges = calibration_ranges
@@ -602,7 +609,7 @@ class PopulationOfModels(object):
             
     " --- Simulation functions --- "
     
-    def run_simulations(self, simulation_name='Standard', sampling_freq_hz=20000):
+    def run_simulations(self, simulation_name='Standard', sampling_freq_hz=20000, plot=False, save=False):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
@@ -618,10 +625,20 @@ class PopulationOfModels(object):
 
         start_time = time.time()
         num_sims = len(self.results.index)
+        if plot:
+            plt.figure(figsize=(15,15))
+        if save:
+            self.traces[simulation_name] = {}
+            
+
         for i, model_idx in enumerate(self.results.index):   
             now = time.time()
+            output_frequency = 100. # Number of outputs to make - 100 equals every 1%
+            reporting_period = np.ceil(len(self.results.index)/output_frequency)
             if i > 0:
-                print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start_time, (num_sims-i)*(now-start_time)/i))
+                if (i == len(self.results.index)-1) | (i%reporting_period == 0):
+                    clear_output()
+                    print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start_time, (num_sims-i)*(now-start_time)/i))
             else:
                 print("Simulation set of {} simulations begun.".format(num_sims))
                 
@@ -631,7 +648,8 @@ class PopulationOfModels(object):
             # To do - allow different cellular parameters and ionic concs to be input here or in bespoke_simulation, as well as variation in parameters
             
             # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
-            self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True) 
+            self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
+
             
             # Set temperature
             h.celsius = self.celsius # In line with Davidson et al., 2014, PAIN
@@ -645,35 +663,52 @@ class PopulationOfModels(object):
             # Rheobase simulation
             rheobase = nb.CalculateRheobase(self.active_model, amp_step=0.1, amp_max=5, make_plot=False,)
             
-            # All other biomarkers simulation at rheobase
-            # Set stimuli
-            stims = []
-            for stim_idx in range(self.num_stims):
-                stims.append(self.stim_func(0.5, sec=self.active_model))
-                stims[-1].dur = self.dur
-                stims[-1].amp = rheobase
-                stims[-1].delay = self.delay + stim_idx*(self.dur + self.interval)
-            
-            " To do - roll these into the pom class (sh.set_vt and sh.record_currents) "
-            v,t = sh.set_vt(cell=self.active_model)
-            currents = sh.record_currents(cell=self.active_model, current_set='default')
-            
-            h.finitialize(self.v_init) # Vital! And has to go after record
-            
-            # --- Run simulation ---
-            neuron.run(self.t_stop)
-            v,t = np.array(v), np.array(t)
-            
-            # Sampling
-            if sampling_freq_hz == 20000:
-                " To do - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). "
-                t = t[::2]; v = v[::2] # 20 kHz
-            else:
-                raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
+            # Only continue if we've found a rheobase
+            if ~np.isnan(rheobase):
+                # All other biomarkers simulation at rheobase
+                # Set stimuli
+                stims = []
+                for stim_idx in range(self.num_stims):
+                    stims.append(self.stim_func(0.5, sec=self.active_model))
+                    stims[-1].dur = self.dur
+                    stims[-1].amp = rheobase
+                    stims[-1].delay = self.delay + stim_idx*(self.dur + self.interval)
                 
-            # --- Analyse simulation for biomarkers ---
-            traces = nb.SplitTraceIntoAPs(t,v)
-            biomarkers = nb.calculate_simple_biomarkers(traces,self.active_model)
+                " To do - roll these into the pom class (sh.set_vt and sh.record_currents) "
+                #v,t = sh.set_vt(cell=self.active_model)
+                v = h.Vector()
+                v.record(self.active_model(0.5)._ref_v, sec=self.active_model)
+                t = h.Vector()
+                t.record(h._ref_t)
+                currents = sh.record_currents(cell=self.active_model, current_set=None)
+                
+                h.finitialize(self.v_init) # Vital! And has to go after record
+                
+                # --- Run simulation ---
+                neuron.run(self.t_stop)
+                v,t = np.array(v), np.array(t)
+                if save:
+                    self.traces[simulation_name][model_idx] = {'t':t, 'v':v}
+                
+                if plot:
+                    #plt.subplot(10,10,i+1)
+                    plt.plot(t,v)
+                    plt.title("Model: {}".format(model_idx))
+                    
+                # Sampling
+                if sampling_freq_hz == 20000:
+                    " To do - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). "
+                    t = t[::2]; v = v[::2] # 20 kHz
+                else:
+                    raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
+                    
+                # --- Analyse simulation for biomarkers ---
+                
+                traces = nb.SplitTraceIntoAPs(t,v)
+                biomarkers = nb.calculate_simple_biomarkers(traces,self.active_model)          
+            else: # No rheobase found
+                biomarkers = {}
+                
             # RMP
             rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=self.active_model)
             # Could change sampling freq here but probably not necessary for RMP
@@ -685,11 +720,14 @@ class PopulationOfModels(object):
             # Save biomarkers into results
             for biomarker in biomarkers:
                 biomarker_results.loc[model_idx, biomarker] = biomarkers[biomarker]
-            
+        
         # At end of all simulations, build a multiarray with the simulation name and the biomarker results.
         self.biomarker_results = pd.DataFrame(columns=pd.MultiIndex.from_product([[simulation_name], biomarker_results.columns]), index=self.results.index)
+        # Insert results
+        self.biomarker_results.loc[:] = biomarker_results
         # Then concatenate it into the main results dataframe.
         self.results = pd.concat([self.results, self.biomarker_results], axis=1)
+        
         print("Simulation {} complete in {} s.".format(simulation_name,time.time()-start_time))
             
     def run_bespoke_simulation(self, sim_name, sim_protocols, biomarkers_to_calculate):
@@ -707,9 +745,9 @@ class PopulationOfModels(object):
         
         # Save to results under "sim_name"
     
+    " --- Calibration functions --- "
     
-    
-    def calibrate_population(self, biomarker_names, simulation_conditions):
+    def calibrate_population(self, biomarker_names, simulation_name, calibration_ranges='Davidson', stds=None, verbose=True):
         """ 
         Calibrate the current parameter sets, saving the data on calibration criteria passing to a dataframe which is set as the
         active calibration.
@@ -717,18 +755,119 @@ class PopulationOfModels(object):
         
         # First check that we have a set of results (parameters and biomarkers) that contain data for the appropriate biomarkers under the right simulation conditions
         
-        results = self.results # Main results dataframe
-
-        # See pandas notebook for how to build results
-        results_conditions = results['put_right_thing_here']
+        assert type(simulation_name) == str # We're not supporting multiple simulation names yet
         
+        """
+        Calibration process:
+        1. Copy the appropriate biomarkers
+        2. Get the appropriate ranges
+        3. Perform the calibration (see acc.calibrate for calibration function)
+        4. Pick out the indices of the models that passed all calibration checks.
+        5. Save the calibration results so they can be visualised. 
+        """
+        # Perform calibration using method defined by inputs (currently only supporting Davidson std dev based calibration
+        if calibration_ranges == 'Davidson':
+            if stds == None:
+                stds = 1.
+            ranges = db.CalibrationData(num_stds = stds)
+            
+            results = self.results.copy(deep=True)
+            # Build dataframe to store calibration results
+            calibration = pd.DataFrame(index=results.index, columns=biomarker_names)  # If we allow multiple calibrations this dataframe needs to include multiple subsections
+            
+            for biomarker in biomarker_names:
+                minimum = ranges.loc[biomarker]['Mean'] - ranges.loc[biomarker]['Std']
+                maximum = ranges.loc[biomarker]['Mean'] + ranges.loc[biomarker]['Std']
+                
+                # Get calibration stats (from original - self.results, as results copy is modified)
+                if verbose:
+                    num_in_range = ((self.results[simulation_name, biomarker] >= minimum) & (self.results[simulation_name, biomarker] <= maximum)).sum()
+                    num_over =  (self.results[simulation_name, biomarker] >= maximum).sum()
+                    num_under = (self.results[simulation_name, biomarker] < minimum).sum()
+                    num_nans = np.isnan(self.results[simulation_name, biomarker]).sum()
+                    total = num_in_range + num_over + num_under + num_nans
+                    print("Biomarker: {}. Num in range: {}. Num over max: {}. Num under min: {}. Nans: {}. Total {}.".format(biomarker, num_in_range, num_over, num_under, num_nans, total))
+                    
+                # Do the actual calibration
+                single_biomarker_calibration = ((results[simulation_name, biomarker] >= minimum) & (results[simulation_name, biomarker] <= maximum))
+                results = results[single_biomarker_calibration]
+                calibration[biomarker] = single_biomarker_calibration # If we allow multiple calibrations this dataframe needs to include multiple subsections
+                
+        else:
+            raise ValueError('Calibration_ranges value not understood.')
+
+        # Move all results to storage and bring in the new calibrated results. 
+        if self.calibration_complete == False: # First calibration - so results are fresh
+            self.uncalibrated_results = self.results.copy(deep=True)
+            self.calibration_complete = True 
+        self.calibration = calibration # Dataframe showing of each parameter set and each biomarker showing whether each parameter set passeed calibration for each biomarker
+        self.calibrated_indices = results.index # Indices of parameter sets that have passed calibration to for all tested biomarkers
+        self.results = results
+        self.calibration_applied = True
+        return
+
+        
+    def calibrate(self, biomarkers,ranges):
+        """ Simple function to perform calibration of a set of biomarkers against a set of ranges.
+        biomarkers is a pd.DataFrame of biomarker values 
+        ranges is a pd.Dataframe of biomarker ranges 
+        output is a boolean pd.Series for whether each biomarker set was within all ranges or not 
+        """
+        calibration = pd.Series(True,index=biomarkers.index) 
+        for biomarker in biomarkers: 
+            calibration  = calibration & (biomarkers[biomarker] <= ranges[biomarker].loc['max'])
+            calibration  = calibration & (biomarkers[biomarker] >= ranges[biomarker].loc['min'])                
+        return calibration
+        
+    def revert_calibration(self, preserve_calibration=False):
+        " Revert population to uncalibrated state, optionally saving the calibration and calibrated results in a separate dataframe "
+        if self.calibration_applied & self.calibration_complete:
+            if preserve_calibration:
+                self.calibrated_results = self.results.copy(deep=True)
+                self.reverted_calibration = self.calibration.copy(deep=True)            
+            self.results = self.uncalibrated_results.copy(deep=True) # Recover uncalibrated results
+            # Clean up
+            self.calibration = None
+            self.uncalibrated_results = None
+            self.calibration_complete = False
+            self.calibration_applied = False
+            
+        else:
+            raise ValueError('Calibration is not complete and applied.')
+            
+    " --- Analysis functions --- "
+    def plot_parameters(self):
         pass
         
-    " --- Analysis functions --- "
-    
+    def plot_biomarkers(self,name):
+        pass
+        
+    def something_with_clustering(self):
+        pass
+        
+    def parameter_correlations(self):
+        pass
     
     
     " --- Storage functions --- "
+    def pickle_pom(self, filename=None):
+    # Serialise pom object as a pickle 
+        if filename == None:
+            filename = '{}.pickle'.format(self.name)
+        # Remove hoc objects
+        self.active_model = None
+        if self.stim_func == h.IClamp:
+            self.stim_func = 'IClamp'
+        elif self.stim_func == h.IRamp:
+            self.stim_func = 'IRamp'
+        else:
+            self.stim_func = 'None'
+            print("Stim func type not found.")
+        # Then pickle
+        with open(filename, 'wb') as f:
+            pickle.dump(self,f)
+            
+    
     def load_parameter_set(self, filename, load_comment=False, comment='#'):
         """
         Load a parameter set CSV file and return as a dataframe. Optionally, also
@@ -774,7 +913,21 @@ class PopulationOfModels(object):
             print("Calibration not currently applied to results.")
         
         
-
+def load(filename):
+    # Load population of models from a pickled file
+    with open(filename, 'rb') as f:
+        pom = pickle.load(f)
+    if pom.stim_func == 'IClamp':
+        pom.stim_func = h.IClamp
+    elif pom.stim_func == 'IRamp':
+        pom.stim_func = h.IRamp
+    return pom
+    
+def make_pom_name(name):
+    # Make the simulation name
+    date = time.strftime("%d%m%y")
+    return '{}_{}'.format(name,date)
+        
 def RunPopulationOfModels(configFilename, pattern, parameter_modifiers={}):
     
     cfg = ParseConfigFile(configFilename,pattern)

@@ -215,9 +215,43 @@ def nav19md(Y,t,voltage_clamp_func,voltage_clamp_params):
     
     v = voltage_clamp_func(t,voltage_clamp_params)
     
-    alpgha
     
     return [dm, dh, ds]
+    
+def nav16zm(Y,t,voltage_clamp_func,voltage_clamp_params):
+    " Nav 1.6 model from Zach Mainen 1994 "
+    m = Y[0]
+    h = Y[1]
+    
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    
+    vhalf = -43.0
+    a_m =  0.182*(v-vhalf)/(1-np.exp((vhalf-v)/6.))
+    b_m =  0.124*(-v+vhalf)/(1-np.exp((-vhalf+v)/6.))
+    
+    m_inf = a_m/(a_m + b_m)
+    m_tau = 1./(a_m + b_m)
+    
+    vhalf_ha = -50.0
+    vhalf_hb = -75.0
+    q_h = 5.0
+
+    vhalf_inf = -72.0
+    qinf = 6.2
+
+    rate_ha = 0.0091
+    rate_hb = 0.024
+
+    a_h =  rate_ha*(v-vhalf_ha)/(1-np.exp((vhalf_ha-v)/q_h))
+    b_h =  rate_hb*(-v+vhalf_hb)/(1-np.exp((-vhalf_hb+v)/q_h))
+
+    h_inf = 1.0/(1.0 + np.exp((v-vhalf_inf)/qinf))
+    h_tau = 1./(a_h + b_h)
+    
+    dm = (m_inf-m)/m_tau
+    dh = (h_inf-h)/h_tau
+    
+    return [dm, dh]
 
 " Kv models "
 
@@ -295,6 +329,54 @@ def ka_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
     
     return [dn,dh]
 
+" Cav models "
+
+def cal_ja(Y,t,voltage_clamp_func,voltage_clamp_params):
+    """
+    Jaffe et al. 1994 ICaL model. 
+    """
+    v = voltage_clamp_func(t,voltage_clamp_params)
+    m = Y[0]
+    
+    tfa = 1.
+    ki = 0.001 # (mM)
+    
+    cao = 2.5 # Davidson (mM)
+    " To do: make cai variable as an input like voltage "
+    cai = 1.e-4 # (mM) Roughly values (100 nM) from Intracellular calcium regulation among subpopulations of rat dorsal root ganglion neurons by Lu, Zhang, Gold 2007
+    
+    celsius = 37.
+    
+    def alpha(v):
+        return 15.69*(81.5 - v)/(np.exp((-1.0*v+81.5)/10.0)-1.0)
+    def beta(v):
+        return 0.29*np.exp(-v/10.86)
+    def KTF(celsius):
+        return ((25./293.15)*(celsius + 273.15))
+    def efun(z):
+        return np.array([1 - i/2 if i < 1e-4 else i/(np.exp(i)-1) for i in z])
+    def calc_ghk(v, cai, cao):       
+        f = KTF(celsius)/2
+        nu = v/f
+        return -f*(1. - (cai/cao)*np.exp(nu))*efun(nu)
+
+    a = alpha(v)
+    b = beta(v)
+    tau = 1./(tfa*(a + b))
+    minf = a/(a+b)
+    dm = (minf - m)/tau
+    
+    """ Calculating the current 
+    # h gate
+    h2 = ki/(ki+cai)
+    gcalbar = 0.003
+    ghk = calc_ghk(v,cai,cao)
+    ical = gcalbar*m*m*h2*ghk
+    """
+    return [dm]
+
+def can_mi
+    
 " HCN models "
 def hcn_kn(Y,t,voltage_clamp_func,voltage_clamp_params):
     """ 

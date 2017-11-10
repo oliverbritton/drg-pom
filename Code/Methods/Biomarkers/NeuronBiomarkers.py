@@ -62,17 +62,53 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     APSlopeMinVals, APSlopeMaxVals = CalculateAPSlopeMinMax(traces)
     biomarkers['APSlopeMin'] = average_biomarker_values(APSlopeMinVals, how_to_handle_nans)
     biomarkers['APSlopeMax'] = average_biomarker_values(APSlopeMaxVals, how_to_handle_nans)
+    biomarkers['Threshold'] = average_biomarker_values(calculate_threshold(traces), how_to_handle_nans)
+    
+    amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    """
     try:
         amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
     except:
         error_handle('fitahp.pickle',traces)
         amp=0
         tau=0
+    """
     biomarkers['AHPAmp'] =  amp
     biomarkers['AHPTau'] =  tau
     biomarkers['ISI'] = InterSpikeInterval(traces)
         
     return biomarkers
+    
+def compute_model_biomarkers(mechanisms=None, model=None, make_plot=True):
+    
+    if model == None:
+        model = sh.build_model(mechanisms)
+    # Else use model
+        
+    # Get rheobase:
+    rheobase = CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
+    # Get all other biomarkers
+
+    t,v = sh.simulation(amp=rheobase,dur=1000,delay=500,interval=0,num_stims=1,t_stop=1500.,make_plot=make_plot,model=model, plot_type='simple')
+    
+    
+    
+    plt.xlim(900,1100)
+    t = t[::2]; v = v[::2] # 20 kHz
+
+    traces = SplitTraceIntoAPs(t,v)
+    biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='return')
+    biomarkers['Rheobase'] = rheobase
+
+    # RMP
+    rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=make_plot,model=model, plot_type='simple')
+    rmp_t = rmp_t[::2]; rmp_v = rmp_v[::2] # 20 kHz
+    rmp_traces = SplitTraceIntoAPs(rmp_t,rmp_v)
+    biomarkers['RMP'] = np.mean(CalculateRMP(rmp_traces))
+
+    return biomarkers
+    
+" --- Calculation and trace manipulation functions -- "
 
 def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
     " Threshold is at +20 mV to avoid RF causing spurious AP detection "
@@ -82,6 +118,8 @@ def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
     # v, threshold - mV
 
     assert len(t) == len(v), "v and t length mismatch"
+        
+    
 
     crossings = []
     timeCrossings = np.array([])
@@ -139,11 +177,12 @@ def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
             else:
                 # Calculate end of this trace - end is minimum voltage of this trace
                 # From threshold of this AP to just before beginning of next threshold
-                voltageDuringCurrentAP = v[ firstCrossings[AP]:firstCrossings[AP+1] ]
+                voltageDuringCurrentAP = v[firstCrossings[AP]:firstCrossings[AP+1]]
                 
-                # Get min voltage index
-                minVmIdx = np.argmin(voltageDuringCurrentAP)
-                endIdx[AP] = firstCrossings[AP] + minVmIdx # Don't think I need to minus 1 because Python indices start at 0
+                # Get index of minimum voltage AFTER the peak
+                max_idx = np.argmax(voltageDuringCurrentAP)
+                minVmIdx = np.argmin(voltageDuringCurrentAP[max_idx:])
+                endIdx[AP] = firstCrossings[AP] + max_idx + minVmIdx # Don't think I need to minus 1 because Python indices start at 0
                 
             times.append(t[startIdx[AP]:endIdx[AP]+1])
             voltages.append(v[startIdx[AP]:endIdx[AP]+1]) # Add 1 to as Python slicing ends 1 before last index
@@ -160,19 +199,19 @@ def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
     
     assert startIdx[0] == 0, "First AP doesn't start at beginning of trace."
     assert endIdx[-1] == len(v)-1, "Last AP doesn't end at end of trace."
-        
+    
     return{'t':times, 'v':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
         
     
-def VoltageGradient(t,v):
-    ### Is there a diff function in scipy or numpy?
-    dVdt = np.zeros(len(v)-1,float)
-    for i in range(len(v)-1):
-        dv = v[i+1]-v[i]
-        dt = t[i+1]-t[i]
-        dVdt[i] = dv/dt   
-    return dVdt
-        
+def VoltageGradient(t,v, method='gradient'):
+    # There is a gradient function in numpy to take central differences
+    if method == 'gradient':
+        dvdt = np.gradient(v)/np.gradient(t) # Central differences except at end points
+    elif method == 'diff':
+        dvdt = np.diff(v)/np.diff(t) # DIfference between adjacent points 
+    else :
+        raise ValueError("Method not found.")
+    return dvdt
     
 # --- Biomarkers ---
 def RMP(v):
@@ -183,6 +222,19 @@ def RMP(v):
     RMP = min(v[startIdx:])
     RMPIdx = np.argmin(v[startIdx:]) 
     return RMP, RMPIdx
+    
+def input_res(t, v, current_injection_time):
+    # Input resistance calculated from a protocol with an equilibration phase
+    # to get to RMP, followed by a sustained small current input.
+    # Input res then = (v[-1] - v[RMP])/(I-0)
+    # In Davidson, 50 to 100 pA current pulse was used to determine input resistance.
+    
+    # Divide trace at injection time:
+    
+    
+    # Get RMP at t < injection time:
+    
+    # Get RMP at t > injection time:
     
 # Rheobase - find the first trace with an action potential
 # Assumes traces are sorted in order from smallest amplitude upwards
@@ -205,6 +257,20 @@ def APPeak(v):
     peak = max(v)
     location = np.argmax(v)
     return [peak,location]
+    
+def threshold(t, v, dvdt_threshold=5., method='gradient'):
+    # Calculation of threshold voltage as described in Davidson et al., 2014 PAIN
+    # Threshold is in V/s - default of 5 is what was used by Davidson et al.
+    dvdt = VoltageGradient(t,v, method=method)    
+    thresholds = []
+    for i,gradient in enumerate(dvdt[0:-1]):
+        if (gradient < dvdt_threshold) & (dvdt[i+1] > dvdt_threshold): # Look for crossing of threshold
+            thresholds.append(v[i])
+    if thresholds:
+        return thresholds[0] # Only use first threshold of crossing
+    else:
+        return np.nan
+        
     
     # Threshold here is a dVdt threshold in V/s!
     # Default threshold is taken from Davidson et al. 2014, PAIN
@@ -283,7 +349,10 @@ def APFullWidth(t,v,threshold=0):
 def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
     """ 
     Gather afterhyperpolarisation regions from a set of traces and fit them to a model 
-    of a single exponential (other models can be added as needed)
+    of a single exponential (other models ca be added as needed)
+    
+    Outputs:
+    Returns either amp,tau or if full_output is selected returns five outputs.
     """
     # Define model to fit AHP to
     if ahp_model == 'single_exp':
@@ -295,15 +364,18 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
     # Arrange data to contain each interval between peak
     num_APs = traces['numAPs']
     if num_APs < 1:
-        return False
+        return np.nan, np.nan
       
     elif num_APs == 1:
         # With only one AP the interval is from the peak to the end of the trace
         _t = traces['t'][0]
         _v = traces['v'][0]
         max_idx = np.argmax(_v)
+        # Check that the peak is not right at the end of the trace, if it is return nan:
+        if max_idx == len(_v)-1:
+            return np.nan, np.nan
         ts = [_t[max_idx+1:]] # Single element lists from just after peak to end of trace
-        vs = [_v[max_idx+1:]]
+        vs = [_v[max_idx+1:]] 
         
     elif num_APs > 1:
         # Divide data into intervals between peaks for each interval
@@ -331,7 +403,6 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
         output_ts = []
         output_vs = []
         popts = []
-        
     for t,v in zip(ts,vs):
         # Start from the minimum, until dvdt exceeds the threshold given as input
         min_idx  = np.argmin(v)
@@ -347,6 +418,10 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
         t = t[min_idx:cutoff_idx]
         v = v[min_idx:cutoff_idx]
         
+        # Check v and t are all there
+        if any(np.isnan(v)) | any(np.isnan(t)):
+            return np.nan, np.nan
+        
         # If the membrane potential slowly monotonically decreases after a spike, then the min_idx will be the
         # last element of the trace, and so t and v will be empty.
         
@@ -356,6 +431,7 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
         assert np.mean(dt) < 0.1, "dt is large, check length_threshold"
         if (len(t) <= length_threshold) | (len(v) <= length_threshold):
             return np.nan, np.nan
+            
         # We can check for this and return np.nan if it is the case. To do: think about whether this is the best
         # way to handle the lack of an ahp. There could also be cases where we have an AP with no AHP, and these might give odd tau and amp readings that should not be averaged. For calibration this is fine, but for mechanistic investigation it might not be so good. 
         
@@ -417,7 +493,8 @@ def InterSpikeInterval(traces):
     # Calculate average interspike interval from a divided set of traces
     numAPs = traces['numAPs']
     if numAPs < 2:
-        print('ISI cannot be calculated with < 2 APs')
+        #print('ISI cannot be calculated with < 2 APs')
+        return np.nan
     else:
         # Find the peak of the first and last trace
         voltages = traces['v']
@@ -431,6 +508,7 @@ def InterSpikeInterval(traces):
         # Divide by number of intervals (numAPs - 1) to get mean ISI
         inter_spike_interval = time_diff/(numAPs-1)
         return inter_spike_interval
+       
 
 # ---- Calculating biomarkers over multiple traces ----
 
@@ -442,8 +520,11 @@ def CalculateRMP(traces):
     return RMPVals
     
 def CalculateInputRes():
-    # TODO
-    return 0
+    input_res_vals = []
+    for i,v in enumerate(traces['v']):
+        input_res_vals.append(input_res(v))
+    return input_res_vals
+    
     
 def CalculateRampAP():
     # TODO
@@ -455,14 +536,25 @@ def CalculateRheobase(cell_model, amp_step=0.1, amp_max=5, make_plot=False,):
     " We'll try 2 seconds "
     
     amps = np.arange(0,amp_max,amp_step) # (nA)
-
     # Run simulations until we reach the limit or we find an AP and return rheobase
     # Return NaN if rheobase not found
 
+    dur = 500.
+    delay = 1000.
+    interval = 0.
+    num_stims = 1
+    t_stop = 1500.
     for amp in amps:
-        t,v = sh.simulation(amp=amp, dur=2000., delay=1000., interval=0, num_stims=1, mechanisms=None, t_stop=3000., make_plot=False, plot_type='default', model=cell_model)
+        t,v = sh.simulation(amp=amp, dur=dur, delay=delay, interval=interval, num_stims=num_stims, mechanisms=None, t_stop=t_stop, make_plot=False, plot_type='default', model=cell_model)
         
         # Look for an AP (after the delay), if one is found then return amp as rheobase amplitude
+        
+        # Throw away the delay period, leave a 1 ms run up to catch the start
+        run_up  = 1
+        stim_period_indices = [t >= (delay-run_up)]
+        t = t[stim_period_indices]
+        v = v[stim_period_indices]
+        
         traces = SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5)
         if traces['numAPs'] > 0: # rheobase found
             if make_plot:
@@ -473,13 +565,15 @@ def CalculateRheobase(cell_model, amp_step=0.1, amp_max=5, make_plot=False,):
     # No APs found - return not a number
     return np.nan
     
-def CalculateThreshold(model):
-
-    return 0
+def calculate_threshold(traces):
+    thresholds = []
+    for t,v in zip(traces['t'], traces['v']):
+        thresholds.append(threshold(t, v, dvdt_threshold=5., method='gradient'))
+    return thresholds
 
 def CalculateAPPeak(traces):
     APPeakVals = []
-    for i,v in zip(range(len(traces['t'])),traces['v']):
+    for _,v in zip(range(len(traces['t'])),traces['v']):
         APPeakVals.append(APPeak(v)[0])
     return APPeakVals
     
