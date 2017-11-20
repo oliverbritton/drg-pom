@@ -375,7 +375,11 @@ def cal_ja(Y,t,voltage_clamp_func,voltage_clamp_params):
     """
     return [dm]
 
-def can_mi
+def can_mi():
+    """
+    Model of N-type Ca current from Migliore 95
+    """
+    pass
     
 " HCN models "
 def hcn_kn(Y,t,voltage_clamp_func,voltage_clamp_params):

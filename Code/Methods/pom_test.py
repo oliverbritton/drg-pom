@@ -33,17 +33,19 @@ ln.load_neuron_mechanisms(verbose=False)
 
 # FUNCTIONS
 
+"""
 def load_file(filename):
-
     with open(filename,'rt') as f:
         text = f.readlines()
     return text
-
+"""
+    
 def load_parameters(filename):
     parameters = pd.read_csv(filename, sep=',', header=None)
     return parameters
-    
-" To do - replace with pandas "
+
+"""
+" Replaced with pandas "
 def ReadParameterFile(filename):
     print "ReadParameterFile deprecated - use load_parameters instead"
     listOfLists = []
@@ -56,19 +58,28 @@ def ReadParameterFile(filename):
                  
         f.close()
         return listOfLists
-        
-def ReadTraceFile(filename):
-    assert False, "Deprecated - use read_trace instead of ReadTraceFile"
-    
+"""
+            
 def read_trace(filename, skiprows=0):
     # Refactored to use numpy from pom.ReadTraceFile,
+    # read_trace and load_trace are synonyms for the same function
     data = np.loadtxt(filename,skiprows=skiprows)
     trace = {'t':data[:,0], 'v':data[:,1]}
     return trace
     
-def PlotTraceFile(filename):
-    assert False, "Deprecated - use plot_trace"
-    
+load_trace = read_trace # use either name to load/read traces
+   
+def save_trace(trace, filename):
+    if type(trace) == dict:
+        data = np.column_stack(trace['t'], trace['v'])
+    elif type(trace) == np.array:
+        data = trace # assume formatting is correct
+    elif (type(trace) == tuple) | (type(trace) == list): # assume list in order: t,v
+        data = np.column_stack([trace[0], trace[1]])
+    else:
+        raise TypeError("Can't parse type of trace")
+    np.savetxt(filename, data)
+        
 def plot_trace(filename):
     data = read_trace(filename)
     plt.plot(data['t'],data['v'])
@@ -241,7 +252,7 @@ def RunSimulation(model, parameters, modelName, protocol, outputDirectory, prefi
         #ina_vec.record(cell(0.5)._ref_ina)
         #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
         h.finitialize(-65) # Vital! And has to go after record 
-        tstop = protocolData.loc[simulation]['duration']
+        tstop = protocolData.loc[simulation]['duration' ]
         
         # Run simulation
         neuron.run(tstop)
@@ -255,7 +266,6 @@ def RunSimulation(model, parameters, modelName, protocol, outputDirectory, prefi
         # TODO sort out whether stim amp and index should be called here
         # organise better -  maybe a master function that calls calculate biomarkers and also gets stim amp and index?
 
-        na_accu 
         # Write biomarkers
         nb.WriteBiomarkers(biomarkers,allBiomarkerFile)        
         
@@ -484,6 +494,7 @@ class PopulationOfModels(object):
         
         # Initialise results data structures
         self.setup_results()
+        self.simulations = {} # storage for simulation classes
         self.traces = {}
        
         # Setup calibration
@@ -609,28 +620,47 @@ class PopulationOfModels(object):
             
     " --- Simulation functions --- "
     
-    def run_simulations(self, simulation_name='Standard', sampling_freq_hz=20000, plot=False, save=False):
+    def setup_simulation(self, sim_name='simulation'):
+        """
+        Initialise a set of simulations
+        
+        Parameters
+        ----------------
+        sim_name: str, default 'simulation'
+        
+        Returns
+        -----------
+        Simulation()
+        
+        """
+        if sim_name in self.simulations.keys():
+            raise ValueError('simulation_name is already present.')
+        else:
+            # Assemble all the details about the simulation to give to the object
+            self.simulations[sim_name] = Simulation(sim_name, population=self)
+            
+        return self.simulations[sim_name]
+    
+    def run_simulation(self, sim_name='Standard', sampling_freq_hz=20000, plot=False, save=False, benchmark=True):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
         """
         # TODO: Add parallelisation here - see parallelisation in https://github.com/mirams/PyHillFit/blob/master/python/PyHillFit.py
         
-        # Check simulation isn't already here
-        if simulation_name in self.results.columns.levels[0]:
-            raise ValueError('simulation_name is already present in results.')
-        else:
-            biomarker_results = pd.DataFrame(index=self.results.index)
+        # Set up the simulation
+        simulation = self.setup_simulation(sim_name)
         parameters = self.results['Parameters']
 
+        
+        # @START TRANSFERRING TO Simulation.pom_simulation() here
         start_time = time.time()
         num_sims = len(self.results.index)
         if plot:
             plt.figure(figsize=(15,15))
         if save:
             self.traces[simulation_name] = {}
-            
-
+        # @done up to here
         for i, model_idx in enumerate(self.results.index):   
             now = time.time()
             output_frequency = 100. # Number of outputs to make - 100 equals every 1%
@@ -650,11 +680,11 @@ class PopulationOfModels(object):
             # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
             self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
 
-            
+            " @To do - wrap all the simulations into a member function "
             # Set temperature
             h.celsius = self.celsius # In line with Davidson et al., 2014, PAIN
             # Set ionic conditions (update reversal potentials in line with ionic conditions)
-            # To do - check which ions exist and only set conditions for them
+            " @To do - check which ions exist and only set conditions for them "
             oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=self.active_model)
             oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=self.active_model)
             
@@ -729,6 +759,8 @@ class PopulationOfModels(object):
         self.results = pd.concat([self.results, self.biomarker_results], axis=1)
         
         print("Simulation {} complete in {} s.".format(simulation_name,time.time()-start_time))
+        
+        #@FINISH TRANSFERRING to Simulation.pom_simulation here
             
     def run_bespoke_simulation(self, sim_name, sim_protocols, biomarkers_to_calculate):
         """
@@ -744,6 +776,13 @@ class PopulationOfModels(object):
         # Calculate the biomarkers
         
         # Save to results under "sim_name"
+    
+    def run_vclamp_simulation(self, sim_protocols):
+        """
+        Run a voltage clamp simulation on all models
+        """
+        ik = h.Vector()
+        ik.record(cell(0.5)._ref_ik, sec=cell)
     
     " --- Calibration functions --- "
     
@@ -911,6 +950,89 @@ class PopulationOfModels(object):
             self.calibration_applied = False
         else:
             print("Calibration not currently applied to results.")
+            
+class Simulation(object):
+    """
+    Main class for running all kinds of simulations
+    
+    Parameters
+    -----------------
+    sim_name: str, default 'simulation'
+    population: PopulationOfModels, default None
+    
+    
+    Examples
+    -----------
+    Use for a single simulation:
+    @To do
+    Use as part of a POM simulation:
+    @To do
+    
+    """
+    def __init__(self, sim_name='simulation', population=None):
+    
+        self.name = sim_name
+        self.traces = {} # To store traces for plotting or analysis
+        
+        # Population-specific setup
+        if population != None:
+            self.population = population # Set reference to population
+            self.biomarkers = pd.DataFrame(index=self.population.results.index)
+        
+        
+    
+    def simulate(self):
+    """
+    Runs a single simulation in IClamp mode
+    
+    Parameters
+    ----------------
+    
+    Returns
+    -----------
+    """
+    
+        pass
+        
+    def simulate_vclamp(self):
+        pass
+    
+    def pom_simulation(self, parameters, plot=False, save=False, save_type="fig", benchmark=True):
+        """
+        Run  simulations 
+        
+        Parameters
+        -----------------
+        parameters: pd.DataFrame
+        plot: bool, default False
+        save: bool, default False
+        save_type: str, default 'fig'
+        
+        Returns
+        -----------
+        
+        """
+        
+        # Startup all the options
+        start = time.time()
+        num_sims = len(self.population.results.index)
+        if plot == True:
+            plt.figure(figsize=(15,15))
+        # Check if save options are ok
+        if save == True:
+            if save_type in ['fig', 'trace', 'both', 'all']:
+                pass # we're ok
+            else:
+                raise ValueError('save_type not found.')
+        
+        # Initialise data structures
+        num_sims = len(self.population.results.index)
+        self.biomarkers = pd.DataFrame(index=self.population.results.index)
+         
+        
+        
+        
+        
         
         
 def load(filename):

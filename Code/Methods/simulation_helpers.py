@@ -27,7 +27,7 @@ import neuron
 import Methods.Simulations.loadneuron as ln
 ln.load_neuron_mechanisms(verbose=False)
 
-def init_model(mechanisms,
+def init_model(mechanisms=[],
     L=30.,  # uM
     diam=46., # uM
     cm=1., # uF/cm^2
@@ -42,16 +42,31 @@ def init_model(mechanisms,
     """
     cell = h.Section()
     for mechanism in mechanisms:
-        cell.insert(mechanism)
+        try:
+            cell.insert(mechanism)
+        except ValueError:
+            raise ValueError("argument: {} is not a density mechanism name.".format(mechanism))
     cell.L = L # microns
     cell.diam = diam #microns
     cell.cm = cm  # uF/cm2
     cell.Ra = Ra # ohm-cm
     
-    cell.ko = ko
-    cell.ki = ki
-    cell.nao = nao
-    cell.nai = nai
+    try:
+        cell.ko = ko
+        cell.ki = ki
+    except NameError:
+        cell.insert('k_dummy')
+        cell.ko = ko
+        cell.ki = ki
+        
+    try:
+        cell.nao = nao
+        cell.nai = nai
+    except NameError:
+        cell.insert('na_dummy')
+        cell.nao = nao
+        cell.nai = nai
+    
     return cell
     
 def get_init_model_values(name='first'):
@@ -190,6 +205,16 @@ def record_currents(cell, current_set='default'):
     else:
         raise ValueError('Current set not in list of accepted values.')
     return currents
+    
+def generate_current_set(mechanisms):
+    """
+    Take the mechanism list of a simulation and work out which currents to record
+    based on their names.
+    So if there is a current that begins with k its a k current (_ref_ik_k%NAME%)
+    If it begins with na its an na current.
+    If it doesn't follow a know pattern don't record it.
+    """
+    pass
         
 def build_sim_protocols(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, t_stop=1000., v_init=-65.,):
 
@@ -275,14 +300,12 @@ def construct_parameter_names(list_of_terms):
     parameter_names = ['_'.join(parameter) for parameter in parameter_parts]    
     return parameter_names
     
-"-- Simulation functions --"
-    
+""" --- Simulation functions --- """
     
 def build_empty_sim_protocols():
     sim_protocols_keys = ['delay', 'amp', 'dur', 'interval', 'num_stims', 'stim_func', 't_stop', 'v_init', 'currents_to_record'] 
 
-
-def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K']):
+def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K'], recording_set=None):
     
     # Build a model if one is not supplied
     if not model:
@@ -311,7 +334,9 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
 
     v,t = set_vt(cell=cell)
     
-    if make_plot == True:
+    if recording_set == True:
+        current_set = generate_current_set # @To do - make it generate from mechanism list
+    elif make_plot == True:
         current_set = plot_type
     else:
         current_set = None
@@ -383,6 +408,11 @@ def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClam
     plt.plot(t,ia)
     plt.plot(t,ik)
     return
+    
+def simulation_vclamp():
+    """ Run a voltage clamp simulation """    
+
+""" --- Other functions ---- """
     
 def get_biomarker_list(biomarker_set='default'):
     """ 
