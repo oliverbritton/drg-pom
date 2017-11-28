@@ -5,21 +5,19 @@ Functions for running a population of models loop
 
 @author: Oliver Britton
 """
-import os
-import datetime
-import time
-import re
-#import pdb
-import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
+import datetime
+import time
+#import pdb
 import pickle
 from IPython.display import clear_output
-
 #from multiprocessing import Pool
 from multiprocessing import Process
 from functools import partial
+
 import NeuronProjectStart
 import Methods.Biomarkers.NeuronBiomarkers as nb
 import Methods.Biomarkers.DavidsonBiomarkers as db
@@ -31,34 +29,11 @@ import neuron
 import Methods.Simulations.loadneuron as ln
 ln.load_neuron_mechanisms(verbose=False)
 
-# FUNCTIONS
+# ---FUNCTIONS---
 
-"""
-def load_file(filename):
-    with open(filename,'rt') as f:
-        text = f.readlines()
-    return text
-"""
-    
 def load_parameters(filename):
     parameters = pd.read_csv(filename, sep=',', header=None)
     return parameters
-
-"""
-" Replaced with pandas "
-def ReadParameterFile(filename):
-    print "ReadParameterFile deprecated - use load_parameters instead"
-    listOfLists = []
-    with open(filename) as f:
-        for line in f:
-            #inner_list = [elt.strip() for elt in line.split(',')]
-            # in alternative, if you need to use the file content as numbers
-            innerList = [float(elt.strip()) for elt in line.split(' ')]
-            listOfLists.append(innerList)
-                 
-        f.close()
-        return listOfLists
-"""
             
 def read_trace(filename, skiprows=0):
     # Refactored to use numpy from pom.ReadTraceFile,
@@ -83,387 +58,66 @@ def save_trace(trace, filename):
 def plot_trace(filename):
     data = read_trace(filename)
     plt.plot(data['t'],data['v'])
-        
-# Parse a line of a configuration file where a pattern is found, strip out the identifier through pattern and return the data
-def ParseConfigLine(line,pattern):
-    line = line.rstrip('\n') # Remove new line
-    components = line.split(pattern)
-    assert(len(components) == 2)
-    return components[1]
+             
+def load(filename):
+    # Load population of models from a pickled file
+    with open(filename, 'rb') as f:
+        pom = pickle.load(f)
+    if pom.stim_func == 'IClamp':
+        pom.stim_func = h.IClamp
+    elif pom.stim_func == 'IRamp':
+        pom.stim_func = h.IRamp
+    return pom
+    
+def make_pom_name(name):
+    # Make the simulation name
+    date = time.strftime("%d%m%y")
+    return '{}_{}'.format(name,date)
 
-def WriteLogFile(outputDirectory,parameters,protocols,modelName,simulationName,configFilename,parameterSetFilename,outputFilenames):
-
-    # Open log file
-    # First check output directory ends with file separator
-    outputDirectory = FormatOutputDirectory(outputDirectory)    
-
-    f = file.open("%s %s.log" % (outputDirectory,simulationName) ,'w')
-
-    # Write model name, stimulation protocol name and date 
-
-    f.write("Simulation: %s on model: %s, " % (simulationName,modelName) )
-    date = datetime.datetime.now() 
-    f.write("performed on: %s/%s/%s at %s:%s\n" % (date.day,date.month,date.year,date.hour,date.minute) )
-
-    # Write input file names
-    f.write("Config file: %s\n" % configFilename)
-    f.write("Parameter file: %s\n" % parameterSetFilename)
-
-    # Write list of output files
-    for i in outputFilenames:
-        f.write('%s\n' % i)
-
-    # Close
-    f.close()
- 
-def TestWriteLogFile():
-	# Write a log file to test directory
-	# Read it back in and check it matches line by line
-	# Delete log file
-    return
-
-# Ramping stimulus protocol	
-def RampStimProtocol(amp,t,dur,delay):
-		#Protocol description:
-		# 100? ms delay
-	if t < delay:
-		IStim = 0
-	elif t > delay+dur:
-		IStim = 0
-	elif (t >= delay) & (t <= delay+dur):
-		IStim = amp*(t-delay)/dur
-	return IStim
-	
-def SquareStimProtocol(amp,t,dur,delay):
-	#FIX COLONS
-	if t < delay:
-		IStim = 0
-	elif t > delay+dur:
-		IStim = 0
-	elif (t >= delay) & (t <= delay+dur):
-		IStim = amp
-	return IStim
-	
-
-	
-def TestStimProtocols():
-	amp = 2
-	delay = 100
-	dur = 10
-	
-	# Test SquareStimProtocol
-	# before stimulation
-	t = 0
-	assert(SquareStimProtocol(amp,t,dur,delay) == 0)
-	# during stim
-	t = 105
-	assert(SquareStimProtocol(amp,t,dur,delay) == 1)
-	t = 110
-	assert(SquareStimProtocol(amp,t,dur,delay) == 2)
-	# after stim`
-	t = 111
-	assert(SquareStimProtocol(amp,t,dur,delay) == 0)
-	# Test SquareStimProtocol
-	t = 0
-	assert(SquareStimProtocol(amp,t,dur,delay) == 0)
-	# during stim
-	t = 105
-	assert(SquareStimProtocol(amp,t,dur,delay) == 2)
-	t = 110
-	assert(SquareStimProtocol(amp,t,dur,delay) == 2)
-	# after stim`
-	t = 111
-	assert(SquareStimProtocol(amp,t,dur,delay) == 0)
- 
-def GetModel(model_name):
+# ---CLASSES----
     
-    if model_name == 'DeterminedOcelot':
-        import MakeDeterminedOcelot
-        model = MakeDeterminedOcelot.MakeDeterminedOcelot()
-    elif model_name == 'DeterminedOcelotIonic':
-        import MakeDeterminedOcelot
-        model = MakeDeterminedOcelot.MakeDeterminedOcelotIonic()
-    else:
-        assert False, 'Model name not found in GetModel!'    
-    
-    return model
-
-def SetModelParameters(model,parameters,model_name):
-
-    if (model_name == 'DeterminedOcelot') or (model_name == 'DeterminedOcelotIonic'):
-        
-        numParameters = 6
-        assert len(parameters) == numParameters, 'number of parameters is wrong' 
-        # Sodium conductances
-        model.gnabar_nav17vw = model.gnabar_nav17vw*parameters[0]
-        model.gnabar_nav18hw = model.gnabar_nav18hw*parameters[1]
-        model.gnabar_nav19hw = model.gnabar_nav19hw*parameters[2]
-        
-        # Potassium conductances
-        model.gkbar_kdrtf = model.gkbar_kdrtf*parameters[3]
-        model.gkbar_katf = model.gkbar_katf*parameters[4]
-        model.gkbar_kmtf = model.gkbar_kmtf*parameters[5]
-    
-    else:     
-        assert False, 'Model name not found in SetModelParameters!'
-    
-    return
-
-    
-	
-    # Run simulation protocol
-def RunSimulation(model, parameters, modelName, protocol, outputDirectory, prefix, modelNum, calibrationBiomarkerFile, allBiomarkerFile):
-    # TODO biomarkers should be returned and output of biomarkers done somewhere else
-    curDirectory = os.getcwd()
-    projectDir = NeuronProjectStart.GetProjectDir()
-    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir))
-    from neuron import h
-    import neuron
-    h('load_file("nrngui.hoc")')
-    os.chdir(curDirectory)
-    
-    # For each simulation:
-    # Reinitialise model
-    model = GetModel(modelName)
-    SetModelParameters(model,parameters,modelName)    
-    
-    protocolData = GetSimulationProtocol(protocol)
-    numSimulations = len(protocolData.index)
-    
-
-    for simulation in range(numSimulations):
-    
-        # Setup output vectors
-        v = h.Vector()
-        t = h.Vector()
-        #ina_vec = h.Vector()
-        #icurr_vec = h.Vector()
-    
-        # Setup simulation parameters - MAKE INTO FUNCTION
-        # SetStimulus()
-        stim = h.IClamp(model(0.5))
-        stim.delay = protocolData.loc[simulation]['stim start']
-        stim.dur = protocolData.loc[simulation]['stim duration']
-        stim.amp = protocolData.loc[simulation]['stim amp']/1000.0 # nA (1 nA = 1000 pA) - protocols are given in pA
-    
-        v.record(model(0.5)._ref_v, sec=model)
-        t.record(h._ref_t)
-        #ina_vec.record(cell(0.5)._ref_ina)
-        #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
-        h.finitialize(-65) # Vital! And has to go after record 
-        tstop = protocolData.loc[simulation]['duration' ]
-        
-        # Run simulation
-        neuron.run(tstop)
-        
-        # Calculate biomarkers
-        t_np = np.array(t) # Transform into numpy arrays to make behaviour more understandable
-        v_np = np.array(v)
-        biomarkers = CalculateBiomarkers(t_np,v_np,stim.amp,modelNum)  # modelNum is the index variable
-        if stim.amp == 0:
-            quiescentRMP = biomarkers['RMP']
-        # TODO sort out whether stim amp and index should be called here
-        # organise better -  maybe a master function that calls calculate biomarkers and also gets stim amp and index?
-
-        # Write biomarkers
-        nb.WriteBiomarkers(biomarkers,allBiomarkerFile)        
-        
-        if biomarkers['numAPs'] > 0:
-            rheobaseOnThisBeat = True
-        else:
-            rheobaseOnThisBeat = False
-        
-        # If this is the last simulation or we found rheobase, then write the trace     
-        # TODO - write code to allow us to check for rheobase, but still get biomarkers for increasing
-        # stim amplitude to see what happens above threshold
-        if (rheobaseOnThisBeat):
-            # Write output
-            biomarkers['StepRheobase'] = stim.amp
-            biomarkers['RMP'] = quiescentRMP # Write the RMP with the quiescent value
-            nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
-            WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
-            break
-        
-        if (simulation == numSimulations-1): # -1 because range gives 0 -> n-1 if numSimulations = n
-        # We haven't found rheobase
-            nb.WriteBiomarkers(biomarkers,calibrationBiomarkerFile)
-            WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)            
-            
-    
-    return    
-    
-# Run parallel simulation
-def RunParallelSimulation(modelNumsAndParameters,modelName,protocol,outputDirectory,prefix):
-    
-#    curDirectory = os.getcwd()
-#    os.chdir('E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes')
-#    from neuron import h
-    import neuron
-#    h('load_file("nrngui.hoc")')
-#    os.chdir(curDirectory)  
-    
-    # Create model
-    model = GetModel(modelName)
-    
-    if not protocol == 'default':
-        assert False, 'Unsupported protocol'
-    
-    # Unpack model number and parameteres    
-    modelNum = int(modelNumsAndParameters[0])
-    parameters = modelNumsAndParameters[1:]
-    
-    SetModelParameters(model,parameters,modelName)    
-    
-    # Setup output vectors
-    v = h.Vector()
-    t = h.Vector()
-    #ina_vec = h.Vector()
-    #icurr_vec = h.Vector()
-    
-    # Setup simulation parameters - MAKE INTO FUNCTION
-    # SetStimulus()
-    stim = h.IClamp(model(0.5))
-    stim.delay = 100
-    stim.dur = 700
-    stim.amp = 0.5 # nA (1 nA = 1000 pA)
-    
-    v.record(model(0.5)._ref_v, sec=model)
-    t.record(h._ref_t)
-    #ina_vec.record(cell(0.5)._ref_ina)
-    #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
-    h.finitialize(-65) # Vital! And has to go after record 
-    tstop = 1000.0
-    
-    # Run simulation
-    neuron.run(tstop)
-    
-    # Write output
-    WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v)
-    return
-
-def WriteSimulationOutput(outputDirectory,prefix,modelNum,t,v):
-
-    assert len(v) == len(t), 't and v vector length mismatch'          
-    # Check output directory is in the correct form
-    outputDirectory = FormatOutputDirectory(outputDirectory)   
-    # Open output
-    filename = outputDirectory + prefix + str(modelNum) + '.dat'
-    f = open(filename, "w")
-
-    # Write AP, two columns, end with line break
-    for i in range(len(t)):
-        f.write(str(t[i]) + " " + str(v[i]) + "\n")
-    f.close()
-    return
-
-def StepProtocolRun(model, stimAmps, stimDuration):
-    
-        # Run the step protocol
-    for j, amp in enumerate(stimAmps):
-        
-        stim = h.IClamp(model(0.5)) 
-        stim.delay = 5
-        stim.dur = stimDuration
-        stim.amp = amp 
-        
-        v_vec = h.Vector()
-        t_vec = h.Vector()
-            
-        
-        v_vec.record(model(0.5)._ref_v, sec=model)
-        t_vec.record(h._ref_t)
-        
-        h.finitialize(-65) # Vital! And has to go after record   
-        tstop = 1000.0
-        neuron.run(tstop)
-        # TODO Write to file
-        
-def FormatOutputDirectory(outputDirectory):
-    if not outputDirectory.endswith(os.sep):
-        outputDirectory += os.sep
-    return outputDirectory
-    
-def PlotTrace(filename):
-    
-    return
-    
-# Load Neuron so that all the density mechanisms get imported properly
-" Deprecated - can use the loadneuron module to load density mechanisms now."
-def LoadNeuron():
-    curDirectory = os.getcwd()
-    projectDir = NeuronProjectStart.GetProjectDir()
-    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir))
-    from neuron import h
-    h('load_file("nrngui.hoc")')
-    os.chdir(curDirectory)
-    return
-
-def ParseConfigFile(configFilename,pattern):
-    
-    configFile = load_file(configFilename)
-    # Define output directory from config file
-    # Format expected is: output directory: blah/blah
-    
-    #pattern = ": " # pattern to split lines between data for program and identifier
-    numOutputDirectories = 0
-    numParameterFiles = 0
-    numModels = 0
-    numSimulationNames = 0
-    numPrefixes = 0
-    numProtocols = 0
-
-    " To do - could refactor this to make the dict first, then fill it in with each line. "
-    " This would be neater as we could have a list of tokens to look for, and then loop over them "
-    " rather than having a separate if statement for each one. "    
-    for line in configFile:
-        if re.search('output',line):
-            numOutputDirectories += 1
-            outputDirectory = ParseConfigLine(line,pattern)
-            
-        if re.search('parameter',line):
-            numParameterFiles += 1
-            parameterFilename = ParseConfigLine(line,pattern)     
-            
-        if re.search('model',line):
-            numModels += 1
-            modelName = ParseConfigLine(line,pattern)
-        
-        if re.search('simulation',line):
-            numSimulationNames += 1
-            simulationName = ParseConfigLine(line,pattern)
-            
-        if re.search('prefix',line):
-            numPrefixes += 1
-            prefix = ParseConfigLine(line,pattern)
-    
-        if re.search('protocol',line):
-            numProtocols += 1
-            protocol = ParseConfigLine(line,pattern)
-            
-    assert numOutputDirectories == 1, 'numOutputDirectories'
-    assert numParameterFiles == 1, 'numParameterFiles'
-    assert numModels == 1, 'numModels'
-    assert numSimulationNames == 1, 'numSimulationNames'
-    assert numPrefixes == 1, 'numPrefixes'
-    assert numProtocols == 1, 'numProtocols'
-    
-    return {'outputDirectory':outputDirectory, 'parameterFilename':parameterFilename,
-            'modelName':modelName, 'simulationName':simulationName, 'prefix':prefix,
-            'protocol':protocol}
-
 class PopulationOfModels(object):
 
     def __init__(self, 
         name,
-        sim_protocols,
         model_details,
+        sim_protocols=None,
         parameter_filename=None, 
         parameter_set_details=None,
-        biomarker_filename=None,
     ):
         """
+        Main class for running populations of models in NEURON
+        
+        Parameters
+        ----------------
+        name: str - name to identify population
+        
+        model_details: dict, format is:
+        {'mechanisms':{mechanism_details}}
+        where mechanism_details=
+        {'neuron_name_of_current':{'name of each parameter of that current to vary':'name of that parameter in neuron'}}
+        E.g.: 
+        model_details = {'mechanisms':{}}
+        model_details['mechanisms']['nav17vw_named'] = {'GNav17':'gbar_nav17vw_named'}
+ 
+        sim_protocols: dict, for format see Simulation class for each simulation function
+        
+        NOTE: Only one of parameter_filename and parameter_set_details can be anything other than None, to uniquely define the parameter set of the population.
+        
+        parameter_filename: str, default None - use this to load an existing parameter set
+        
+        parameter_set_details: dict, format is:
+            'num_models':int
+            'parameter_data': list of parameter names
+            e.g. ['GNav17', 'GNav18']
+            OR
+            dict of parameter names and sampling ranges
+            e.g. {'GNav17':[0.0,0.4], 'GNav18':[0.,4.0]}
+            'minimum': None (non-uniform parameter scaling) or float (uniform parameter scaling)- if None have to provide dict for parameter data
+            'maximum': See minimum.
+            'save': bool - whether to save parameter set independent of population
+            'output_filename': string - where to save parameter set
+        
         Steps for running a population of models simulation:
         1. Read in parameters or generate and save a new set
         2. Set up simulation protocols (initialise from inputs)
@@ -474,11 +128,14 @@ class PopulationOfModels(object):
             7. Collect all biomarkers from that model and add to results
         8. Collate and possibly save all biomarkers and any required simulation data
         9. (Optional) Analyse biomarkers and present summary data and/or visualisations if asked for
+        
+        Example: see examples @TODO: make examples and example dir in source
+        
+        To dos: 
+        1. Support non-conductance parameters through updating sh.build_model "
+        2. Parallelised simulations. "
+        3. Support multi-compartment models and simulations (possibly in a separate class?). 
         """
-        " To dos: "
-        " 1. Support non-conductance parameters through updating sh.build_model "
-        " 2. Parallelised simulations. "
-        " 3. Support multi-compartment models and simulations (possibly in a separate class?). "
                 
         # Set population name and mechanism and parameter names
         self.name = name
@@ -505,7 +162,7 @@ class PopulationOfModels(object):
             
         # -- Setup simulation protocols --
         # Stimulus protocols
-        self.setup_simulation_protocols(sim_protocols=sim_protocols)
+        self.simulation_protocols = sim_protocols 
         self.current_set = None
         self.celsius = 32. # In line with Davidson et al., 2014, PAIN
         
@@ -567,32 +224,7 @@ class PopulationOfModels(object):
         # Finally, set parameters
         self.parameters = parameters
         self.parameter_details = header
-    
-    def setup_simulation_protocols(self, sim_protocols):
-        
-        if 'biomarker_protocol' in sim_protocols.keys():
-            self.biomarker_protocol = sim_protocols['biomarker_protocol']
-        else:
-            self.biomarker_protocol = None
-        
-        self.delay = sim_protocols['delay']
-        self.amp = sim_protocols['amp']
-        self.dur = sim_protocols['dur']
-        self.interval = sim_protocols['interval']
-        self.num_stims = sim_protocols['num_stims']
-        self.stim_func = sim_protocols['stim_func']
-        self.t_stop = sim_protocols['t_stop']
-        self.v_init = sim_protocols['v_init']
-        self.currents_to_record = sim_protocols['currents_to_record']
-    
-    def setup_current_recording(self):
-        """ Temp function to remind me to do current recording using exec somehow """
-        if self.currents_to_record:
-            self.currents = {}
-            for current in self.currents_to_record:
-                currents[current] = h.Vector()
-                # Use exec to record the right current variable (e.g. ik_kdrtf)
-                exec('currents[current].record(self.active_model(0.5)._ref_{}, sec=active_model'.format(current))
+        self.parameter_details = header
     
     def load_calibration_ranges(self, calibration_ranges=None, calibration_filename=None):
         """ Load calibration ranges from a dataframe or a file """
@@ -620,38 +252,67 @@ class PopulationOfModels(object):
             
     " --- Simulation functions --- "
     
-    def setup_simulation(self, sim_name='simulation'):
+    def setup_simulation(self, name, type, protocols, options=None):
         """
         Initialise a set of simulations
         
         Parameters
         ----------------
-        sim_name: str, default 'simulation'
+        name: str, default 'sim'
+        type: str, default 'IClamp', options: 'IClamp', 'VClamp', 'Test' (case insensitive)
+        protocols: dict, default None, contents dependent on 'type'.
         
         Returns
         -----------
-        Simulation()
+        Nothing, creates self.simulations[name].
         
         """
-        if sim_name in self.simulations.keys():
-            raise ValueError('simulation_name is already present.')
+        if name in self.simulations.keys():
+            raise ValueError('Simulation name {} is already present.'.format(name))
         else:
             # Assemble all the details about the simulation to give to the object
-            self.simulations[sim_name] = Simulation(sim_name, population=self)
-            
-        return self.simulations[sim_name]
+            protocols['simulation_type'] = type
+            self.simulations[name] = Simulation(name, protocols, options=options, population=self)
     
-    def run_simulation(self, sim_name='Standard', sampling_freq_hz=20000, plot=False, save=False, benchmark=True):
+    def run_simulation(self, 
+    name='sim', 
+    simulation_type='IClamp',
+    simulation_protocols=None, 
+    sampling_freq_hz=20000, 
+    plot=False, save=False, benchmark=True):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
+        
+        Example (in iPython):
+        test_pop_$date$.py:
+        # read in args
+        
+        # create population and simulation parameters
+        pop.run_simulation(simulation_parameters, sim_name='Test')
+        
+        clean_notebook.py
+        %run test_pop.py cores=4
+        
+        Parameters
+        ----------------
+        simulation_protocols: dict of protocol for simulation - see Simulation class for formats
+        
+        Returns
+        -----------
         
         """
         # TODO: Add parallelisation here - see parallelisation in https://github.com/mirams/PyHillFit/blob/master/python/PyHillFit.py
         
         # Set up the simulation
-        simulation = self.setup_simulation(sim_name)
+        if simulation_protocols == None:
+            simulation_protocols = self.simulation_protocols
+        assert(simulation_protocols != None), "Simulation protocol not set."
+        self.setup_simulation(name, type, protocols) 
+        sim = self.simulations[name]
         parameters = self.results['Parameters']
-
+        
+        
+        
         
         # @START TRANSFERRING TO Simulation.pom_simulation() here
         start_time = time.time()
@@ -671,85 +332,12 @@ class PopulationOfModels(object):
                     print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start_time, (num_sims-i)*(now-start_time)/i))
             else:
                 print("Simulation set of {} simulations begun.".format(num_sims))
-                
-            # --- Setup model ----
-            self.active_parameters = parameters.loc[model_idx]
-            mechanisms = {self.parameter_designations[param]:val for param, val in self.active_parameters.iteritems()} # iteritems over pd.Series to get key value pairs and generate a dict from them
-            # To do - allow different cellular parameters and ionic concs to be input here or in bespoke_simulation, as well as variation in parameters
-            
-            # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
-            self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
-
-            " @To do - wrap all the simulations into a member function "
-            # Set temperature
-            h.celsius = self.celsius # In line with Davidson et al., 2014, PAIN
-            # Set ionic conditions (update reversal potentials in line with ionic conditions)
-            " @To do - check which ions exist and only set conditions for them "
-            oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=self.active_model)
-            oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=self.active_model)
-            
-            # --- Run simulations ---
-            
-            # Rheobase simulation
-            rheobase = nb.CalculateRheobase(self.active_model, amp_step=0.1, amp_max=5, make_plot=False,)
-            
-            # Only continue if we've found a rheobase
-            if ~np.isnan(rheobase):
-                # All other biomarkers simulation at rheobase
-                # Set stimuli
-                stims = []
-                for stim_idx in range(self.num_stims):
-                    stims.append(self.stim_func(0.5, sec=self.active_model))
-                    stims[-1].dur = self.dur
-                    stims[-1].amp = rheobase
-                    stims[-1].delay = self.delay + stim_idx*(self.dur + self.interval)
-                
-                " To do - roll these into the pom class (sh.set_vt and sh.record_currents) "
-                #v,t = sh.set_vt(cell=self.active_model)
-                v = h.Vector()
-                v.record(self.active_model(0.5)._ref_v, sec=self.active_model)
-                t = h.Vector()
-                t.record(h._ref_t)
-                currents = sh.record_currents(cell=self.active_model, current_set=None)
-                
-                h.finitialize(self.v_init) # Vital! And has to go after record
-                
-                # --- Run simulation ---
-                neuron.run(self.t_stop)
-                v,t = np.array(v), np.array(t)
-                if save:
-                    self.traces[simulation_name][model_idx] = {'t':t, 'v':v}
-                
-                if plot:
-                    #plt.subplot(10,10,i+1)
-                    plt.plot(t,v)
-                    plt.title("Model: {}".format(model_idx))
-                    
-                # Sampling
-                if sampling_freq_hz == 20000:
-                    " To do - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). "
-                    t = t[::2]; v = v[::2] # 20 kHz
-                else:
-                    raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
-                    
-                # --- Analyse simulation for biomarkers ---
-                
-                traces = nb.SplitTraceIntoAPs(t,v)
-                biomarkers = nb.calculate_simple_biomarkers(traces,self.active_model)          
-            else: # No rheobase found
-                biomarkers = {}
-                
-            # RMP
-            rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=self.active_model)
-            # Could change sampling freq here but probably not necessary for RMP
-            rmp_traces = nb.SplitTraceIntoAPs(rmp_t,rmp_v)
-            biomarkers['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
-            # Add rheobase
-            biomarkers['Rheobase'] = rheobase
-            
-            # Save biomarkers into results
-            for biomarker in biomarkers:
-                biomarker_results.loc[model_idx, biomarker] = biomarkers[biomarker]
+           
+            """
+            Simulation code transferred to simulate_iclamp in Simulation
+            """
+           
+           
         
         # At end of all simulations, build a multiarray with the simulation name and the biomarker results.
         self.biomarker_results = pd.DataFrame(columns=pd.MultiIndex.from_product([[simulation_name], biomarker_results.columns]), index=self.results.index)
@@ -776,14 +364,8 @@ class PopulationOfModels(object):
         # Calculate the biomarkers
         
         # Save to results under "sim_name"
-    
-    def run_vclamp_simulation(self, sim_protocols):
-        """
-        Run a voltage clamp simulation on all models
-        """
-        ik = h.Vector()
-        ik.record(cell(0.5)._ref_ik, sec=cell)
-    
+
+        
     " --- Calibration functions --- "
     
     def calibrate_population(self, biomarker_names, simulation_name, calibration_ranges='Davidson', stds=None, verbose=True):
@@ -955,6 +537,12 @@ class Simulation(object):
     """
     Main class for running all kinds of simulations
     
+    Assumptions:
+    One instance of the Simulation class will run one simulation set and not be reused.
+    When run_simucalculate
+    one instance of each biomarker for each parameter set.
+    For each parameter set, the base model structure will be the same.
+    
     Parameters
     -----------------
     sim_name: str, default 'simulation'
@@ -969,314 +557,476 @@ class Simulation(object):
     @To do
     
     """
-    def __init__(self, sim_name='simulation', population=None):
+    def __init__(self, name, protocols, options=None, population=None):
     
-        self.name = sim_name
+        self.name = name
+        self.protocols = protocols
         self.traces = {} # To store traces for plotting or analysis
         
         # Population-specific setup
         if population != None:
             self.population = population # Set reference to population
-            self.biomarkers = pd.DataFrame(index=self.population.results.index)
+            self.results = pd.DataFrame(index=self.population.results.index) 
+            self.simulation_ran = False # Check if simulation has been run - only run once
+        else:
+            # @TODO: Add in support for single cell simulations
+            raise ValueError('Population must be supplied to run simulation, for single cell simulations use simulation_helpers module.')
+            
+        # Options - output, saving, logging etc.
+        if options != None:
+            pass
+    
+    def test_model(self, gna, gk):
+        cell = h.Section()
+        cell.insert('hh')
+        cell.gnabar_hh *= gna
+        cell.gkbar_hh *= gk
+        return cell
         
+    def simulate_test(self, conductances):
+        """
+        Test parallel simulation
+        """
         
-    
-    def simulate(self):
-    """
-    Runs a single simulation in IClamp mode
-    
-    Parameters
-    ----------------
-    
-    Returns
-    -----------
-    """
-    
-        pass
+        cell = self.test_model(conductances[0],conductances[1])
+        t = h.Vector()
+        v = h.Vector()
+        t.record(h._ref_t)
+        v.record(cell(0.5)._ref_v, sec=cell)
+
+        stim = h.IClamp(0.5, sec=cell)
+        stim.dur = 500
+        stim.amp = 5.0
+        stim.delay = 500
+        tstop = 1500.
+
+        h.finitialize(-65.) # must go after record
+        neuron.run(tstop)
+        output = (np.array(t),np.array(v))
         
-    def simulate_vclamp(self):
-        pass
+        return "{},{}".format(mechanisms[0], mechanisms[1]), output
+          
+    def simulate_iclamp(self, 
+                                        sim_id,
+                                        mechanisms, 
+                                        mechanism_names,
+                                        amp,
+                                        dur,
+                                        delay,
+                                        interval,
+                                        num_stims,
+                                        stim_func,
+                                        outputs):
+        """
+        Runs a full simulation in IClamp mode (finds rheobase, finds rmp, and calculates biomarkers at rheobase)
+        
+        Parameters
+        ----------------
+        
+        Returns
+        -----------
+        """
     
-    def pom_simulation(self, parameters, plot=False, save=False, save_type="fig", benchmark=True):
+        # Setup conditions
+        
+        # Use sh.simulation to run each simulation
+        """
+         self.active_parameters = parameters.loc[model_idx]
+            mechanisms = {self.parameter_designations[param]:val for param, val in self.active_parameters.iteritems()} # iteritems over pd.Series to get key value pairs and generate a dict from them
+            # To do - allow different cellular parameters and ionic concs to be input here or in bespoke_simulation, as well as variation in parameters
+            
+            # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
+            self.active_model = sh.build_model(mechanisms=mechanisms, mechanism_names=self.mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
+
+            " @To do - wrap all the simulations into a member function "
+            # Set temperature
+            h.celsius = self.celsius # In line with Davidson et al., 2014, PAIN
+            # Set ionic conditions (update reversal potentials in line with ionic conditions)
+            " @To do - check which ions exist and only set conditions for them "
+            oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=self.active_model)
+            oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=self.active_model)
+            
+            # --- Run simulations ---
+            
+            # Rheobase simulation
+            rheobase = nb.CalculateRheobase(self.active_model, amp_step=0.1, amp_max=5, make_plot=False,)
+            
+            # Only continue if we've found a rheobase
+            if ~np.isnan(rheobase):
+                # All other biomarkers simulation at rheobase
+                # Set stimuli
+                stims = []
+                for stim_idx in range(self.num_stims):
+                    stims.append(self.stim_func(0.5, sec=self.active_model))
+                    stims[-1].dur = self.dur
+                    stims[-1].amp = rheobase
+                    stims[-1].delay = self.delay + stim_idx*(self.dur + self.interval)
+                
+                " To do - roll these into the pom class (sh.set_vt and sh.record_currents) "
+                #v,t = sh.set_vt(cell=self.active_model)
+                v = h.Vector()
+                v.record(self.active_model(0.5)._ref_v, sec=self.active_model)
+                t = h.Vector()
+                t.record(h._ref_t)
+                currents = sh.record_currents(cell=self.active_model, current_set=None)
+                
+                h.finitialize(self.v_init) # Vital! And has to go after record
+                
+                # --- Run simulation ---
+                neuron.run(self.t_stop)
+                v,t = np.array(v), np.array(t)
+                if save:
+                    self.traces[simulation_name][model_idx] = {'t':t, 'v':v}
+                
+                if plot:
+                    #plt.subplot(10,10,i+1)
+                    plt.plot(t,v)
+                    plt.title("Model: {}".format(model_idx))
+                    
+                # Sampling
+                if sampling_freq_hz == 20000:
+                    " To do - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). "
+                    t = t[::2]; v = v[::2] # 20 kHz
+                else:
+                    raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
+                    
+                # --- Analyse simulation for biomarkers ---
+                
+                traces = nb.SplitTraceIntoAPs(t,v)
+                biomarkers = nb.calculate_simple_biomarkers(traces,self.active_model)          
+            else: # No rheobase found
+                biomarkers = {}
+                
+            # RMP
+            rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=self.active_model)
+            # Could change sampling freq here but probably not necessary for RMP
+            rmp_traces = nb.SplitTraceIntoAPs(rmp_t,rmp_v)
+            biomarkers['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
+            # Add rheobase
+            biomarkers['Rheobase'] = rheobase
+            
+            # Save biomarkers into results
+            for biomarker in biomarkers:
+                biomarker_results.loc[model_idx, biomarker] = biomarkers[biomarker]
+            """
+        
+    def simulate_vclamp(self, 
+                                        sim_id,
+                                        mechanisms,
+                                        mechanism_names,
+                                        ions,
+                                        hold,
+                                        steps,
+                                        delta,
+                                        durations,
+                                        t_stop,
+                                        outputs):
+        """
+        Simulation of standard voltage clamp protocol.
+        Example implementing following protocol for K+ recordings from Anabios:
+        simulate_vclamp(mechanisms=@TODO, mechanism_names=@TODO, hold=-70.0, steps=[-80,80], delta=10.0, durations=[1100,500,500], outputs=['v', 'ik'])
+
+        1. Hold at -70 mV for 1100 ms
+        2. Pulse from -80 to 80 mV with delta=10mV
+        3. Hold at -70 mV for 500 ms
+        
+        Parameters
+        ----------------
+        sim_id - int/float/str - identifier for the simulation 
+        model_data - dict - data to construct model from
+        hold - holding potential - float (mV)
+        delta - size of steps - float (mV) or None to specify steps manually
+        steps - start and end of voltage clamp if delta is specified - 2 element list of floats (mV)
+        durations - start of each stage of voltage clamp - list of floats/ints 
+        outputs - list of strings, options to include are  'v' (voltage), 'ik' (total k+ current)....
+        @TODO - include more options.
+        
+        Returns
+        -----------
+        results - dict, contents - depends on "outputs"
+        results['sim_id'] - identifier for the simulation
+        results['ik_steps_absmax'] - array of absolute peak k+ currents at each step
+        @TODOs
+        Biomarkers of curve fitting
+        """
+        # General setup
+        import neuron
+        from neuron import h
+        
+        # Setup voltage clamp steps
+        if delta == None:
+            assert len(steps) > 0 # Use steps as given 
+        else:
+            steps = np.arange(steps[0], steps[1]+(0.1*delta),delta)
+        
+
+        # Initialise results
+        results = {}
+        results['sim_id'] = sim_id
+        if 'ik' in outputs:
+            results['ik_steps_absmax'] = np.zeros(len(steps))
+        
+        # Simulation loop through steps
+        for i, step in enumerate(steps):
+            # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
+            cell = sh.build_model(mechanisms=mechanisms, 
+                                                mechanism_names=mechanism_names, 
+                                                conductances=None, 
+                                                mechanism_is_full_parameter_name=True)
+            
+            # Setup this simulation
+            self.setup_simulation_conditions()
+            
+            # @TODO - put setting ionic conditions into a function to share with IClamp
+            if 'K' in ions:
+                oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
+            if 'Na' in ions:
+                oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=cell)
+            if 'Ca' in ions:
+                oldstyle = h.ion_style("ca_ion", 1, 2, 1, 1, 0,sec=cell)
+
+            v,t = sh.set_vt(cell=cell)
+            vectors = self.setup_output_recording(cell, outputs)
+            
+            clamp = h.VClamp(0.5, sec=cell)
+            clamp.amp[0] = hold
+            clamp.dur[0] = durations[0]
+
+            clamp.amp[1] = step
+            clamp.dur[1] = durations[1]
+
+            clamp.amp[2] = hold
+            clamp.dur[2] = durations[2]
+            
+            if len(durations) > 3:
+                t_stop = durations[3]
+            else: 
+                t_stop  = durations[0] + durations[1] + durations[2]
+
+            h.finitialize(hold) # Vital! And has to go after record
+            # Run simulation
+            neuron.run(t_stop)
+             
+            # ---Compute and store outputs---
+            
+            # @TODO - process save and plot options
+            # if self.save: ...
+            # if self.plot: ...
+            
+            
+            # K+ biomarkers
+            # @TODO - for now just return a vector of the peak current from each step
+            if 'ik' in outputs: 
+                results['ik_steps_absmax'][i] = nb.absmax(vectors['ik'])
+                # @TODO Add in ih (na component)
+                #ik = np.array(ik) + np.array(ih_na)
+
+        return results
+            
+    def pom_simulation(self, cores=1, plot=False, save=False, save_type="fig", benchmark=True):
         """
         Run  simulations 
         
         Parameters
         -----------------
         parameters: pd.DataFrame
+        simulation_parameters: dict
+        cores: int, default 1
         plot: bool, default False
         save: bool, default False
-        save_type: str, default 'fig'
+        save_type: str, default 'fig', options are...
+        benchmark: bool, default True
         
         Returns
         -----------
         
         """
+        if self.simulation_ran == True:
+            print("Error: this simulation has already been ran, cannot run same simulation again with the same simulator with name: {}.".format(self.name))
+            return
+            
+        if self.population == None:
+            raise ValueError('No population specified - cannot run population of models simulation!')
         
-        # Startup all the options
+        # Startup options
         start = time.time()
-        num_sims = len(self.population.results.index)
+        output_frequency = 100. # Number of outputs to make - 100 equals every 1%
         if plot == True:
-            plt.figure(figsize=(15,15))
-        # Check if save options are ok
+            pass
+            # @TODO
+            #plt.figure(figsize=(15,15))
+        # @ TODO
         if save == True:
             if save_type in ['fig', 'trace', 'both', 'all']:
                 pass # we're ok
             else:
                 raise ValueError('save_type not found.')
         
-        # Initialise data structures
+        # Simulation setup:
+        simulation_type = self.protocols['simulation_type']
+        self.set_simulation_function(simulation_type)
         num_sims = len(self.population.results.index)
-        self.biomarkers = pd.DataFrame(index=self.population.results.index)
-         
         
+        # ---- Main parallel simulation loop ----
+        if __name__ == '__main__':
+            pool = mp.Pool(processes=cores)
+            model_indices = self.population.results.index
+            assert(len(model_indices) == len(set(model_indices))), "Duplicates in model indices." 
+            for i, model_idx in enumerate(model_indices):   
+                # @TODO - this probs has parallel bugs
+                if benchmark:
+                    now = time.time()
+                    reporting_period = np.ceil(len(model_indices)/output_frequency)
+                    if i > 0:
+                        if (i == len(self.results.index)-1) | (i%reporting_period == 0):
+                            clear_output()
+                            print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start_time, (num_sims-i)*(now-start_time)/i))
+                    else:
+                        print("Simulation set of {} simulations begun.".format(num_sims))
+                        
+            # --- Setup model ----
+            active_parameters = parameters.loc[model_idx]
+            # iteritems over pd.Series to get key value pairs and generate a dict from them
+            mechanisms = {self.population.parameter_designations[param]:val for param, val in self.active_parameters.iteritems()} 
+            
+            # To do - allow different cellular parameters and ionic concs to be input here or in bespoke_simulation, as well as variation in parameters
+            
+            sim_kwargs= self.build_simulation_kwargs(sim_id=model_idx, 
+                                                                                      simulation_type=simulation_type, 
+                                                                                      simulation_parameters=self.protocols, 
+                                                                                      mechanisms=mechanisms)
+            
+            # Run simulation function in parallel
+            pool.apply_async(simulation_function, kwds=sim_kwargs, callback=self.log_result)
+            pool.close()
+            pool.join()
+            
         
-        
-        
-        
-        
-def load(filename):
-    # Load population of models from a pickled file
-    with open(filename, 'rb') as f:
-        pom = pickle.load(f)
-    if pom.stim_func == 'IClamp':
-        pom.stim_func = h.IClamp
-    elif pom.stim_func == 'IRamp':
-        pom.stim_func = h.IRamp
-    return pom
-    
-def make_pom_name(name):
-    # Make the simulation name
-    date = time.strftime("%d%m%y")
-    return '{}_{}'.format(name,date)
-        
-def RunPopulationOfModels(configFilename, pattern, parameter_modifiers={}):
-    
-    cfg = ParseConfigFile(configFilename,pattern)
-    # Initialise hoc
-   # h('load_file("nrngui.hoc")')
-    """ Can I just use LoadNeuron here? TODO """
-    curDirectory = os.getcwd()    
-    projectDir = NeuronProjectStart.GetProjectDir()
-    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir))    
-    from neuron import h
-    import neuron
-    h('load_file("nrngui.hoc")')
-    os.chdir(curDirectory)    
-    
-    # --- Loop  --- 
-    #Read parameter file in
-    parameters = ReadParameterFile(cfg['parameterFilename'])
-    start = time.time()
-    # --- Main solver loop --- 
-    
-    # Set up output
-    outputDirectory = cfg['outputDirectory']
-    prefix = cfg['prefix']
-    
-    " !!!TO CHANGE - replace with dataframes "
-    calibrationBiomarkerFile = open(outputDirectory + prefix + '_biomarkers.dat','w') # File for rheobase biomarkers only for calibration
-    allBiomarkerFile = open(outputDirectory + prefix + '_allbiomarkers.dat','w') # File for every biomarker
-    nb.WriteHeader(calibrationBiomarkerFile)
-    nb.WriteHeader(allBiomarkerFile)
-    " !!!To CHANGE "
-
-    for modelNum,parameterSet in enumerate(parameters):    
-        # Initialise new model
-        model = GetModel(cfg['modelName'])       
-        # Modify parameters (to do, include this info in CFG)       
-        if parameter_modifiers:
-            assert type(parameter_modifiers) == dict
-            for param_index, param_val in parameter_modifiers.iteritems():
-                print("Old parameter set was {}".format(parameterSet))
-                parameterSet[param_index] = param_val
-                print("Modified parameter set is {}".format(parameterSet))
-        # Run simulation protocol
-        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum,calibrationBiomarkerFile,allBiomarkerFile)
-        if (modelNum % 100) == 0:
-            print("Completed model: {}".format(modelNum))
-    
-    # Clean up
-    calibrationBiomarkerFile.close()
-    allBiomarkerFile.close()
-    
-    end = time.time()
-    return (end-start)
+        # Clean up and lock simulation
+        self.simulation_ran = True
             
             
-def RunParallelPopulationOfModels(configFilename,pattern,numProcessors):
-    
-    cfg = ParseConfigFile(configFilename,pattern)
-    # Initialise hoc
-   # h('load_file("nrngui.hoc")')
+    def set_simulation_function(self, simulation_type):   
+        """
+        Function to set simulation 
+        """
+        simulation_type = simulation_type.lower()
+        if simulation_type == 'iclamp':
+            self.simulation_function = self.simulate_iclamp
+        elif simulation_type == 'vclamp':
+            self.simulation_function = self.simulate_vclamp
+        elif simulation_type == 'test':
+            self.simulation_function = self.simulate_test
+        else: 
+            raise ValueError('simulation type: {} is not found.'.format(simulation_type))
 
-    curDirectory = os.getcwd()
-    """ Todo loadNeuron"""
-    projectDir = NeuronProjectStart.GetProjectDir()
-    nrnChannelDir = NeuronProjectStart.GetNrnChannelDir()
-    os.chdir(os.path.join(projectDir,nrnChannelDir))
-    from neuron import h
-    import neuron
-    h('load_file("nrngui.hoc")')
-    os.chdir(curDirectory)    
-    
-    # --- Loop  --- 
-    #Read parameter file in
-    parameters = ReadParameterFile(cfg['parameterFilename'])
-#    start = time.time()
-    # --- Main solver loop --- # TO DO! Parallelise
-    
-    # Divide the number of models up between processors    
-    
-# Might be better to use a pool    
-# start numProcessors worth of processes
-
-    modelNums = range(len(parameters))
-    modelNums = np.reshape(modelNums,[len(parameters),1])    
-    ###pdb.set_trace()
-    # Make the iterable matrix
-    parametersAndModelNums = np.concatenate((modelNums,parameters),1)
-    
-    RunPartialParallelSimulation = partial(RunParallelSimulation,modelName = cfg['modelName'],protocol = cfg['protocol'],outputDirectory = cfg['outputDirectory'], prefix = cfg['prefix'])   
-#    pdb.set_trace()
-    
-    for i in parametersAndModelNums:
+            
+    def build_simulation_kwargs(self, sim_id, simulation_type, simulation_parameters, mechanisms):
+        """
+        Setup dict of keyword arguments to feed to simulation function
+        """
+        def assign_kwargs(simulation_type):
+            kwargs = {}
+            # First do parameters common to IClamp and VClamp and check we get them all
+            if simulation_type in ['iclamp', 'vclamp']:
+                kwargs['mechanisms'] = mechanisms
+                kwargs['mechanism_names'] = self.population.mechanism_names
+                kwargs['ions'] = simulation_parameters['ions']
+                assert set(kwargs.keys()) == set(names['clamp']), "Parameters common to iclamp+vclamp missing."
+                
+            # Now do specific parameters
+            for kwarg in names[simulation_type]:
+                kwargs[kwarg] = simulations_parameters[kwarg]
+                
+            # finally, always assign sim_id for every simulation_type
+            kwargs['sim_id'] = sim_id
+            return kwargs
         
-#       RunPartialParallelSimulation(i)
-       p1 = Process(target=RunPartialParallelSimulation, args=(i,))
-       i[0] += 100
-       p2 = Process(target=RunPartialParallelSimulation, args=(i,))
-       i[0] += 100
-       p3 = Process(target=RunPartialParallelSimulation, args=(i,))
-       i[0] += 100
-       p4 = Process(target=RunPartialParallelSimulation, args=(i,))
-       p1.start()
-       p2.start()
-       p3.start()
-       p4.start()
-       p1.join()
-       p2.join()
-       p3.join()
-       p4.join()
-    # Set up a pool and run simulations
-#    pool =  Pool(numProcessors)
-#    pool.map(RunPartialParallelSimulation, parametersAndModelNums)
-#    pool.close() 
-#    pool.join()
-
- #p5 = Process(target=g, args=(y,))
-    
-#    for modelNum,parameterSet in enumerate(parameters):    
-#        # Initialise new model
-#        model = GetModel(cfg['modelName'])       
-#        # Run simulation protocol
-#        RunSimulation(model,parameterSet,cfg['modelName'],cfg['protocol'],cfg['outputDirectory'],cfg['prefix'],modelNum)
-#        
-#    end = time.time()
-    return
-    
-def GenerateSimulationProtocol():   
-    
-    """ Basically we have a list of protocol functions that return the simulations to run
-    this function interfaces with those functions, or whatever we want to use in the future
-    and sends a dictionary back to the main run simulation function with the details it needs to 
-    run all the simulations """
-
-    # Setup simulation parameters - MAKE INTO FUNCTION
-    # SetStimulus()
-    stim = h.IClamp(model(0.5))
-    stim.delay = 100
-    stim.dur = 700
-    stim.amp = 0.5 # nA (1 nA = 100 pA)
-    
-    v.record(model(0.5)._ref_v, sec=model)
-    t.record(h._ref_t)
-    #ina_vec.record(cell(0.5)._ref_ina)
-    #icurr_vec.record(cell(0.5)._ref_ina_nav18hw, sec=model)  
-    h.finitialize(-65) # Vital! And has to go after record 
-    tstop = 1000.0
-    
-    # Run simulation
-    neuron.run(tstop)
-    
-    # Write output
-
-def GetSimulationProtocol(protocol):
-    # Protocol list defines the available protocols
-    protocolList = {}
-    protocolList['default'] = 'Basic step protocol in line with Davidson et al. 2014, PAIN'
-    assert protocolList.has_key(protocol), "Stimulus protocol not found"
-    
-    if protocol == 'default':
-        # Create a data object containing all the stimulus properties
-        # Simulations: 
-        # 1: D 1000 ms Stim 1 start = 0 amp = 0 duration = 0
-        # 2: D 1000 ms Stim 1 Start 100 Amp 50 Duration 800 
-        # 3: Same as 2 but amp+50
+        simulation_type = simulation_type.lower() # convert to lower case
+        assert (simulation_type in ['iclamp', 'vclamp', 'test']), 'Simulation type: {} not found'.format(simulation_type)
         
-#        amps = range(0,3501,50)
-        amps = range(0,51,10)        
-        numSimulations = len(amps)
-        durations = [1000]*numSimulations
-        starts = [100]*numSimulations
-        starts[0] = 0
-        stimDurations = [800]*numSimulations
-        stimDurations[0] = 0
+        names = self.get_simulation_parameter_names()
+        kwargs = assign_kwargs(simulation_type)
+        return kwargs
+            
+            
+    def setup_simulation_protocols(self, sim_protocols):
+        """
+        OLD CODE NOT NEEDED PROBABLY?
         
-        data = {'duration':durations, 'stim start':starts, 'stim amp':amps, 'stim duration': stimDurations}
-        protocolData = pd.DataFrame(data,columns = ['duration', 'stim start', 'stim amp', 'stim duration'])
+        Parameters
+        -----------------
+        sim_protocols: dict containing fields describing all aspects of simulations protocols
+        see code for necessary and optional fields. 
+        @TODO: make more protocol fields optional with defaults (e.g. v_init at -65)
+        """
+        print('OLD CODE NOT NEEDED PROBABLY?')
+        if 'biomarker_protocol' in sim_protocols.keys():
+            self.biomarker_protocol = sim_protocols['biomarker_protocol']
+        else:
+            self.biomarker_protocol = None
+            
+        if 'ions' in  sim_protocols.keys():
+            self.ions = sim_protocols['ions']
         
-    return protocolData
-    
-def CalculateBiomarkers(t,v,stimAmp,index):
-    # Calculate a standard set of biomarkers and return them
-    threshold = 0 # mV
-    timeThreshold = 5 # ms
-    dvdtThreshold = 5 # mV/ms
-    traces = nb.SplitTraceIntoAPs(t,v,threshold,timeThreshold) 
-    numAPs = traces['numAPs']
-    
-    biomarkers = {}
-    for name in db.biomarkerNames:
-        biomarkers[name] = 'N/A'        
+        self.delay = sim_protocols['delay']
+        self.amp = sim_protocols['amp']
+        self.dur = sim_protocols['dur']
+        self.interval = sim_protocols['interval']
+        self.num_stims = sim_protocols['num_stims']
+        self.stim_func = sim_protocols['stim_func']
+        self.t_stop = sim_protocols['t_stop']
+        self.v_init = sim_protocols['v_init']
+        self.currents_to_record = sim_protocols['currents_to_record']
         
-    biomarkers['Index'] = index
-    biomarkers['numAPs'] = numAPs
-    biomarkers['stimAmp'] = stimAmp  
     
-    RMP = nb.CalculateRMP(traces)
-    biomarkers['RMP'] = RMP
-    if numAPs > 0:
-    
-        # Need to calculate biomarkers for each AP in the trace
-        APPeak = nb.CalculateAPPeak(traces)
-        APRise = nb.CalculateAPRiseTime(traces,dvdtThreshold)
-        APSlopeMin, APSlopeMax = nb.CalculateAPSlopeMinMax(traces)
-        APWidth = nb.CalculateAPFullWidth(traces,threshold)
-        AHPAmp = nb.CalculateAHPAmp(traces,dvdtThreshold)
+    def setup_simulation_conditions(self):
+        """
+        Do anything that needs to be done 
+        """
+        h.celsius = self.population.celsius
         
-        biomarkers['APPeak'] = APPeak
-        biomarkers['APRise'] = APRise
-        biomarkers['APSlopeMin'] = APSlopeMin
-        biomarkers['APSlopeMax'] = APSlopeMax
-        biomarkers['APWidth'] = APWidth
-        biomarkers['AHPAmp'] = AHPAmp
+    def setup_output_recording(self, cell, outputs):
+        """
+        Create vectors for recording outputs (except voltage and time, which are givens)
+        """
+        vectors = {}
+        if 'ik' in outputs:
+        # @TODO - write more outputs and wrap into function
+            vectors['ik'] = h.Vector()
+            vectors['ik'].record(cell(0.5)._ref_ik, sec=cell)
+        if 'ina' in outputs:
+            vectors['ina'] = h.Vector()
+            vectors['ina'].record(cell(0.5)._ref_ina, sec=cell)
+        if 'ik_ih' in outputs:
+            assert(False), 'We don\'t support the hcn current as part of ik yet.'
+            
+        # Could use something like this to automate:
+        """ Use exec to record the right current variable (e.g. ik_kdrtf)
+        For output in outputs:
+        exec('vectors[output].record(self.active_model(0.5)._ref_{}, sec=cell'.format(output)) """
+        return vectors
         
-
+    
+    def log_result(self, result):
+        """
+        Stores the result from a simulation using callback functionality. 
+        @OPTIMIZE - if we had loads of biomarkers it would make sense to vectorize the for loop?
+        """
+        keys = result.keys
+        biomarker_names = [key for key in keys if key != 'sim_id'] # could change to not in ['sim_id', 'blah'] if we want to add more keys to remove
+        sim_id = results['sim_id']
+        for biomarker in biomarker_names:
+            self.results.loc[sim_id, biomarker] = result[biomarker]
         
-        #TestRheobase([trace,trace],[50,100])
- 
-    return biomarkers
-    
-def CalibrateBiomarkers(modelBiomarkers,calibrationRanges,biomarkerNames):
-    
-    # iterate over models
-#    for biomarker in 
-    
-    # iterate over each biomarker to create array of 1s and 0s
-    
-    # at end of each model, if all checked biomarkers are within range, add to list of indices
-    
-    # return list of calibrated indices
-    return 
+        
+    def get_simulation_parameter_names(self):
+        """
+        Gets list of parameter names for each simulation 
+        """
+        names = {}
+        names['clamp'] = ['mechanisms', 'mechanism_names', 'ions'] # Common to IClamp and VClamp
+        names['iclamp'] = ['amp', 'dur', 'delay', 'interval', 'num_stims', 'stim_func']
+        names['vclamp'] = ['hold', 'steps', 'delta', 'durations']
+        names['test'] = ['conductances']
+        return names

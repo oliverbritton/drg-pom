@@ -5,6 +5,7 @@ IMPORT int nrnmpi_myid, nrn_nobanner_;
 
 extern void _IRamp_reg();
 extern void _KAtf_reg();
+extern void _KAtf_named_reg();
 extern void _KMtf_reg();
 extern void _Kacw_reg();
 extern void _Kdrcw_reg();
@@ -39,6 +40,7 @@ modl_reg(){
 
 fprintf(stderr," IRamp.mod");
 fprintf(stderr," KAtf.mod");
+fprintf(stderr," KAtf_named.mod");
 fprintf(stderr," KMtf.mod");
 fprintf(stderr," Kacw.mod");
 fprintf(stderr," Kdrcw.mod");
@@ -69,6 +71,7 @@ fprintf(stderr, "\n");
     }
 _IRamp_reg();
 _KAtf_reg();
+_KAtf_named_reg();
 _KMtf_reg();
 _Kacw_reg();
 _Kdrcw_reg();

@@ -508,8 +508,20 @@ def InterSpikeInterval(traces):
         # Divide by number of intervals (numAPs - 1) to get mean ISI
         inter_spike_interval = time_diff/(numAPs-1)
         return inter_spike_interval
-       
 
+def absmax(i):
+    """
+    Returns the largest absolute value present in an array in its raw form
+    (e.g. in [-2, 0, 1] it returns -2, in [-2,0,3] it returns 3.)
+    """
+    # Use the absolute largest value in its raw form
+    if max(i) > abs(min(i)):
+        return max(i) 
+    elif abs(min(i)) >= max(i):
+        return min(i)
+    else:
+        raise ValueError()
+        
 # ---- Calculating biomarkers over multiple traces ----
 
 def CalculateRMP(traces):
