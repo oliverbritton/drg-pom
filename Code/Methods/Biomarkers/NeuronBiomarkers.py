@@ -35,7 +35,7 @@ def average_biomarker_values(biomarkers, how_to_handle_nans='return'):
     return mean_result
     
 def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
-    " Calculate every biomarker that can be calculated from a normal simulation trace and output to dict - rheobase and RMP need to be calculated separately."
+    """ Calculate every biomarker that can be calculated from a normal simulation trace and output to dict - rheobase and RMP need to be calculated separately."""
     biomarkers = {}
     # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
     def error_handle(filename, traces): # Error handler for finding out why biomarkers are throwing errors.
