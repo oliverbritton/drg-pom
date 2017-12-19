@@ -40,8 +40,8 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
     def error_handle(filename, traces): # Error handler for finding out why biomarkers are throwing errors.
         import pickle
-        print sys.exc_info()
-        print traces['numAPs']
+        print(sys.exc_info())
+        print(traces['numAPs'])
         plt.figure()
         for t,v in zip(traces['t'],traces['v']):
             plt.plot(t,v)

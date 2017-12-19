@@ -166,7 +166,6 @@ def simulate_iclamp(sim_id,
     
     if stim_func == 'h.IClamp':
         stim_func = h.IClamp
-
     # Initialise results @TODO - shared code between simulations - combine into function
     results = {}
     results['sim_id'] = sim_id
@@ -235,8 +234,8 @@ def simulate_iclamp(sim_id,
         traces = nb.SplitTraceIntoAPs(t,v)
         biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
 
-        #print "biomarkers.keys: {}".format(biomarkers.keys()) #debug
-        #print "results.keys: {}".format(results.keys()) # debug
+        #print("biomarkers.keys: {}".format(biomarkers.keys())) #debug
+        #print("results.keys: {}".format(results.keys())) # debug
 
         for result in biomarkers:
             results[result] = biomarkers[result]
@@ -556,9 +555,18 @@ class PopulationOfModels(object):
 
     
     def setup_mechanisms(self):
-        " Load mechanism details from model details "
+        """ Load mechanism details from model details dictionary """
+
         self.mechanisms = self.model_details['mechanisms']
         self.mechanism_names = self.mechanisms.keys() # gives the list of mechanisms to insert
+        
+        # Test that each parameter variable has a corresponding mechanism 
+        for mechanism, parameters in self.mechanisms.items():
+            for _, param_var_name in parameters.items():
+                # NEURON format for parameters is to put the mechanism name on the end of the parameter, so we check the last len(mechanism) characters of param name
+                if mechanism != param_var_name[-len(mechanism):]: 
+                    raise NameError('Parameter name {} is not consistent with associated mechanism name {}.'.format(param_var_name, mechanism))
+        
         self.parameter_names = [] # Public-facing name of each parameter (e.g. GNav17, GKdr)
         self.parameter_designations = {} # Map of parameter names to designations of each parameter in neuron mod file
         for mechanism in self.mechanisms:
@@ -916,7 +924,6 @@ class Simulation(object):
     
     """
     def __init__(self, name, protocols, options=None, population=None):
-    
         self.name = name
         self.protocols = protocols
         self.traces = {} # To store traces for plotting or analysis
@@ -998,7 +1005,10 @@ class Simulation(object):
         self.count = 0
         for i, model_idx in enumerate(self.model_indices):   
             active_parameters = self.population.results['Parameters'].loc[model_idx]
-            mechanisms = {self.population.parameter_designations[param]:val for param, val in active_parameters.iteritems()} # iteritems over pd.Series to get key value pairs and generate a dict from them
+            # @TODO! - Think about how we want to use mechanisms and mechanism names - is there a better format?
+            # @TODO - Understand how to handle multiprocessing errors so we can return an error message if the parameter names and mechanism names don't line up.
+            # @TODO - We have we have population.parameter_designations, population.mechanism_names and population.results['Parameters']....should we consolidate at least the parameters and mechanism names into a single data structure?
+            mechanisms = {self.population.parameter_designations[param]:val for param, val in active_parameters.items()} # iteritems over pd.Series to get key value pairs and generate a dict from them
             
             # @TODO - allow different cellular parameters and ionic concs to be input, as well as variation in parameters
             
@@ -1006,8 +1016,9 @@ class Simulation(object):
                                                                                       simulation_type=simulation_type, 
                                                                                       simulation_parameters=self.protocols, 
                                                                                       mechanisms=mechanisms)
-            
+            print(sim_kwargs)
             pool.apply_async(self.simulation_function, kwds=sim_kwargs, callback=self.log_result)
+            
             #pool.apply(self.simulation_function, kwds=sim_kwargs)
         
             # @TODO - not sure how to estimate time to completion when we're using a Pool.
@@ -1203,8 +1214,7 @@ class Simulation(object):
     def trace_plot(self, traces_to_plot, filename, force_plot=False, require_contiguous=True):
         """  If we want to save subplots of traces, decide if we have enough saved traces to plot
                First implementation was to just look for contiguous blocks - but what if we plot 1->101 
-               and miss trace 0 in the first 
-Q&A: frame-rate-independenceplot?
+               and miss trace 0 in the first?
                Second implementation (CURRENTLY USED): demand we start with the first sim_id, then when we've done a plot move the pointer to sim_id+traces_to_plot+1.
                Can support 
                Third implementation if necessary (NOT DONE): if big simulations
@@ -1281,7 +1291,7 @@ Q&A: frame-rate-independenceplot?
             else: 
                 raise ValueError
                 
-
+       
 " Stuff that can't be class members to parallelize things "
 def setup_output_recording(cell, outputs):
     """

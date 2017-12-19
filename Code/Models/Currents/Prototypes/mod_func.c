@@ -3,6 +3,7 @@
 #define IMPORT extern __declspec(dllimport)
 IMPORT int nrnmpi_myid, nrn_nobanner_;
 
+extern void _CadepK_reg();
 extern void _IRamp_reg();
 extern void _KAtf_reg();
 extern void _KAtf_named_reg();
@@ -23,8 +24,17 @@ extern void _Nav18hw_named_reg();
 extern void _Nav18tf_reg();
 extern void _Nav19hw_reg();
 extern void _Nav19tf_reg();
+extern void _cadifus2_reg();
+extern void _cadiv_reg();
+extern void _cagk_reg();
+extern void _cal2_reg();
+extern void _can2_reg();
+extern void _cat_reg();
+extern void _ch_CavN_reg();
+extern void _ch_KCaS_reg();
 extern void _hcn_kn_reg();
 extern void _hcn_tf_reg();
+extern void _iconc_Ca_reg();
 extern void _k_conc_reg();
 extern void _k_dummy_reg();
 extern void _na_accu_reg();
@@ -38,6 +48,7 @@ modl_reg(){
     if (!nrn_nobanner_) if (nrnmpi_myid < 1) {
 	fprintf(stderr, "Additional mechanisms from files\n");
 
+fprintf(stderr," CadepK.mod");
 fprintf(stderr," IRamp.mod");
 fprintf(stderr," KAtf.mod");
 fprintf(stderr," KAtf_named.mod");
@@ -58,8 +69,17 @@ fprintf(stderr," Nav18hw_named.mod");
 fprintf(stderr," Nav18tf.mod");
 fprintf(stderr," Nav19hw.mod");
 fprintf(stderr," Nav19tf.mod");
+fprintf(stderr," cadifus2.mod");
+fprintf(stderr," cadiv.mod");
+fprintf(stderr," cagk.mod");
+fprintf(stderr," cal2.mod");
+fprintf(stderr," can2.mod");
+fprintf(stderr," cat.mod");
+fprintf(stderr," ch_CavN.mod");
+fprintf(stderr," ch_KCaS.mod");
 fprintf(stderr," hcn_kn.mod");
 fprintf(stderr," hcn_tf.mod");
+fprintf(stderr," iconc_Ca.mod");
 fprintf(stderr," k_conc.mod");
 fprintf(stderr," k_dummy.mod");
 fprintf(stderr," na_accu.mod");
@@ -69,6 +89,7 @@ fprintf(stderr," nadifl.mod");
 fprintf(stderr," naiTest.mod");
 fprintf(stderr, "\n");
     }
+_CadepK_reg();
 _IRamp_reg();
 _KAtf_reg();
 _KAtf_named_reg();
@@ -89,8 +110,17 @@ _Nav18hw_named_reg();
 _Nav18tf_reg();
 _Nav19hw_reg();
 _Nav19tf_reg();
+_cadifus2_reg();
+_cadiv_reg();
+_cagk_reg();
+_cal2_reg();
+_can2_reg();
+_cat_reg();
+_ch_CavN_reg();
+_ch_KCaS_reg();
 _hcn_kn_reg();
 _hcn_tf_reg();
+_iconc_Ca_reg();
 _k_conc_reg();
 _k_dummy_reg();
 _na_accu_reg();

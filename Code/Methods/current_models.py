@@ -329,7 +329,20 @@ def ka_tf(Y,t,voltage_clamp_func,voltage_clamp_params):
     
     return [dn,dh]
 
-" Cav models "
+""" 
+Ca models 
+
+Implemented:
+cal_ja - Jaffe et al. 1994 ICaL model. 
+can_mi - Model of N-type Ca current from Migliore 95
+
+To do:
+SK
+BK
+Ca diffusion
+
+
+"""
 
 def cal_ja(Y,t,voltage_clamp_func,voltage_clamp_params):
     """

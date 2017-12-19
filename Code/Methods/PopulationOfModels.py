@@ -485,7 +485,7 @@ def RunPopulationOfModels(configFilename, pattern, parameter_modifiers={}):
         # Modify parameters (to do, include this info in CFG)       
         if parameter_modifiers:
             assert type(parameter_modifiers) == dict
-            for param_index, param_val in parameter_modifiers.iteritems():
+            for param_index, param_val in parameter_modifiers.items():
                 print("Old parameter set was {}".format(parameterSet))
                 parameterSet[param_index] = param_val
                 print("Modified parameter set is {}".format(parameterSet))

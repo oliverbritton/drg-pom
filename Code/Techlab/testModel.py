@@ -77,7 +77,7 @@ about_me['phobia'] = "Monkfish"
 print about_me['height']
 
 #%%
-for k,v in about_me.iteritems():
+for k,v in about_me.items():
     print "key=", k, " val = ", v
     
 if 'hair_color' in about_me:

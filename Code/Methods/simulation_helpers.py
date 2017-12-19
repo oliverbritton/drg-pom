@@ -92,6 +92,7 @@ def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=N
     """
     Mechanism names is for if we don't want to vary the conductance of every mechanism in the model, or if we want to use different parameters. 
     """
+    
     # Dict construction
     if type(mechanisms) == dict:
         if conductances:
@@ -102,7 +103,7 @@ def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=N
                 # Split on underscores and use the last element as we assume mechanism names do not contain underscores
                 mechanism_names = [name.split('_')[-1] for name in mechanism_names]
         model = init_model(mechanisms=mechanism_names)
-        for mechanism, conductance in mechanisms.iteritems():
+        for mechanism, conductance in mechanisms.items():
             if mechanism_is_full_parameter_name: # Mechanisms contains the full parameter name, not just the mechanism name
                 exec('model.{0} *= {1}'.format(mechanism, conductance)) 
             else: # Mechanism is assumed to be a suffix for a conductance
@@ -258,7 +259,7 @@ def build_parameter_set(num_models, parameter_data, minimum=None, maximum=None, 
     if isinstance(parameter_data, dict):
         # If dict provided, iterate over each parameter and scale it separately
         header = 'nonuniform scaling factors - '
-        for parameter_name, range in parameter_data.iteritems():
+        for parameter_name, range in parameter_data.items():
             # Range[0] is minimum scaling factor, range[1] is maximum
             assert range[0] < range[1], "Min is not less than max."
             parameter_sets[parameter_name] *= (range[1] - range[0])

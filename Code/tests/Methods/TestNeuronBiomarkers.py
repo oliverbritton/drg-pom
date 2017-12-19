@@ -49,7 +49,7 @@ def TestAPFullWidth(traces,threshold):
         i = np.argmax(v)
         tPeak = t[i]        
         plt.plot([tPeak,tPeak+APFullWidth],[threshold]*2,color=cl)
-        print "Trace {}: Width = {} ms".format(idx, APFullWidth)
+        print("Trace {}: Width = {} ms".format(idx, APFullWidth))
     
     
     
@@ -66,7 +66,7 @@ def TestAPRiseTime(traces,dvdtthreshold):
         i = np.argmax(v)
         plt.plot(t,v)     
         plt.plot([t[i]-APRiseTime,t[i]],2*[0],color=sns.xkcd_rgb["bright red"],lw=1) 
-        print "Trace {}: APRiseTime = {} ms".format(idx,APRiseTime)
+        print("Trace {}: APRiseTime = {} ms".format(idx,APRiseTime))
         
 
 def TestFitAfterHyperpolarisation(traces,dvdtThreshold):    
@@ -94,7 +94,7 @@ def TestRheobase(simulations,amps):
     
     rheobase = nb.Rheobase(simulations,amps)
     
-    print rheobase['rheobase']
+    print(rheobase['rheobase'])
     plt.plot(rheobase['trace']['t'],rheobase['trace']['v'])
     
 
@@ -167,4 +167,4 @@ dvdtThreshold = 5
 #TestInterSpikeInterval
 #TestRMP(traces) # TODO make it average the voltage after the minimum """
 #TestRheobase([trace,trace],[50,100])
-#print "***"
+#print("***")

@@ -52,7 +52,7 @@ def thingy():
     for i in range(int(mt.count())):
         mt.select(i)
         mt.selected(sref)
-        print sref[0]
+        print(sref[0])
     return mt.count()
     
 def are_mechanisms_loaded(verbose=False):
