@@ -121,7 +121,7 @@ def Plot(i,d):
 #    plt.subplot(1,2,i+1)
 #    Plot(models[i],d)
 count = 0
-for i in range(0,len(d),1+int(len(d)/100)):
+for i in range(0,len(d),1+int(len(d)//100)):
     idx = d.iloc[i][0]
     count += Plot(idx,d)
     plt.xlabel('Time (ms)')

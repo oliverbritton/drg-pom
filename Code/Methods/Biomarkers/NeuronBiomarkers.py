@@ -218,7 +218,7 @@ def RMP(v):
     # RMP should be calculated from a quiescent trace (no stimulus)
     # Ignore first 90% of trace to remove artifacts
     vLen = len(v)
-    startIdx = 90*vLen/100
+    startIdx = 90*vLen//100
     RMP = min(v[startIdx:])
     RMPIdx = np.argmin(v[startIdx:]) 
     return RMP, RMPIdx
