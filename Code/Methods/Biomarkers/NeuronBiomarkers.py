@@ -349,36 +349,40 @@ def APFullWidth(t,v,threshold=0):
 def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
     """ 
     Gather afterhyperpolarisation regions from a set of traces and fit them to a model 
-    of a single exponential (other models ca be added as needed)
+    of a single exponential (other models can be added as needed)
     
     Outputs:
     Returns either amp,tau or if full_output is selected returns five outputs.
     """
-    # Define model to fit AHP to
+
+    # Fit to single exponential model
     if ahp_model == 'single_exp':
         def model(x, a, b, c):
             return a - b * np.exp(-x/c)
     else:
-        assert False
+        raise ValueError('Model \"{}\" not valid'.format(ahp_model))
+
+    # Return function if we have a result we can't fit a hyperpolarisation to
+    def hyperpolarisation_fit_failure(full_output):
+        if full_output:
+            return np.nan, np.nan, np.nan, np.nan,np.nan
+        else:
+            return np.nan, np.nan
     
-    # Arrange data to contain each interval between peak
+    # Arrange data to contain each interval between peaks (num APs > 1) or peak to end of trace (n=1) 
     num_APs = traces['numAPs']
     if num_APs < 1:
-        return np.nan, np.nan
-      
+        return hyperpolarisation_fit_failure(full_output) 
     elif num_APs == 1:
-        # With only one AP the interval is from the peak to the end of the trace
         _t = traces['t'][0]
         _v = traces['v'][0]
         max_idx = np.argmax(_v)
-        # Check that the peak is not right at the end of the trace, if it is return nan:
+        # Check that the peak is not right at the end of the trace
         if max_idx == len(_v)-1:
-            return np.nan, np.nan
+            return hyperpolarisation_fit_failure(full_output)
         ts = [_t[max_idx+1:]] # Single element lists from just after peak to end of trace
         vs = [_v[max_idx+1:]] 
-        
     elif num_APs > 1:
-        # Divide data into intervals between peaks for each interval
         ts = []
         vs = []
         for i in range(num_APs-1):
@@ -396,14 +400,15 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
             ts.append(_t)
             vs.append(_v)
             
-    # For the trace from each interval, fit an AHP and store parameters
+    # For each interval attempt to fit an AHP
     amps = []
     taus = []
-    if full_output: # Storage if interval traces are requested
+    if full_output: 
         output_ts = []
         output_vs = []
         popts = []
-    for t,v in zip(ts,vs):
+    
+    for i, (t, v) in enumerate(zip(ts, vs)):
         # Start from the minimum, until dvdt exceeds the threshold given as input
         min_idx  = np.argmin(v)
         dv = np.gradient(v)
@@ -420,32 +425,46 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
         
         # Check v and t are all there
         if any(np.isnan(v)) | any(np.isnan(t)):
-            return np.nan, np.nan
+            return hyperpolarisation_fit_failure(full_output)
         
         # If the membrane potential slowly monotonically decreases after a spike, then the min_idx will be the
         # last element of the trace, and so t and v will be empty.
-        
-        # Also, if the AHP part of the trace has a very small number of elements, then the calculation might not work. So we will impose a minimum length threshold for the ahp. With dt = 0.05 ms after downsampling, and a real AHP tau of order 10 ms, any trace of less than length 100 (5 ms) is probably no good, and any trace less than length 10 (0.5 ms) is almost certainly not going to contain a viable AHP. This does assume the default dt though, so we should check it is not larger than about 0.1 ms, which would equate to a 1 ms minimum AHP duration.
+
+        # Also, if the AHP part of the trace has a very small number of elements, then the calculation might not work.
+        # So we will impose a minimum length threshold for the ahp. 
+        # With dt = 0.05 ms after downsampling, and a real AHP tau of order 10 ms, any trace of
+        # less than length 100 (5 ms) is probably no good, # and any trace less than length 10 (0.5 ms) 
+        # is almost certainly not going to contain a viable AHP. 
+        # This does assume the default dt though so we should check it is not larger than about 0.1 ms,
+        # which would equate to a 1 ms minimum AHP duration.
         
         length_threshold = 10
         assert np.mean(dt) < 0.1, "dt is large, check length_threshold"
         if (len(t) <= length_threshold) | (len(v) <= length_threshold):
-            return np.nan, np.nan
+            return hyperpolarisation_fit_failure(full_output)
             
-        # We can check for this and return np.nan if it is the case. To do: think about whether this is the best
-        # way to handle the lack of an ahp. There could also be cases where we have an AP with no AHP, and these might give odd tau and amp readings that should not be averaged. For calibration this is fine, but for mechanistic investigation it might not be so good. 
+        # We can check for this and return failure if it is the case. To do: think about whether this is the best
+        # way to handle the lack of an ahp. There could also be cases where we have an AP with no AHP, 
+        # and these might give odd tau and amp readings that should not be averaged. For calibration this is fine, 
+        # but for mechanistic investigation it might not be so good. 
         
-        # use scipy.optimise.curvefit to fit curve - another option would be to use the more complex 
+        # Use scipy.optimise.curvefit to fit curve - another option would be to use the more complex 
         # LMFIT library, but I have no experience with it's advantages over the basic scipy lsq fit function
         if ahp_model == 'single_exp':
             t = t - t[0] # Zero out t as model assumes this
             popt, pcov = optimize.curve_fit(model, t, v) # Do the fitting
+            # following neuroelectro: https://neuroelectro.org/ephys_prop/index/
+            # AHP amplitude is from threshold voltage to trough
+            trough = min(v)
+            # Need original AP to calculate 
+            thresh = threshold(traces['t'][i], traces['v'][i], dvdt_threshold) 
+            ahp_amp = trough - thresh # will be -ve
+            ahp_tau = popt[2]
         else:
-            assert False, "ahp_model not found"
-        
-        amps.append(popt[0] - popt[1]) # calculate amp
-        taus.append(popt[2]) # get tau
-        
+            raise ValueError('Model \"{}\" not valid'.format(ahp_model))
+
+        amps.append(ahp_amp)
+        taus.append(ahp_tau)
         if full_output:
             output_ts.append(t)
             output_vs.append(v)
@@ -577,10 +596,10 @@ def CalculateRheobase(cell_model, amp_step=0.1, amp_max=5, make_plot=False,):
     # No APs found - return not a number
     return np.nan
     
-def calculate_threshold(traces):
+def calculate_threshold(traces, dvdt_threshold=5.):
     thresholds = []
     for t,v in zip(traces['t'], traces['v']):
-        thresholds.append(threshold(t, v, dvdt_threshold=5., method='gradient'))
+        thresholds.append(threshold(t, v, dvdt_threshold=dvdt_threshold, method='gradient'))
     return thresholds
 
 def CalculateAPPeak(traces):

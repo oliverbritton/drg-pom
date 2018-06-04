@@ -30,9 +30,9 @@ import Methods.simulation_helpers as sh
 from neuron import h
 import neuron
 
-# Load ion channel models
+# Don't load ion channel models - we might need to load from different locations
 import Methods.Simulations.loadneuron as ln
-ln.load_neuron_mechanisms(verbose=False)
+#ln.load_neuron_mechanisms(verbose=False)
 
 # ---FUNCTIONS---
 
@@ -49,18 +49,27 @@ def read_trace(filename, skiprows=0):
     return trace
   
 load_trace = read_trace # use either name to load/read traces
-   
+
    
 def save_trace(trace, filename):
+    """ TODO - make this able to handle current recordings - e.g. save as csv with column headers
+    using pandas
+    """
+    """
     if type(trace) == dict:
         data = np.column_stack(trace['t'], trace['v'])
+        #data = np.column_stack(data,
     elif type(trace) == np.array:
         data = trace # assume formatting is correct
     elif (type(trace) == tuple) | (type(trace) == list): # assume list in order: t,v
-        data = np.column_stack([trace[0], trace[1]])
+        data = np.column_stack([trace[i] for i in range(len(trace))])
     else:
         raise TypeError("Can't parse type of trace")
     np.savetxt(filename, data)
+    """
+    # Save as a pickle
+    with open(filename, 'wb') as f:
+        pickle.dump(trace,f)
         
         
 def plot_trace(filename):
@@ -112,6 +121,7 @@ def get_function_args(function):
  member functions aren't. So the functions are at the top level of pom's scope, 
  which makes them picklable.
 """
+
 def simulate_iclamp(sim_id,
                                         biomarker_names,
                                         mechanisms, 
@@ -161,8 +171,8 @@ def simulate_iclamp(sim_id,
     # General setup
     import neuron
     from neuron import h
-    
     sim_type = 'iclamp'
+    
     
     if stim_func == 'h.IClamp':
         stim_func = h.IClamp
@@ -208,7 +218,7 @@ def simulate_iclamp(sim_id,
             stims[-1].delay = delay + stim_idx*(dur + interval)
             
         v,t = sh.set_vt(cell=cell)
-        vectors = setup_output_recording(cell, outputs)
+        vectors = sh.record_currents(cell, outputs)
 
         h.finitialize(v_init) # Vital! And has to go after record
         neuron.run(t_stop)
@@ -222,14 +232,6 @@ def simulate_iclamp(sim_id,
         else:
             raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
         
-        # Build outputs 
-        trace = np.column_stack([t,v])
-        if vectors: # check if vectors is empty, if not add to trace
-            for vector in vectors:
-                vector = np.array(vector)
-                trace = np.columns_stack([trace, vector])
-        
-        
         # --- Analyse simulation for biomarkers ---
         traces = nb.SplitTraceIntoAPs(t,v)
         biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
@@ -239,6 +241,11 @@ def simulate_iclamp(sim_id,
 
         for result in biomarkers:
             results[result] = biomarkers[result]
+            
+        # Build trace for output
+        trace = {'t':t, 'v':v}
+        for vector in vectors:
+            trace[vector] = np.array(vectors[vector])
             
     elif rheobase_found == False:
         trace = None # pass an empty trace
@@ -261,6 +268,7 @@ def simulate_iclamp(sim_id,
     plot = options['plot']
     save = options['save']
 
+    
     if save == True:
         save_type = options['save_type']
         save_types = process_save_type(save_type)
@@ -268,15 +276,17 @@ def simulate_iclamp(sim_id,
             # Save results so we can aggregate multiple simulations and plot
             results['trace'] = trace
         if 'trace' in save_types:
-            filename = '{}.dat'.format(sim_id)
+            filename = '{}.pickle'.format(sim_id)
             for name in ['simulation_name', 'population_name']: 
             # Last element in list will be the front-most part of the filename
                 if name in metadata.keys():
                     filename = '{}_{}'.format(metadata[name], filename)
+            
             save_trace(trace, filename)
-    
+
     if plot: #@TODO 
         pass
+        
         
     return results    
 
@@ -372,6 +382,7 @@ def simulate_vclamp(sim_id,
         h.celsius = celsius
 
         # @TODO - put setting ionic conditions into a function to share with IClamp
+        # Add ionic concentration mechanisms
         if 'K' in ions:
             oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
         if 'Na' in ions:
@@ -380,7 +391,7 @@ def simulate_vclamp(sim_id,
             oldstyle = h.ion_style("ca_ion", 1, 2, 1, 1, 0,sec=cell)
 
         v,t = sh.set_vt(cell=cell)
-        vectors = setup_output_recording(cell, outputs)
+        vectors = sh.record_currents(cell, outputs)
 
         clamp = h.VClamp(0.5, sec=cell)
         clamp.amp[0] = hold
@@ -403,11 +414,12 @@ def simulate_vclamp(sim_id,
          
         # ---Compute and store outputs---
         
-        # Save voltage
-        if i == 0: # First loop initialisation
-            trace = np.column_stack([t,v])
-        else:
-            trace = np.column_stack([trace,v])
+        # Save output for pickling if required
+        if i == 0: 
+            trace = {'t':t}
+        trace['v_{}'.format(step)] = v 
+        for vector in vectors:
+            trace['{}_{}'.format(vector,step)] = vectors[vector]
         
         # K+ biomarkers
         # @TODO - for now just return a vector of the peak current from each step
@@ -420,22 +432,23 @@ def simulate_vclamp(sim_id,
             # @TODO Add in ih (na component)
             #ik = np.array(ik) + np.array(ih_na)
             
-    # Output - shared with iclamp
+    # Output - code shared with iclamp (TODO - roll into one function)
     plot = options['plot']
     save = options['save']
-        
     if save == True: 
         save_type = options['save_type']
         save_types = process_save_type(save_type)
         if 'fig' in save_types:
             results['trace'] = trace
         if 'trace' in save_types:
-            filename = '{}.dat'.format(sim_id)
+            filename = '{}.pickle'.format(sim_id)
             for name in ['simulation_name', 'population_name']: 
             # Last element in list will be the front-most part of the filename
                 if name in metadata.keys():
                     filename = '{}_{}'.format(metadata[name], filename)
+
             save_trace(trace, filename)
+
     
     if plot: #@TODO 
         pass        
@@ -558,7 +571,7 @@ class PopulationOfModels(object):
         """ Load mechanism details from model details dictionary """
 
         self.mechanisms = self.model_details['mechanisms']
-        self.mechanism_names = self.mechanisms.keys() # gives the list of mechanisms to insert
+        self.mechanism_names = list(self.mechanisms.keys()) # gives the list of mechanisms to insert, # List needed for python3  - can't copy dict keys
         
         # Test that each parameter variable has a corresponding mechanism 
         for mechanism, parameters in self.mechanisms.items():
@@ -570,7 +583,7 @@ class PopulationOfModels(object):
         self.parameter_names = [] # Public-facing name of each parameter (e.g. GNav17, GKdr)
         self.parameter_designations = {} # Map of parameter names to designations of each parameter in neuron mod file
         for mechanism in self.mechanisms:
-            self.parameter_names.extend(self.mechanisms[mechanism].keys())
+            self.parameter_names.extend(list(self.mechanisms[mechanism].keys())) 
             self.parameter_designations.update(self.mechanisms[mechanism])
             
         assert len(self.mechanism_names) == len(set(self.mechanism_names)), "Mechanism names are not all unique."
@@ -629,30 +642,41 @@ class PopulationOfModels(object):
             
     " --- Simulation functions --- "
     
-    def setup_simulation(self, name, simulation_type, protocols, options=None):
+    def setup_simulation(self, name, simulation_type, protocols, options=None, rerun=False):
         """
         Initialises a simulation 
         
         Parameters
         ----------------
         name: str, default 'sim'
-        type: str, default 'IClamp', options: 'IClamp', 'VClamp', 'Test' (case insensitive)
+        simulation_type: str, default 'IClamp', options: 'IClamp', 'VClamp', 'Test' (case insensitive)
         protocols: dict, default None, contents dependent on 'type'.
+        options
         
         """
-        if name in self.simulations.keys():
-            raise ValueError('Simulation name {} is already present.'.format(name))
+        # Check for name collision
+        if (name in self.simulations.keys()):
+            name_collision = True
+            if rerun == False:
+                raise ValueError('Simulation name {} is already present.'.format(name))              
         else:
-            # Assemble all the details about the simulation to give to the object
-            protocols['simulation_type'] = simulation_type
-            self.simulations[name] = Simulation(name, protocols, options=options, population=self)
+            name_collision = False
+            
+        # Assemble all the details about the simulation to give to the object
+        protocols['simulation_type'] = simulation_type
+        self.simulations[name] = Simulation(name, protocols, options=options, population=self)
+        # Finally, set simulation rerun and collision properties
+        self.simulations[name].rerun = rerun
+        self.simulations[name].name_collision = name_collision
     
     def run_simulation(self, 
     name, 
     simulation_type,
     protocols=None,
     cores=1,
-    plot=False, save=False, save_type='fig', benchmark=True):
+    plot=False, save=False, save_type='fig', 
+    benchmark=True,
+    rerun=False,):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
@@ -672,7 +696,8 @@ class PopulationOfModels(object):
         
         Returns
         -----------
-        Nothing, concats simulation results to self.results.
+        Nothing, concats simulation results to self.results, unless rerun is set to true,
+        in which case it overwrites results.
         
         """
         
@@ -684,7 +709,15 @@ class PopulationOfModels(object):
         
         parameters = self.results['Parameters']
         
-        self.setup_simulation(name, simulation_type, protocols) 
+        if rerun == False:
+            self.setup_simulation(name, simulation_type, protocols, rerun=rerun) 
+        elif rerun == True:
+            self.simulations[name].rerun = True
+            self.simulations[name].name_collision = True
+            self.simulations[name].reset_simulation()
+        else: 
+            raise ValueError('rerun not bool')
+            
         sim = self.simulations[name] # simulation object
         sim.pom_simulation(
             simulation_type=simulation_type,
@@ -692,18 +725,28 @@ class PopulationOfModels(object):
             plot=plot,
             save=save, 
             save_type=save_type,
-            benchmark=benchmark)
-        sim_results = sim.results
-        
-        
+            benchmark=benchmark,
+            rerun=rerun,)
+        print("Sim results:\n {}".format(sim.results)) # debug
         # Add simulation results to the main pom dataframe
+        sim_results = sim.results
         formatted_results = pd.DataFrame(
             columns=pd.MultiIndex.from_product([[name], sim_results.columns]), 
             index=self.results.index)
         formatted_results[:] = sim_results
+            
+        # If no name collision add new columns, otherwise replace the old columns
         
-        self.results = pd.concat([self.results, formatted_results], axis=1)
-        
+        if self.simulations[name].name_collision == False:
+            self.results = pd.concat([self.results, formatted_results], axis=1)
+        elif self.simulations[name].name_collision == True:
+            #print("columns in self.results: {}\n columns in formatted_results: {}".format(self.res))
+            _df = formatted_results[name].copy()
+            self.results[name] = _df
+            
+        else:
+            raise ValueError('name_collision not set')
+            
         """@TODO  - if sim.results is really big and we run lots of simulations,
             we might want to delete it. We can use:
             pop.simulations['test'].results.info() to debug memory and
@@ -766,7 +809,7 @@ class PopulationOfModels(object):
                     num_in_range = ((self.results[simulation_name, biomarker] >= minimum) & (self.results[simulation_name, biomarker] <= maximum)).sum()
                     num_over =  (self.results[simulation_name, biomarker] >= maximum).sum()
                     num_under = (self.results[simulation_name, biomarker] < minimum).sum()
-                    num_nans = np.isnan(self.results[simulation_name, biomarker]).sum()
+                    num_nans = pd.isnull(self.results[simulation_name, biomarker]).sum() # np.isnan breaks on dtype=object so use pd.isnull instead
                     total = num_in_range + num_over + num_under + num_nans
                     print("Biomarker: {}. Num in range: {}. Num over max: {}. Num under min: {}. Nans: {}. Total {}.".format(biomarker, num_in_range, num_over, num_under, num_nans, total))
                     
@@ -930,6 +973,10 @@ class Simulation(object):
         self.plotting_pointer = 0
         self.num_subplots = 100
         
+        # storage to define whether simulation is a rerun in the population or not
+        self.rerun = None
+        self.name_collision = None
+        
         # Population-specific setup
         if population != None:
             self.population = population # Set reference to population
@@ -945,8 +992,14 @@ class Simulation(object):
         else:
             assert False, "options not enabled in constructor" # @TODO do this better
     
-
-    def pom_simulation(self, simulation_type, cores=1, plot=False, save=False, save_type='fig', benchmark=True):
+    def reset_simulation(self):
+        """ Reset simulation for a rerrun.
+        """
+        self.traces = {}
+        self.plotting_pointer = 0
+        
+        
+    def pom_simulation(self, simulation_type, cores=1, plot=False, save=False, save_type='fig', benchmark=True, rerun=False):
         """
         Run  simulations 
         
@@ -964,8 +1017,8 @@ class Simulation(object):
         Dataframe of biomarker results indexed by their index in the population associated with 
         this simulation class.
         """
-        if self.simulation_ran == True:
-            raise ValueError("This simulation has already been ran, cannot run same simulation again with the same simulator with name: {}.".format(self.name))
+        if (self.simulation_ran == True) & (self.rerun == False):
+            raise ValueError("This simulation has already been ran, cannot run same simulation again with the same simulator with name: {} without specifying simulation is a rerun.".format(self.name))
             
         if self.population == None:
             raise ValueError('No population specified - cannot run population of models simulation!')
@@ -993,7 +1046,6 @@ class Simulation(object):
         self.model_indices = tuple(self.model_indices) # So we can't modify the order
         #assert np.issubdtype(self.model_indices, int), "Model indices from population index are not integers - we need them to be to label output correctly." # Actually we don't any more, I think
         assert(len(self.model_indices) == len(set(self.model_indices))), "Duplicates in model indices." 
-        
         print("Simulation set of {} simulations begun.".format(num_sims))
         start  = time.time()
         pool = mp.Pool(processes=cores)
@@ -1016,10 +1068,8 @@ class Simulation(object):
                                                                                       simulation_type=simulation_type, 
                                                                                       simulation_parameters=self.protocols, 
                                                                                       mechanisms=mechanisms)
-            print(sim_kwargs)
+                                                                      
             pool.apply_async(self.simulation_function, kwds=sim_kwargs, callback=self.log_result)
-            
-            #pool.apply(self.simulation_function, kwds=sim_kwargs)
         
             # @TODO - not sure how to estimate time to completion when we're using a Pool.
             """
@@ -1182,6 +1232,10 @@ class Simulation(object):
     
     " Output functions "
 
+    def log_test(self, result):
+        for biomarker in self.results.columns:
+            self.results.loc[0, biomarker] = result
+    
     def log_result(self, result):
         """
         Stores the result from a simulation using callback functionality. 
@@ -1239,7 +1293,7 @@ class Simulation(object):
             if (num_traces >= traces_to_plot):
                 if require_contiguous == True:
                     ids = self.traces.keys()
-                    ids.sort()
+                    ids = sorted(ids)
                     required_format = self.model_indices[self.plotting_pointer:self.plotting_pointer+traces_to_plot]
                     # Change this if statement if we want to be able to plot blocks beyond the first (third implementation idea in function docstring)
                     if all([i == j for i,j in zip(ids[0:traces_to_plot], required_format)]):  
@@ -1251,8 +1305,7 @@ class Simulation(object):
             if make_plot == True:
                 # Get the first traces_to_plot worth of traces, or if there's not enough, all of them
                 # a_list[0:big number] will return to the end of the list and stop
-                ids = self.traces.keys()
-                ids.sort()
+                ids = sorted(self.traces.keys())
                 ids = ids[0:traces_to_plot]
                 
                 outputs = self.protocols['outputs']
@@ -1261,25 +1314,37 @@ class Simulation(object):
                 # We could include the outputs in the title or a legend in the first plot
                 
                 # Plotting
-                plt.figure(figsize=(40,40))
+                fig = plt.figure(figsize=(40,40))
                 legend_plotted = False;
-                legend = ['Vm'] # @TODO - use outputs to append to here
                 for i, sim_id in enumerate(ids):
+                
+                    # Trace plots
                     plt.subplot(subplot_dim,subplot_dim,i+1)
                     trace = self.traces[sim_id]
-                    # Only plot if trace is np array (as opposed to None for simulations that didn't produce a trace).
-                    # Format is first column is x-axis, and all subsequent columns are different y-vals.
+                    # Only plot if trace is dictionary or np array (trace may be None if no valid trace produced)
                     if isinstance(trace, np.ndarray):
                         for j in range(1,trace.shape[1]):
-                            plt.plot(trace[:,0], trace[:,j])                       
-                        if legend_plotted == False:
-                            plt.legend(legend)
-                            legend_plotted=True                   
+                            plt.plot(trace[:,0], trace[:,j]) # Col 0 is time                          
+                    if isinstance(trace, dict):
+                        for key in [key for key in trace.keys() if key != 't']: # DRY
+                            plt.plot(trace['t'],trace[key])
+                            
+                    # Legend
+                    if legend_plotted == False:
+                        if isinstance(trace,dict):
+                            legend = [key for key in trace.keys() if key != 't']
+                        else:
+                            legend = ['Vm'] # @TODO - use outputs to append to here
+                        plt.legend(legend)
+                        legend_plotted=True     
+                    
                     plt.title(sim_id) 
                 
                 # Save figure
-                plt.savefig(filename, dpi=150)
-                print("Saved to {}".format(filename))
+                fig.savefig(filename, dpi=150)
+                plt.close(fig)
+                fig = None
+                print("Saved to {}, number of traces stored = {}".format(filename, len(self.traces)))
                 sys.stdout.flush()
                 # Clear traces that were plotted after plotting
                 for id in ids:
@@ -1292,26 +1357,4 @@ class Simulation(object):
                 raise ValueError
                 
        
-" Stuff that can't be class members to parallelize things "
-def setup_output_recording(cell, outputs):
-    """
-    Create vectors for recording outputs (except voltage and time, which are givens)
-    """
-    vectors = {}
-    if 'ik' in outputs:
-    # @TODO - write more outputs and wrap into function
-        vectors['ik'] = h.Vector()
-        vectors['ik'].record(cell(0.5)._ref_ik, sec=cell)
-    if 'ina' in outputs:
-        vectors['ina'] = h.Vector()
-        vectors['ina'].record(cell(0.5)._ref_ina, sec=cell)
-    if 'ik_ih' in outputs:
-        assert(False), 'We don\'t support the hcn current as part of ik yet.'
-        
-    # Could use something like this to automate:
-    """ Use exec to record the right current variable (e.g. ik_kdrtf)
-    For output in outputs:
-    exec('vectors[output].record(cell(0.5)._ref_{}, sec=cell'.format(output)) """
-    return vectors
-        
         

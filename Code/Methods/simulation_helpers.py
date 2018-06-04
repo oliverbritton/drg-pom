@@ -6,7 +6,6 @@ Created on Thu Jun 29 11:17:20 2017
 
 @author: Oliver Britton
 """
-
 import os
 import sys
 import numpy as np
@@ -23,9 +22,7 @@ import NeuronProjectStart
 
 from neuron import h
 import neuron
-# Load ion channel models
-import Methods.Simulations.loadneuron as ln
-ln.load_neuron_mechanisms(verbose=False)
+
 
 def init_model(mechanisms=[],
     L=30.,  # uM
@@ -100,14 +97,15 @@ def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=N
         if mechanism_names == None: # Otherwise use provided names
             mechanism_names = mechanisms.keys()
             if mechanism_is_full_parameter_name:
-                # Split on underscores and use the last element as we assume mechanism names do not contain underscores
-                mechanism_names = [name.split('_')[-1] for name in mechanism_names]
+                # Split on underscores and throw away the first bit as that will be parameter type (e.g. gbar)
+                mechanism_names = [name.split('_',1)[-1] for name in mechanism_names]
         model = init_model(mechanisms=mechanism_names)
         for mechanism, conductance in mechanisms.items():
             if mechanism_is_full_parameter_name: # Mechanisms contains the full parameter name, not just the mechanism name
-                exec('model.{0} *= {1}'.format(mechanism, conductance)) 
+                param_setting_str = 'model.{0} *= {1}'.format(mechanism, conductance)
             else: # Mechanism is assumed to be a suffix for a conductance
-                exec('model.gbar_{0} *= {1}'.format(mechanism, conductance)) 
+                param_setting_str ='model.gbar_{0} *= {1}'.format(mechanism, conductance)
+            exec(param_setting_str)
         if conductances:
             assert False
             
@@ -143,8 +141,12 @@ def set_stims(amp, dur, delay, interval, num_stims, stim_func, cell):
         return stims
         
 def simulation_plot(t, v, currents, plot_type='default'):
+        
     if plot_type == 'default':
-    
+        plt.figure(figsize=(5,5))
+        plt.plot(t,v); plt.ylabel('Vm (mV)'); plt.xlabel('Time (ms)')
+        
+    if plot_type == 'na + k':
         # Need following currents:
         # ik, ikdr, ia, inav18
         plt.figure(figsize=(5,12))
@@ -171,10 +173,6 @@ def simulation_plot(t, v, currents, plot_type='default'):
         plt.plot(t,currents['im'])
         plt.title('All Kvs')
         
-    if plot_type == 'simple':
-        plt.figure(figsize=(5,5))
-        plt.plot(t,v); plt.ylabel('Vm (mV)'); plt.xlabel('Time (ms)')
-        
 def set_vt(cell):
     v = h.Vector()
     v.record(cell(0.5)._ref_v, sec=cell)
@@ -182,47 +180,110 @@ def set_vt(cell):
     t.record(h._ref_t)
     return v,t
     
-def record_currents(cell, current_set='default'):
-    currents = {}
-    if current_set == 'default':
-        for i in ['ina', 'inav17', 'inav18', 'inav19', 'ik', 'ikdr', 'ia', 'im']:
-            currents[i] = h.Vector()
-
-        currents['inav17'].record(cell(0.5)._ref_ina_nav17vw, sec=cell)
-        currents['inav18'].record(cell(0.5)._ref_ina_nav18hw, sec=cell)
-        currents['inav19'].record(cell(0.5)._ref_ina_nav19hw, sec=cell)
-        currents['ina'].record(cell(0.5)._ref_ina, sec=cell)
-        currents['ik'].record(cell(0.5)._ref_ik, sec=cell)
-        currents['ikdr'].record(cell(0.5)._ref_ik_kdrtf, sec=cell)
-        currents['ia'].record(cell(0.5)._ref_ik_katf, sec=cell)
-        currents['im'].record(cell(0.5)._ref_ik_kmtf, sec=cell)
-    elif current_set == 'simple':
-        for i in ['ina', 'ik']:
-            currents[i] = h.Vector()
-        currents['ina'].record(cell(0.5)._ref_ina, sec=cell)
-        currents['ik'].record(cell(0.5)._ref_ik, sec=cell)
-    elif current_set == None:
-        pass
+def record_currents(cell, current_set):
+    """
+    Record a list of currents from the cell model 
+    
+    Inputs:
+    cell - NEURON cell model
+    current_set - list of strings
+    
+    Outputs:
+    Output is stored in a dict of dicts like so:
+    currents = {mechanisms + ionic current names}
+    currents[name] = {ionic current(s)}
+    currents[name][ionic current] = h.Vector
+    
+    So for example, if we had a cell with mechanisms: kdr, nav18hw, and hcntf, our dict would be (V for recorded vector):
+    currents = {'ina':{'ina':V}, 'ik':{'ik':V}, 'kdr':{'k':V}, 'nav18hw':{'na':V}, 'hcntf':{'na':V, 'k':V} }. Note for hcntf there are two
+    recorded vectors.
+    So to plot every output you would go
+    for current in currents:
+        for i in currents[current]:
+            plt.plot(t,currents[current][i]
+            plt.legend.append('{}_{}'.format(i,current)) # gives things like 'ina_nav18hw' or 'ina_ina'
+    """
+    
+    if current_set == None:
+        currents = None
     else:
-        raise ValueError('Current set not in list of accepted values.')
+        currents = {}
+        
+        for current in current_set:
+            currents[current] = {}
+            # Process whole ionic currents (e.g. Ina)
+            if current in get_ionic_current_list():
+                current_refs = {current:'_ref_{}'.format(current)}
+            # Process ion channel mechanisms (e.g. nav 1.7)
+            else:
+                if current[0:2] == 'na':
+                    i_strs = ['ina']
+                elif current[0] == 'k':
+                    i_strs = ['ik']
+                elif current[0:2] == 'ca':
+                    i_strs = ['ica']
+                elif current[0:3] == 'hcn':
+                    # Special case for hcn currents as they may have two different currents
+                    if current == 'hcntf':
+                        i_strs = ['ina', 'ik']
+                    elif current == 'hcnkn':
+                        raise ValueError('hcnkn not supported yet') # TODO support hcnkn recording
+                    else:
+                        raise ValueError('hcn current: {} not supported'.format(current))
+                elif current[0:5] == 'iconc':
+                    continue # Ignore concentration mechanisms as they don't have a current
+                else:
+                    raise ValueError('current: "{}" is not supported for current recording.'.format(current))
+                # Finish by building current reference(s) to record from
+                current_refs = {i_str:'_ref_{}_{}'.format(i_str, current) for i_str in i_strs}
+            
+            # Finally, set up recording for each 
+            for name, current_ref in current_refs.items():
+                currents[current][name] = h.Vector()
+                currents[current][name].record(getattr(cell(0.5), current_ref), sec=cell)
+                
     return currents
     
-def generate_current_set(mechanisms):
+def record_concs(cell, concs_to_record):
     """
-    Take the mechanism list of a simulation and work out which currents to record
-    based on their names.
-    So if there is a current that begins with k its a k current (_ref_ik_k%NAME%)
-    If it begins with na its an na current.
-    If it doesn't follow a know pattern don't record it.
+    Record ionic concentrations from a model
     """
-    pass
+    if concs_to_record == None:
+        concs = None
+    else:
+        concs = {}
+        for conc in concs_to_record:
+            assert conc in get_ionic_concentration_list(), "Concentration name '{}' not in list of allowed concentrations".format(conc)
+            conc_ref = '_ref_{}'.format(conc)
+            concs[conc] = h.Vector()
+            concs[conc].record(getattr(cell(0.5), conc_ref), sec=cell)
+    return concs
+    
+def generate_current_set(mechanisms_to_record, record_ionic_currents=True):
+    """
+    Takes a list of mechanisms and use this to generate a list of currents to record
+    Also, if you give it an ionic current e.g. ica, ina, ik, it will record that current.
+    """
+    assert type(mechanisms_to_record) == list, 'mechanisms must be in a list'
+    currents_to_record = mechanisms_to_record.copy() # avoid mutating the original
+    if record_ionic_currents:
+        if any([i[0:2] == 'na' for i in currents_to_record]):
+            currents_to_record.append('ina')
+        if any([i[0] == 'k' for i in currents_to_record]):
+            currents_to_record.append('ik')
+        if any([i[0:2] == 'ca' for i in currents_to_record]):
+            currents_to_record.append('ica')
+    return currents_to_record
         
+"I think this can be deleted 26/03/18 "
+"""
 def build_sim_protocols(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, t_stop=1000., v_init=-65.,):
-
+    # Constructs a dictionary of stimulation protocols for simulate_ functions
     sim_protocols = {'amp':amp, 'dur':dur, 'delay':delay, 'interval':interval, 'num_stims':num_stims, 'stim_func':stim_func, 't_stop':t_stop, 'v_init':v_init,}
     return sim_protocols
-
-" -- Functions related to building parameter sets -- "
+"""
+    
+" -- Functions for building parameter sets -- "
     
 def build_parameter_set_details(num_models, num_parameters, min, max, output_filename, parameter_names=None):
     " Parameter set details ... "
@@ -279,11 +340,12 @@ def build_parameter_set(num_models, parameter_data, minimum=None, maximum=None, 
     " Output if required "
     if save:
         # Header with scaling factors 
-        comment_char = '#'
         with open(filename, 'w') as f:
-            f.write('{} {}\n'.format(comment_char,header)) # Write header as comment
+            comment_char = '#'
+            f.write('{} {}\n'.format(comment_char,header)) # Write metadata as comment
             parameter_sets = parameter_sets.round(6) # Round to 6 d.p., good for up to approx a million models with scaling factors of order 1, and is pandas default.
-            parameter_sets.to_csv(f, comments=comment_char)
+            parameter_sets.to_csv(f)
+            
     return parameter_sets, header
 
 def build_empty_parameter_set_details():
@@ -306,7 +368,27 @@ def construct_parameter_names(list_of_terms):
 def build_empty_sim_protocols():
     sim_protocols_keys = ['delay', 'amp', 'dur', 'interval', 'num_stims', 'stim_func', 't_stop', 'v_init', 'currents_to_record'] 
 
-def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K'], recording_set=None):
+def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K'], mechanisms_to_record=None, record_ionic_currents=True, concs_to_record=None):
+    """
+    Simulation function for individual IClamp simulations.
+    Inputs:
+    amp - IClamp amplitude (units?)
+    dur - duration of stimulus (ms)
+    delay - delay for stimulus start (ms)
+    interval - interval between stimuli (ms)
+    num_stims - number of stimuli (int)
+    stim_func - stimulus function, e.g. h.IClamp, h.IRamp
+    mechanisms - list of mechanisms or dict of mechanisms and conductances
+    mechanisms_to_record - None or a list of NEURON mechanisms and current names to record and output
+    Example of a NEURON mechanism: 'nav18vw'
+    Example of current names: 'ina', 'ica', 'ik'
+    
+    Mechanisms to record - ionic currents to record
+    record_ionic_currents - whether to automatically record total ionic currents for relevent mechanisms 
+    (e.g. if a potassium channel current is recorded, if this is true, the total potassium current will also be recorded)
+    concs_to_record - if ionic concentrations are to recorded, provide a list of concentrations here (e.g. cai, nai)
+    
+    """
     
     # Build a model if one is not supplied
     if not model:
@@ -317,14 +399,23 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
     # Set temperature
     h.celsius = 32. # In line with Davidson et al., 2014, PAIN
     
-    # Set ionic conditions
+    # Insert ion concentration mechanisms (replaces use of ion_style, which is really for having different accumulation settings in different sections in multi-section models (see Ch8, NEURON book)
+    ion_mechanisms = get_dynamic_ion_mechanisms()   
+    for ion in ion_mechanisms:
+        if ion in ions:
+            cell.insert(ion_mechanisms[ion])
+          
+    
+    # Old ion_style implementation
+    """
     if 'K' in ions:
-        oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
+        #oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
     if 'Na' in ions:
         oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=cell)
     if 'Ca' in ions:
         oldstyle = h.ion_style("ca_ion", 1, 2, 1, 1, 0,sec=cell)
-        
+    """
+    
     #stims = set_stims(amp=amp, dur=dur, delay=delay, interval=interval, num_stims=num_stims, stim_func=stim_func, cell=cell)
     stims = []
     for i in range(num_stims):
@@ -335,13 +426,21 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
 
     v,t = set_vt(cell=cell)
     
-    if recording_set == True:
-        current_set = generate_current_set # @To do - make it generate from mechanism list
+    " Recording of currents and concentations (and can extend to other state vars if necessary) "
+    currents = None
+    if mechanisms_to_record:
+        current_set = generate_current_set(mechanisms_to_record)
     elif make_plot == True:
+        raise ValueError('need to set mechanisms_to_record to do the plots')
         current_set = plot_type
     else:
         current_set = None
     currents = record_currents(cell=cell, current_set=current_set)
+    
+    concs = None
+    if concs_to_record:
+        concs = record_concs(cell=cell, concs_to_record=concs_to_record)
+        
 
     h.finitialize(-65) # Vital! And has to go after record
     # Run simulation
@@ -349,9 +448,15 @@ def simulation(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mech
     
     if make_plot:
         simulation_plot(t, v, currents, plot_type=plot_type)
-    
-    return np.array(t), np.array(v)
-
+        
+    output = [np.array(t), np.array(v)]
+    if currents:
+        output.append(currents)
+    if concs:
+        output.append(concs)
+    return tuple(output)
+        
+        
 def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000.):
     """
     Simulation with plotting for Anabios
@@ -430,6 +535,27 @@ def get_biomarker_list(biomarker_set='default'):
         '',
     ]
     return biomarker_list
+    
+def get_ionic_current_list():
+    """
+    Names of supported ionic currents (whole ions, e.g. Na, Ca, K, not from individual mechanisms
+    like Nav 1.7.
+    """
+    return ['ina', 'ik', 'ica']
+    
+def get_ionic_concentration_list():
+    """
+    Names of supported ionic concentrations
+    """
+    return ['nai', 'ki', 'cai']
+    
+def get_dynamic_ion_mechanisms():
+    """ 
+    Returns dict of mechanisms for dynamic ionic concentrations.
+    Format is {ion_name:mechanism_name}
+    """
+    ion_mechanisms = {'K':'k_conc', 'Na':'na_conc', 'Ca':'ca_conc'}
+    return ion_mechanisms
 """
 def build_model(mechanisms=['nav17vw', 'nav18hw', 'kdrtf'], conductances=[1.0,1.0,1.0]):
     cell = h.Section()
@@ -479,10 +605,3 @@ def run_simulation(cell,t_stop=1000.0):
     neuron.run(t_stop)
     return t,v
 """
-
-" --- Tests --- "
-
-def test_build_parameter_set():
-    build_parameter_set(10,5,0,2,output_filename='test.csv',parameter_names=['GNa', 'GKr', 'G3', 'G4', 'G5'],save=True)
-    print("Check that test.csv opens is a formatted 10 row, 5 column grid with a header of parameter names")
-    return
