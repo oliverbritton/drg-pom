@@ -368,7 +368,7 @@ def construct_parameter_names(list_of_terms):
 def build_empty_sim_protocols():
     sim_protocols_keys = ['delay', 'amp', 'dur', 'interval', 'num_stims', 'stim_func', 't_stop', 'v_init', 'currents_to_record'] 
 
-def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=True, plot_type='default', model=None, ions=['Na','K'], mechanisms_to_record=None, record_ionic_currents=True, concs_to_record=None):
+def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=False, plot_type='default', model=None, ions=['Na','K'], mechanisms_to_record=None, record_ionic_currents=True, concs_to_record=None):
     """
     Simulation function for individual IClamp simulations.
     Inputs:
@@ -382,11 +382,11 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     mechanisms_to_record - None or a list of NEURON mechanisms and current names to record and output
     Example of a NEURON mechanism: 'nav18vw'
     Example of current names: 'ina', 'ica', 'ik'
-    
+    ions - which ionic concentrations should be dynamic 
     Mechanisms to record - ionic currents to record
     record_ionic_currents - whether to automatically record total ionic currents for relevent mechanisms 
     (e.g. if a potassium channel current is recorded, if this is true, the total potassium current will also be recorded)
-    concs_to_record - if ionic concentrations are to recorded, provide a list of concentrations here (e.g. cai, nai)
+    concs_to_record - if ionic concentrations are to be recorded, provide a list of concentrations here (e.g. cai, nai)
     
     """
     
@@ -518,7 +518,7 @@ def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClam
 def simulation_vclamp():
     """ Run a voltage clamp simulation """    
 
-""" --- Other functions ---- """
+""" --- Utility functions ---- """
     
 def get_biomarker_list(biomarker_set='default'):
     """ 
@@ -556,7 +556,29 @@ def get_dynamic_ion_mechanisms():
     """
     ion_mechanisms = {'K':'k_conc', 'Na':'na_conc', 'Ca':'ca_conc'}
     return ion_mechanisms
-"""
+
+def get_default_simulation_kwargs(amp=None, model=None):
+    # Doesn't include amp as this needs to calculated
+    default_kwargs = {
+            'dur':500.,
+            'delay':1000.,
+            'interval':0.,
+            'num_stims':1,
+            't_stop':1500.,
+            'mechanisms':None,
+            'make_plot':False,
+            'plot_type':'default'}
+    if amp: default_kwargs['amp'] = amp
+    if model: default_kwargs['model'] = model
+    return default_kwargs
+    
+
+def scale_parameter(model, parameter_name, scaling_factor):
+    # Can modify parameter inplace
+    exec('model.{0} *= {1}'.format(parameter_name, scaling_factor))
+
+
+'''
 def build_model(mechanisms=['nav17vw', 'nav18hw', 'kdrtf'], conductances=[1.0,1.0,1.0]):
     cell = h.Section()
     for mechanism, conductance in zip(mechanisms,conductances):
@@ -604,4 +626,4 @@ def run_simulation(cell,t_stop=1000.0):
     h.finitialize(-65) # Vital! And has to go after record
     neuron.run(t_stop)
     return t,v
-"""
+'''

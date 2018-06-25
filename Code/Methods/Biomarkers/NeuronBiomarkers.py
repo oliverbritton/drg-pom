@@ -79,38 +79,67 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
         
     return biomarkers
     
-def compute_model_biomarkers(mechanisms=None, model=None, make_plot=True):
-    
+def compute_model_biomarkers(model=None, mechanisms=None, make_plot=True, sim_kwargs=None, xlims=None):
+    " Find all standard biomarkers of a model or mechanism set. "
+
+    biomarkers = {}
+
     if model == None:
         model = sh.build_model(mechanisms)
     # Else use model
         
-    # Get rheobase:
-    rheobase = CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
-    # Get all other biomarkers
+    if sim_kwargs:
+        sim_kwargs['model'] = model
+    else:
+        sim_kwargs = sh.get_default_simulation_kwargs(model=model)
 
-    t,v = sh.simulation(amp=rheobase,dur=1000,delay=500,interval=0,num_stims=1,t_stop=1500.,make_plot=make_plot,model=model, plot_type='simple')
-    
-    
-    
-    plt.xlim(900,1100)
-    t = t[::2]; v = v[::2] # 20 kHz
+    rheobase = calculate_rheobase(model, amp_step=0.1, amp_max=5, make_plot=False, sim_kwargs = sim_kwargs)
 
-    traces = SplitTraceIntoAPs(t,v)
-    biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='return')
-    biomarkers['Rheobase'] = rheobase
+    if (isinstance(rheobase,float) == False) & (isinstance(rheobase,int) == False):
+        # Rheobase not found, don't calculate other biomarkers
+        find_other_biomarkers = False
+    else:
+        find_other_biomarkers = True
+
+    if sim_kwargs:
+        sim_kwargs['amp'] = rheobase
+        sim_kwargs['model'] = model
+    else: 
+        sim_kwargs = sh.get_default_simulation_kwargs(amp=rheobase, model=model)
+    sim_kwargs['make_plot'] = make_plot
+
+    if find_other_biomarkers:
+        t,v = sh.simulation(**sim_kwargs) 
+        t = t[::2]; v = v[::2] # 20 kHz
+        traces = split_trace_into_aps(t,v)
+        biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='return')
 
     # RMP
-    rmp_t,rmp_v = sh.simulation(amp=.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=make_plot,model=model, plot_type='simple')
-    rmp_t = rmp_t[::2]; rmp_v = rmp_v[::2] # 20 kHz
-    rmp_traces = SplitTraceIntoAPs(rmp_t,rmp_v)
-    biomarkers['RMP'] = np.mean(CalculateRMP(rmp_traces))
+    rmp_kwargs = {'amp':0.0, 'dur':3000., 'delay':0., 'interval':0., 'num_stims':1, 't_stop':3000.}
+    for kwarg in sim_kwargs:
+        # Write in sim_kwargs where they are not already present in rmp_kwargs
+        # so that non-RMP specific kwargs are consistent between simulations
+        if kwarg not in rmp_kwargs:
+            rmp_kwargs[kwarg] = sim_kwargs[kwarg]
 
+    rmp_t,rmp_v = sh.simulation(**rmp_kwargs)
+    rmp_t = rmp_t[::2]; rmp_v = rmp_v[::2] # 20 kHz
+    rmp_traces = split_trace_into_aps(rmp_t,rmp_v)
+    rmp = np.mean(calculate_rmp(rmp_traces))
+
+    if (make_plot & (xlims != None)):
+        plt.xlim(xlims[0], xlims[1])
+
+    # If we calculated other biomarkers, add extras calculated in separate simulations.
+    # If we didn't add to empty dictionary, will leave nans when added to master dataframe
+    # which is what we want.
+    biomarkers['Rheobase'] = rheobase
+    biomarkers['RMP'] = rmp
     return biomarkers
     
 " --- Calculation and trace manipulation functions -- "
 
-def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
+def split_trace_into_aps(t,v,threshold=20,timeThreshold=5):#
     " Threshold is at +20 mV to avoid RF causing spurious AP detection "
 	
     # Units for defaults
@@ -202,6 +231,7 @@ def SplitTraceIntoAPs(t,v,threshold=20,timeThreshold=5):#
     
     return{'t':times, 'v':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
         
+SplitTraceIntoAPs = split_trace_into_aps # alias
     
 def VoltageGradient(t,v, method='gradient'):
     # There is a gradient function in numpy to take central differences
@@ -460,6 +490,17 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
             thresh = threshold(traces['t'][i], traces['v'][i], dvdt_threshold) 
             ahp_amp = trough - thresh # will be -ve
             ahp_tau = popt[2]
+            " Alternate approaches to calculation"
+            """
+            calculation_method = False
+            if calculation_method == "Simple":
+                ahp_amp = trough
+            elif calculation_method == "ToRecovery":
+                ahp_amp = None
+            """
+                
+
+
         else:
             raise ValueError('Model \"{}\" not valid'.format(ahp_model))
 
@@ -543,12 +584,13 @@ def absmax(i):
         
 # ---- Calculating biomarkers over multiple traces ----
 
-def CalculateRMP(traces):
+def calculate_rmp(traces):
     RMPVals = []
     for i,v in enumerate(traces['v']):
         RMPValue, RMPIdx = RMP(v)
         RMPVals.append(RMPValue)
     return RMPVals
+CalculateRMP = calculate_rmp # Alias
     
 def CalculateInputRes():
     input_res_vals = []
@@ -561,40 +603,93 @@ def CalculateRampAP():
     # TODO
     return 0
     
-def CalculateRheobase(cell_model, amp_step=0.1, amp_max=5, make_plot=False,):
-    " Run a series of simulations to calculate rheobase "
+
+def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, sim_kwargs={}, search='simple'):
+    " Run a series of simulations to calculate rheobase"
     " Rheobase is defined as the threshold current for an infinite duration pulse "
     " We'll try 2 seconds "
-    
-    amps = np.arange(0,amp_max,amp_step) # (nA)
-    # Run simulations until we reach the limit or we find an AP and return rheobase
-    # Return NaN if rheobase not found
+     
+    RHEO_FAIL = 'no_rheobase' # Failure code for simulations with no rheobase found
 
-    dur = 500.
-    delay = 1000.
-    interval = 0.
-    num_stims = 1
-    t_stop = 1500.
-    for amp in amps:
-        t,v = sh.simulation(amp=amp, dur=dur, delay=delay, interval=interval, num_stims=num_stims, mechanisms=None, t_stop=t_stop, make_plot=False, plot_type='default', model=cell_model)
-        
-        # Look for an AP (after the delay), if one is found then return amp as rheobase amplitude
-        
-        # Throw away the delay period, leave a 1 ms run up to catch the start
-        run_up  = 1
+    # Fill out sim_kwargs with defaults if needed
+    default_kwargs = {'dur':500., 'delay':1000., 'interval':0., 'num_stims':1, 't_stop':1500.,
+            'mechanisms':None, 'make_plot':False, 'plot_type':'default', 'model':cell_model}
+    for kwarg in default_kwargs.keys():
+        if kwarg in sim_kwargs.keys():
+            pass
+        else:
+            sim_kwargs[kwarg] = default_kwargs[kwarg]
+
+    def rheobase_simulation(amp):
+        # Returns simulation amplitude if an AP is found, otherwise returns RHEO_FAIL if no APs found
+        sim_kwargs['amp'] = amp
+        t,v = sh.simulation(**sim_kwargs)
+        # Look for an AP, after throwing away the delay period, leave a 1 ms run up to catch the start
+        run_up  = 1.
+        delay = sim_kwargs['delay']
         stim_period_indices = [t >= (delay-run_up)]
         t = t[stim_period_indices]
-        v = v[stim_period_indices]
-        
-        traces = SplitTraceIntoAPs(t,v,threshold=0,timeThreshold=5)
+        v = v[stim_period_indices]        
+        traces = SplitTraceIntoAPs(t,v,threshold=0.,timeThreshold=5.)
         if traces['numAPs'] > 0: # rheobase found
             if make_plot:
                 plot_traces(traces)
             rheobase = amp
             return rheobase
+        else:
+            return RHEO_FAIL
 
-    # No APs found - return not a number
-    return np.nan
+    amp_min = 0.
+    amps = np.arange(amp_min, amp_max, amp_step) # (nA)
+    
+    # Two search modes 
+    # 1. simple starts from amp_min and works up until it finds an AP
+    # 2. divide starts from the middle and does a binary search
+    # simple should be quicker when rheobase is usually very low and very few models have no rheobase
+    # divide should be quicker if rheobase is distributed any other way
+
+    if search == 'simple':
+        for amp in amps:
+            rheobase = rheobase_simulation(amp)
+            if rheobase != RHEO_FAIL:
+                return rheobase
+        return RHEO_FAIL
+    elif search == 'divide':
+        # Divide and conquer algorithm using a binary search
+        idx0 = 0
+        idxn = len(amps) - 1
+        rheobases = np.empty(len(amps))
+        rheobases[:] = None
+
+        while idx0 <= idxn:
+            midval = (idx0 + idxn)// 2
+            rheobase = rheobase_simulations(amps[midval])
+            rheobases[midval] = rheobase
+            if rheobase != RHEO_FAIL:
+                if midval == 0:
+                    # Rheobase is minimum
+                    return amps[0]
+                elif rheobases[midval-1] == RHEO_FAIL:
+                    # Found minimal amp for an AP - return rheobase
+                    return amps[midval]
+                else:
+                    # AP found but not definitely lowest amp so lower idxn
+                    idxn = midval - 1
+            elif rheobase == RHEO_FAIL:
+                if midval == (len(amps) - 1):
+                    # No rheobase for highest amp
+                    return RHEO_FAIL
+                elif isinstance(rheobases[midval+1], float):
+                    # We've found highest amp with no AP, so one up is rheobase
+                    return amps[midval+1]
+                else:
+                    # No AP found but not definitely highest amp so raise idx0
+                    idx0 = midval + 1
+            else:
+                raise Exception('Rheobase not accepted value.' )
+        raise Exception('No rheobase found')
+
+CalculateRheobase = calculate_rheobase # Alias for compatibility
     
 def calculate_threshold(traces, dvdt_threshold=5.):
     thresholds = []
@@ -608,7 +703,7 @@ def CalculateAPPeak(traces):
         APPeakVals.append(APPeak(v)[0])
     return APPeakVals
     
-def CalculateAPRiseTime(traces,dvdtthreshold=5):
+def CalculateAPRiseTime(traces,dvdtthreshold=5.):
     APRiseTimeVals = []
     for t,v in zip(traces['t'],traces['v']):
         APRiseTimeVals.append(APRiseTime(t,v,dvdtthreshold))
@@ -680,7 +775,14 @@ def WriteBiomarkers(biomarkers,biomarkerFile):
     biomarkerFile.write(string)
     return
         
+# ---- Util ----
 
+def get_biomarker_names(biomarker_set='all'):
+    if biomarker_set == 'all':
+        biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+    else:
+        raise ValueError('biomarker_set {} not found'.format(biomarker_set))
+    return biomarker_names
 
 
 
