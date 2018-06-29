@@ -216,20 +216,25 @@ def record_currents(cell, current_set):
                 current_refs = {current:'_ref_{}'.format(current)}
             # Process ion channel mechanisms (e.g. nav 1.7)
             else:
-                if current[0:2] == 'na':
+                if (current[0:2] == 'na') | ('nav' in current.lower()):
                     i_strs = ['ina']
-                elif current[0] == 'k':
-                    i_strs = ['ik']
+                elif (current[0] == 'k') | (any(s in current.lower() for s in ['kdr', 'ka', 'km', 'kv'])):
+                    i_strs = ['ik'] 
                 elif current[0:2] == 'ca':
                     i_strs = ['ica']
-                elif current[0:3] == 'hcn':
+                elif 'hcn' in current.lower():
                     # Special case for hcn currents as they may have two different currents
+                    # Or a non-specific current
                     if current == 'hcntf':
                         i_strs = ['ina', 'ik']
+                    elif current == 'ch_HCNp':
+                        i_strs = ['i']
                     elif current == 'hcnkn':
                         raise ValueError('hcnkn not supported yet') # TODO support hcnkn recording
                     else:
                         raise ValueError('hcn current: {} not supported'.format(current))
+                elif 'pas' in current:
+                    i_strs = ['i']
                 elif current[0:5] == 'iconc':
                     continue # Ignore concentration mechanisms as they don't have a current
                 else:
@@ -449,12 +454,17 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     if make_plot:
         simulation_plot(t, v, currents, plot_type=plot_type)
         
-    output = [np.array(t), np.array(v)]
+    output = {'t':np.array(t), 'v':np.array(v)}
     if currents:
-        output.append(currents)
+        # Recast the currents as an np array so they're not mutable by future simulations.
+        recast_currents = recast_recorded_currents(currents)
+        output['I'] = recast_currents
     if concs:
-        output.append(concs)
-    return tuple(output)
+        print("UNTESTED USING RECASTING BUT UNTESTED")
+        recast_concs = recast_recorded_currents(concs)
+        output['concs'] = recast_concs
+
+    return output
         
         
 def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000.):
@@ -576,6 +586,16 @@ def get_default_simulation_kwargs(amp=None, model=None):
 def scale_parameter(model, parameter_name, scaling_factor):
     # Can modify parameter inplace
     exec('model.{0} *= {1}'.format(parameter_name, scaling_factor))
+
+def recast_recorded_currents(currents):
+    """ Utility function to recast recorded currents as an np.array
+    so the results can't be changed by future simulations. """
+    recast_currents = {}
+    for cur in currents:
+        recast_currents[cur] = {}
+        for cur_component in currents[cur]:
+            recast_currents[cur][cur_component] = np.array(currents[cur][cur_component])    
+    return recast_currents
 
 
 '''
