@@ -5,6 +5,7 @@ Functions to load Neuron properly.
 Created on Fri Oct 28 12:12:50 2016 @author: Oliver Britton
 """
 import os
+import sys
 from neuron import h
 
 if 'mechanisms_loaded' not in locals():
@@ -22,10 +23,15 @@ def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, )
 
     if are_mechanisms_loaded() == False:
         if nrnmech_path == None:
-            nrnmech_path = os.path.join(get_mechanism_dir(type), "nrnmech.dll")
+            nrnmech_path = os.path.join(get_mechanism_dir(type), 'nrnmech.dl')
         else:
-            if 'nrnmech.dll' not in nrnmech_path:
+            # Add platform specific mechanism libraries if needed
+            if ('nrnmech.dll' not in nrnmech_path) & (sys.platform == 'win32'):
                 nrnmech_path =  os.path.join(nrnmech_path, 'nrnmech.dll')
+            elif ('libnrnmech.so' not in nrnmech_path) & (sys.platform == 'linux'):
+                nrnmech_path =  os.path.join(nrnmech_path, 'libnrnmech.so')
+            else:
+                pass
 
         print('Loading nrnmech.dll from {}.'.format(nrnmech_path))
         h.nrn_load_dll(nrnmech_path) # Neuron mechanism loading function

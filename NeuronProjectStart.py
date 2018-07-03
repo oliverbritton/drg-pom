@@ -9,12 +9,20 @@ Created on Tue Mar 08 10:19:01 2016
 
 import os
 import sys
-from winsound import Beep
 import time
 
+import neuron_paths
+
+try:
+    from winsound import Beep
+except ModuleNotFoundError:
+    def Beep(a=None,b=None):
+        print("Beep: {}, {}.".format(a,b))
+
 def FindProjectDir():
-        
-    f = open(os.path.join(start,'E:\\CLPC48\\Neuron Project\\project.hostconfig'),'r')
+    " Function not in use as we don't use StartScript or hostconfig anymore "
+    raise Error('FindProjectDir not currently in use.')
+    f = open(os.path.join(start,'C:\\Users\\comra\\Dropbox\\Backups\\Neuron\\project.hostconfig'),'r')
     pattern = ': '
     # Can read in more lines here as needed
     line = f.read()
@@ -24,23 +32,22 @@ def FindProjectDir():
     projectDir = components[1]
     return projectDir
 
-def GetProjectDir():
-    return 'E:\\CLPC48\\Neuron Project'
+def GetProjectDir(): 
+    return neuron_paths.get_project_path()
+
 
 def SetPaths(projectDir):
     codeDir = os.path.join(projectDir,'Code')
     figsDir = os.path.join(projectDir,'Figures') 
     simDir = os.path.join(projectDir,'Simulations')
     dataDir = os.path.join(projectDir,'Data')
-    testDir = os.path.join(projectDir,'tests')
-    
+
     sys.path.append(projectDir)
     sys.path.append(codeDir)    
     sys.path.append(figsDir)     
     sys.path.append(simDir)
     sys.path.append(dataDir)
-    sys.path.append(testDir)
-    
+
 def GetNrnChannelDir():
     return os.path.join('Code','Models','Currents','Prototypes')
 

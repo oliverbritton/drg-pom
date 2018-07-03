@@ -109,7 +109,8 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=True, sim_kw
     sim_kwargs['make_plot'] = make_plot
 
     if find_other_biomarkers:
-        t,v = sh.simulation(**sim_kwargs) 
+        output = sh.simulation(**sim_kwargs) 
+        t = output['t']; v = output['v']
         t = t[::2]; v = v[::2] # 20 kHz
         traces = split_trace_into_aps(t,v)
         biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='return')
@@ -122,7 +123,8 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=True, sim_kw
         if kwarg not in rmp_kwargs:
             rmp_kwargs[kwarg] = sim_kwargs[kwarg]
 
-    rmp_t,rmp_v = sh.simulation(**rmp_kwargs)
+    output = sh.simulation(**rmp_kwargs)
+    rmp_t = output['t']; rmp_v = output['v']
     rmp_t = rmp_t[::2]; rmp_v = rmp_v[::2] # 20 kHz
     rmp_traces = split_trace_into_aps(rmp_t,rmp_v)
     rmp = np.mean(calculate_rmp(rmp_traces))
@@ -604,7 +606,7 @@ def CalculateRampAP():
     return 0
     
 
-def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, sim_kwargs={}, search='simple'):
+def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, sim_kwargs=None, search='simple'):
     " Run a series of simulations to calculate rheobase"
     " Rheobase is defined as the threshold current for an infinite duration pulse "
     " We'll try 2 seconds "
@@ -612,6 +614,8 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
     RHEO_FAIL = 'no_rheobase' # Failure code for simulations with no rheobase found
 
     # Fill out sim_kwargs with defaults if needed
+    if sim_kwargs is None:
+        sim_kwargs = {}
     default_kwargs = {'dur':500., 'delay':1000., 'interval':0., 'num_stims':1, 't_stop':1500.,
             'mechanisms':None, 'make_plot':False, 'plot_type':'default', 'model':cell_model}
     for kwarg in default_kwargs.keys():
@@ -623,7 +627,8 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
     def rheobase_simulation(amp):
         # Returns simulation amplitude if an AP is found, otherwise returns RHEO_FAIL if no APs found
         sim_kwargs['amp'] = amp
-        t,v = sh.simulation(**sim_kwargs)
+        output = sh.simulation(**sim_kwargs)
+        t = output['t']; v = output['v'];
         # Look for an AP, after throwing away the delay period, leave a 1 ms run up to catch the start
         run_up  = 1.
         delay = sim_kwargs['delay']
@@ -654,6 +659,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
             if rheobase != RHEO_FAIL:
                 return rheobase
         return RHEO_FAIL
+
     elif search == 'divide':
         # Divide and conquer algorithm using a binary search
         idx0 = 0
@@ -688,6 +694,10 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
             else:
                 raise Exception('Rheobase not accepted value.' )
         raise Exception('No rheobase found')
+    elif search == 'smart':
+        # Simple search but after first two searches upwards we check the max value to check for
+        # no rheobase. If the first 5? searches fail we switch to binary.
+        # TODO
 
 CalculateRheobase = calculate_rheobase # Alias for compatibility
     
