@@ -23,7 +23,7 @@ def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, )
 
     if are_mechanisms_loaded() == False:
         if nrnmech_path == None:
-            nrnmech_path = os.path.join(get_mechanism_dir(type), 'nrnmech.dl')
+            nrnmech_path = os.path.join(get_mechanism_dir(type), 'nrnmech.dll')
         else:
             # Add platform specific mechanism libraries if needed
             if ('nrnmech.dll' not in nrnmech_path) & (sys.platform == 'win32'):

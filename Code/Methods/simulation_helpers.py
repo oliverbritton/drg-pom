@@ -578,7 +578,7 @@ def get_default_simulation_kwargs(amp=None, model=None):
             'mechanisms':None,
             'make_plot':False,
             'plot_type':'default'}
-    if amp: default_kwargs['amp'] = amp
+    if amp is not None: default_kwargs['amp'] = amp
     if model: default_kwargs['model'] = model
     return default_kwargs
     
@@ -597,6 +597,11 @@ def recast_recorded_currents(currents):
             recast_currents[cur][cur_component] = np.array(currents[cur][cur_component])    
     return recast_currents
 
+def multiply_parameter(model, parameter, multiplier):
+    """ Multiply a parameter by a given value. """
+    assert type(parameter) == str
+    val = getattr(model,parameter)
+    setattr(model,parameter,val*multiplier)
 
 '''
 def build_model(mechanisms=['nav17vw', 'nav18hw', 'kdrtf'], conductances=[1.0,1.0,1.0]):

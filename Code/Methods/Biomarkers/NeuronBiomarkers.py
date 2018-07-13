@@ -64,7 +64,7 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     biomarkers['APSlopeMax'] = average_biomarker_values(APSlopeMaxVals, how_to_handle_nans)
     biomarkers['Threshold'] = average_biomarker_values(calculate_threshold(traces), how_to_handle_nans)
     
-    amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    amp, tau, trough = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
     """
     try:
         amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
@@ -75,11 +75,12 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     """
     biomarkers['AHPAmp'] =  amp
     biomarkers['AHPTau'] =  tau
+    biomarkers['AHPTrough'] = trough
     biomarkers['ISI'] = InterSpikeInterval(traces)
         
     return biomarkers
     
-def compute_model_biomarkers(model=None, mechanisms=None, make_plot=True, sim_kwargs=None, xlims=None):
+def compute_model_biomarkers(model=None, mechanisms=None, make_plot=False, sim_kwargs=None, xlims=None):
     " Find all standard biomarkers of a model or mechanism set. "
 
     biomarkers = {}
@@ -378,7 +379,7 @@ def APFullWidth(t,v,threshold=0):
     
     return fullWidth
 
-def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
+def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
     """ 
     Gather afterhyperpolarisation regions from a set of traces and fit them to a model 
     of a single exponential (other models can be added as needed)
@@ -397,9 +398,9 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
     # Return function if we have a result we can't fit a hyperpolarisation to
     def hyperpolarisation_fit_failure(full_output):
         if full_output:
-            return np.nan, np.nan, np.nan, np.nan,np.nan
+            return np.nan, np.nan, np.nan, np.nan,np.nan, np.nan
         else:
-            return np.nan, np.nan
+            return np.nan, np.nan, np.nan
     
     # Arrange data to contain each interval between peaks (num APs > 1) or peak to end of trace (n=1) 
     num_APs = traces['numAPs']
@@ -435,6 +436,7 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
     # For each interval attempt to fit an AHP
     amps = []
     taus = []
+    troughs = []
     if full_output: 
         output_ts = []
         output_vs = []
@@ -492,6 +494,7 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
             thresh = threshold(traces['t'][i], traces['v'][i], dvdt_threshold) 
             ahp_amp = trough - thresh # will be -ve
             ahp_tau = popt[2]
+            ahp_trough = trough
             " Alternate approaches to calculation"
             """
             calculation_method = False
@@ -508,6 +511,7 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
 
         amps.append(ahp_amp)
         taus.append(ahp_tau)
+        troughs.append(ahp_trough)
         if full_output:
             output_ts.append(t)
             output_vs.append(v)
@@ -515,42 +519,46 @@ def FitAfterHyperpolarisation(traces, dvdt_threshold, ahp_model = 'single_exp', 
     
     # Return non averaged output and cutoff times and voltages if full output requested "
     if full_output == True:
-        return amps, taus, output_ts, output_vs, popts
+        return amps, taus, troughs, output_ts, output_vs, popts
         # Otherwise just return mean amplitude and time constant of the AHP "
     else:
         amp = np.mean(amps)
         tau = np.mean(taus)
-        return amp, tau
-        
-    #return amp, tau
-    """
-    def expFunc(t, amp, slope, start):
-        return amp*(1 - np.exp(-slope*t)+start)    
-        
-    maxIdx = []
-    maxIdx.append(np.argmax(v)) # Get idx of max(v)
-    maxIdx.append(np.argmax(v2))# Get idx of max(v2)
+        trough = np.mean(troughs)
+        return amp, tau, trough
+
+FitAfterHyperpolarisation = fit_afterhyperpolarization # Alias
+
+'''
+def expFunc(t, amp, slope, start):
+    return amp*(1 - np.exp(-slope*t)+start)    
     
-    workingTime = np.concatenate((t[maxIdx[0]:],t2[:maxIdx[1]+1]),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
-    workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1]),0) ### join
-       
-    # AHP amplitude
-    amp = min(workingVoltage)
-    ampIdx = np.argmin(workingVoltage)
-    
+maxIdx = []
+maxIdx.append(np.argmax(v)) # Get idx of max(v)
+maxIdx.append(np.argmax(v2))# Get idx of max(v2)
+
+workingTime = np.concatenate((t[maxIdx[0]:],t2[:maxIdx[1]+1]),0) ### join t[maxIdx1:] up to t2[1:maxIdx[1]]
+workingVoltage = np.concatenate((v[maxIdx[0]:],v2[:maxIdx[1]+1]),0) ### join
+   
+# AHP amplitude
+amp = min(workingVoltage)
+ampIdx = np.argmin(workingVoltage)
+
 #    dvdt = VoltageGradient(workingTime[ampIdx:], workingVoltage[ampIdx:])
 #    plt.plot(workingTime[ampIdx:-1],dvdt)
 #    temp = np.argwhere(dvdt > dvdtThreshold) # Temp because we only need the first element
 #    takeoffIdx = temp[0][0] # TODO This will break if there's no points above dvdtThreshold
 #    plt.plot(workingTime[ampIdx:ampIdx+takeoffIdx],workingVoltage[ampIdx:ampIdx+takeoffIdx])
 #    plt.plot(workingTime,workingVoltage)
-    # AHP time constant
-    # TO DO!!
-    # Look up curve fitting    
-    
-    tau = 'Time constant not implemented'
-    return amp, tau
-    """
+# AHP time constant
+# TO DO!!
+# Look up curve fitting    
+
+tau = 'Time constant not implemented'
+return amp, tau
+'''
+
+
 def InterSpikeInterval(traces):
     # Calculate average interspike interval from a divided set of traces
     numAPs = traces['numAPs']
@@ -698,6 +706,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
         # Simple search but after first two searches upwards we check the max value to check for
         # no rheobase. If the first 5? searches fail we switch to binary.
         # TODO
+        pass
 
 CalculateRheobase = calculate_rheobase # Alias for compatibility
     
@@ -743,7 +752,7 @@ def CalculateAHPAmp(traces,dvdtThreshold=5):
             v = traces['v'][i]
             t2 = traces['t'][i+1]
             v2 = traces['v'][i+1]
-            amp,tau = FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold)
+            amp, tau, trough = FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold)
             AHPAmpVals.append(amp)
     elif traces['numAPs'] == 1:
         v = traces['v'][0]
@@ -788,8 +797,23 @@ def WriteBiomarkers(biomarkers,biomarkerFile):
 # ---- Util ----
 
 def get_biomarker_names(biomarker_set='all'):
+    ''' 
+    Biomarkers TODO from neuroelectro:
+    * Input resistance
+    * AP Half width
+    * Membrane time constant
+    * Cell capacitance (fixed by simulation)
+    * Maximum firing rate
+    * Sag ratio
+    * Adaptation ratio
+    * First spike latency
+    * FI slope
+    * Spike rise time
+    * Spontaneous firing rate
+    * There are others but think they are other names for the same concepts
+    '''
     if biomarker_set == 'all':
-        biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+        biomarker_names = ['Threshold', 'APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'AHPTrough', 'ISI', 'RMP', 'Rheobase']
     else:
         raise ValueError('biomarker_set {} not found'.format(biomarker_set))
     return biomarker_names
