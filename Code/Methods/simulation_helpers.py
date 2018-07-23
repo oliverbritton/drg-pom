@@ -23,6 +23,10 @@ import NeuronProjectStart
 from neuron import h
 import neuron
 
+# We seem to need to load now to allow parallel scripts to work
+# Perhaps there is a way to reload if we need to?
+import Methods.Simulations.loadneuron as ln
+ln.load_neuron_mechanisms(verbose=True)
 
 def init_model(mechanisms=[],
     L=30.,  # uM
@@ -84,12 +88,11 @@ def get_init_model_values(name='first'):
         
     return model_values
         
-
+# TODO - make the build model inputs more sensibly named, they are confusing
 def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=None, mechanism_names=None,mechanism_is_full_parameter_name=False):
     """
     Mechanism names is for if we don't want to vary the conductance of every mechanism in the model, or if we want to use different parameters. 
     """
-    
     # Dict construction
     if type(mechanisms) == dict:
         if conductances:
@@ -99,7 +102,8 @@ def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=N
             if mechanism_is_full_parameter_name:
                 # Split on underscores and throw away the first bit as that will be parameter type (e.g. gbar)
                 mechanism_names = [name.split('_',1)[-1] for name in mechanism_names]
-        model = init_model(mechanisms=mechanism_names)
+
+        model = init_model(mechanisms=mechanism_names) 
         for mechanism, conductance in mechanisms.items():
             if mechanism_is_full_parameter_name: # Mechanisms contains the full parameter name, not just the mechanism name
                 param_setting_str = 'model.{0} *= {1}'.format(mechanism, conductance)
@@ -140,38 +144,14 @@ def set_stims(amp, dur, delay, interval, num_stims, stim_func, cell):
         
         return stims
         
-def simulation_plot(t, v, currents, plot_type='default'):
+def simulation_plot(t, v, currents=None, plot_type='default'):
         
     if plot_type == 'default':
         plt.figure(figsize=(5,5))
         plt.plot(t,v); plt.ylabel('Vm (mV)'); plt.xlabel('Time (ms)')
-        
-    if plot_type == 'na + k':
-        # Need following currents:
-        # ik, ikdr, ia, inav18
-        plt.figure(figsize=(5,12))
-        plt.subplot(4,1,1)
-        plt.plot(t,currents['ina'])
-        plt.plot(t,currents['inav17'])
-        plt.plot(t,currents['inav18'])
-        plt.plot(t,currents['inav19'])
-        plt.title('All Navs')
-
-        plt.subplot(4,1,2)
-        plt.plot(t,currents['inav17'])
-        plt.plot(t,currents['inav19'])
-        plt.title('1.7 and 1.9')
-        
-        plt.subplot(4,1,3)
-        plt.plot(t,v); plt.ylabel('Vm (mV)')
-        plt.title('Vm')
-
-        plt.subplot(4,1,4)
-        plt.plot(t,currents['ik'])
-        plt.plot(t,currents['ikdr'])
-        plt.plot(t,currents['ia'])
-        plt.plot(t,currents['im'])
-        plt.title('All Kvs')
+    # TODO: Support plotting currents
+    else:
+        raise ValueError("Plot type: {} not supported.".format(plot_type))
         
 def set_vt(cell):
     v = h.Vector()
@@ -385,7 +365,7 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     stim_func - stimulus function, e.g. h.IClamp, h.IRamp
     mechanisms - list of mechanisms or dict of mechanisms and conductances
     mechanisms_to_record - None or a list of NEURON mechanisms and current names to record and output
-    Example of a NEURON mechanism: 'nav18vw'
+    Example of a NEURON mechanism: 'nav18vw'/
     Example of current names: 'ina', 'ica', 'ik'
     ions - which ionic concentrations should be dynamic 
     Mechanisms to record - ionic currents to record
@@ -433,13 +413,9 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     
     " Recording of currents and concentations (and can extend to other state vars if necessary) "
     currents = None
+    current_set = None
     if mechanisms_to_record:
         current_set = generate_current_set(mechanisms_to_record)
-    elif make_plot == True:
-        raise ValueError('need to set mechanisms_to_record to do the plots')
-        current_set = plot_type
-    else:
-        current_set = None
     currents = record_currents(cell=cell, current_set=current_set)
     
     concs = None
@@ -452,7 +428,9 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     neuron.run(t_stop)
     
     if make_plot:
-        simulation_plot(t, v, currents, plot_type=plot_type)
+        # TODO - sort out simulation_plot to work with currents, currently only default
+        # (plot Vm only) is supported
+        simulation_plot(t, v, currents=currents, plot_type=plot_type)
         
     output = {'t':np.array(t), 'v':np.array(v)}
     if currents:

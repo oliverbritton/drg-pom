@@ -9,6 +9,10 @@ from matplotlib import pyplot as plt
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
 
+RHEO_FAIL = np.nan # Code to return if rheobase calculation fails.
+# np.nan == np.nan returns False so use is not instead. pom code
+# relies on this value being nan to interface with pandas correctly.
+
 def calculate_biomarkers(traces, model):
     " Calculate every biomarker and output to dict "
     " TODO: Use the rheobase to work out what simulation to run to calculate biomarkers "
@@ -619,11 +623,9 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
     " Rheobase is defined as the threshold current for an infinite duration pulse "
     " We'll try 2 seconds "
      
-    RHEO_FAIL = 'no_rheobase' # Failure code for simulations with no rheobase found
-
     # Fill out sim_kwargs with defaults if needed
     if sim_kwargs is None:
-        sim_kwargs = {}
+        sim_kwargs = {} 
     default_kwargs = {'dur':500., 'delay':1000., 'interval':0., 'num_stims':1, 't_stop':1500.,
             'mechanisms':None, 'make_plot':False, 'plot_type':'default', 'model':cell_model}
     for kwarg in default_kwargs.keys():
@@ -664,7 +666,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
     if search == 'simple':
         for amp in amps:
             rheobase = rheobase_simulation(amp)
-            if rheobase != RHEO_FAIL:
+            if rheobase is not RHEO_FAIL: # Is not is used because np.nan == np.nan reutrns False
                 return rheobase
         return RHEO_FAIL
 
@@ -679,17 +681,17 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
             midval = (idx0 + idxn)// 2
             rheobase = rheobase_simulations(amps[midval])
             rheobases[midval] = rheobase
-            if rheobase != RHEO_FAIL:
+            if rheobase is not RHEO_FAIL: # Is not is used because np.nan == np.nan reutrns False
                 if midval == 0:
                     # Rheobase is minimum
                     return amps[0]
-                elif rheobases[midval-1] == RHEO_FAIL:
+                elif rheobases[midval-1] is not RHEO_FAIL: # Is not is used because np.nan == np.nan reutrns False
                     # Found minimal amp for an AP - return rheobase
                     return amps[midval]
                 else:
                     # AP found but not definitely lowest amp so lower idxn
                     idxn = midval - 1
-            elif rheobase == RHEO_FAIL:
+            elif rheobase is not RHEO_FAIL: # Is not is used because np.nan == np.nan reutrns False
                 if midval == (len(amps) - 1):
                     # No rheobase for highest amp
                     return RHEO_FAIL

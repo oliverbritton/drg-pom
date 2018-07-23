@@ -30,9 +30,10 @@ import Methods.simulation_helpers as sh
 from neuron import h
 import neuron
 
-# Don't load ion channel models - we might need to load from different locations
+# We seem to need to load now to allow parallel scripts to work
+# Perhaps there is a way to reload if we need to?
 import Methods.Simulations.loadneuron as ln
-#ln.load_neuron_mechanisms(verbose=False)
+ln.load_neuron_mechanisms(verbose=True)
 
 # ---FUNCTIONS---
 
@@ -168,47 +169,67 @@ def simulate_iclamp(sim_id,
     -----------
     """
 
+
     # General setup
     import neuron
     from neuron import h
     sim_type = 'iclamp'
     
-    
+    # Need to use strings as can't serialize hoc objects
+    # for parallelization
     if stim_func == 'h.IClamp':
         stim_func = h.IClamp
+    elif stim_func == 'h.IRamp':
+        stim_func = h.IRamp
+    else:
+        raise ValueError('stim_func: {} not found'.format(stim_func))
+
     # Initialise results @TODO - shared code between simulations - combine into function
     results = {}
     results['sim_id'] = sim_id
     results_names = biomarker_names 
     for name in results_names:
         results[name] = np.nan # @TODO - do this better to support biomarkers with variable lengths
-    
-    """ Setup model """
-       
-    # Build model using dict with full parameter names (e.g. gbar_nav17vw not nav17vw)
+   
+    """ Setup model """    
+
+
+    # Build model with separate mechanisms and mechanism parameter names
     cell = sh.build_model(mechanisms=mechanisms, mechanism_names=mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
     
     h.celsius = celsius
-    
+
     # @TODO - put setting ionic conditions into a function to share with VClamp
-    if 'K' in ions:
-        oldstyle = h.ion_style("k_ion", 1, 2, 1, 1, 0,sec=cell)
-    if 'Na' in ions:
-        oldstyle = h.ion_style("na_ion", 1, 2, 1, 1, 0,sec=cell)
-    if 'Ca' in ions:
-        oldstyle = h.ion_style("ca_ion", 1, 2, 1, 1, 0,sec=cell)
+    # Set ionic conditions
+    ion_mechanisms = sh.get_dynamic_ion_mechanisms()   
+    for ion in ion_mechanisms:
+        if ion in ions:
+            cell.insert(ion_mechanisms[ion])
     
     # --- Run simulations ---
-   
-    # Rheobase simulation
-    rheobase = nb.CalculateRheobase(cell, amp_step=0.1, amp_max=5, make_plot=False,)
+    # Assemble simulation kwargs
+    sim_kwargs = {
+        'ions':ions,
+        't_stop':t_stop,
+        'dur':dur,
+        'delay':delay,
+        'interval':interval,
+        'num_stims':num_stims,
+        'stim_func':stim_func,
+        } 
+
     
+    # Rheobase simulation
+    rheobase = nb.calculate_rheobase(cell, amp_step=0.1, amp_max=5, 
+        make_plot=False, sim_kwargs=sim_kwargs)
+   
     # Only continue if we've found a rheobase
-    if ~np.isnan(rheobase):
+    if rheobase is not nb.RHEO_FAIL:
         rheobase_found = True
     else:
         rheobase_found = False # Or set all other biomarkers to np.nan?
-        
+    
+    # TODO - just call sh.simulation(**sim_kwargs), adding extra args to those above as needed
     if rheobase_found:    
         stims = []
         for stim_idx in range(num_stims):
@@ -227,7 +248,9 @@ def simulate_iclamp(sim_id,
    
         # Sampling
         if sampling_freq == 20000: # Hz
-            """ @TODO - use delta t between each element of t to calculate frequency, then downsample to required frequency. But at the moment we just need to match Davidson et al. (20 kHz). """
+        # TODO - use delta t between each element of t to calculate frequency,
+        # then downsample to required frequency.
+        # But at the moment we just need to match Davidson et al. (20 kHz). 
             t = t[::2]; v = v[::2] # 20 kHz
         else:
             raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
@@ -254,10 +277,10 @@ def simulate_iclamp(sim_id,
         raise ValueError('rheobase_found is not valid')
 
     # RMP
-    rmp_t,rmp_v = sh.simulation(amp=0.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=cell)
+    rmp_out = sh.simulation(amp=0.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=cell)
     
     # Could change sampling freq here but probably not necessary for RMP
-    rmp_traces = nb.SplitTraceIntoAPs(rmp_t,rmp_v)
+    rmp_traces = nb.SplitTraceIntoAPs(rmp_out['t'],rmp_out['v'])
     
     results['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
 
@@ -286,7 +309,6 @@ def simulate_iclamp(sim_id,
 
     if plot: #@TODO 
         pass
-        
         
     return results    
 
@@ -801,8 +823,10 @@ class PopulationOfModels(object):
             calibration = pd.DataFrame(index=results.index, columns=biomarker_names)  # If we allow multiple calibrations this dataframe needs to include multiple subsections
             
             for biomarker in biomarker_names:
-                minimum = ranges.loc[biomarker]['Mean'] - ranges.loc[biomarker]['Std']
-                maximum = ranges.loc[biomarker]['Mean'] + ranges.loc[biomarker]['Std']
+                minimum = ranges.loc[biomarker]['Min']
+                maximum = ranges.loc[biomarker]['Max']
+               #minimum = ranges.loc[biomarker]['Mean'] - ranges.loc[biomarker]['Std']
+               #maximum = ranges.loc[biomarker]['Mean'] + ranges.loc[biomarker]['Std']
                 
                 # Get calibration stats (from original - self.results, as results copy is modified)
                 if verbose:
@@ -1217,7 +1241,7 @@ class Simulation(object):
         biomarker_names = {}
         
         # Common iclamp and vclamp names
-        biomarker_names['iclamp'] = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
+        biomarker_names['iclamp'] = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'AHPTrough', 'ISI', 'RMP', 'Rheobase']
         biomarker_names['vclamp'] = []
         
         # Set biomarkers that are only calculated when request through outputs

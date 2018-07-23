@@ -31,7 +31,7 @@ def GetCalibrationRanges():
 # Need to play in Pandas
 
 biomarkerNames = ['RMP','InputRes','RampAP','StepRheobase','Threshold','APPeak','APRise','APSlopeMin',
-    'APSlopeMax','APFullWidth','AHPAmp','AHPTau','numAPs'] # TODO automate this from the list of keys in DavMeans
+    'APSlopeMax','APFullWidth','AHPAmp', 'AHPTrough','AHPTau','numAPs'] # TODO automate this from the list of keys in DavMeans
 
 columns = ['Mean','Std','Min','Max']
 
@@ -51,6 +51,7 @@ DavMeans['APSlopeMax'] = 326.9
 DavMeans['APSlopeMin'] = -100.2
 DavMeans['APFullWidth'] = 4.92
 DavMeans['AHPAmp'] = -52.66
+DavMeans['AHPTrough'] = DavMeans['AHPAmp']
 DavMeans['AHPTau'] = 26.67
 
 DavStds = {}
@@ -66,6 +67,7 @@ DavStds['APSlopeMax'] = 169.4
 DavStds['APSlopeMin'] = 78.3
 DavStds['APFullWidth'] = 3.73
 DavStds['AHPAmp'] = 8.73
+DavStds['AHPTrough'] = DavStds['AHPAmp']
 DavStds['AHPTau'] = 22.1
 
 
