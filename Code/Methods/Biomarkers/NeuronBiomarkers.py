@@ -68,10 +68,10 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     biomarkers['APSlopeMax'] = average_biomarker_values(APSlopeMaxVals, how_to_handle_nans)
     biomarkers['Threshold'] = average_biomarker_values(calculate_threshold(traces), how_to_handle_nans)
     
-    amp, tau, trough = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    amp, tau, trough = fit_afterhyperpolarization(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
     """
     try:
-        amp, tau = FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+        amp, tau = fit_afterhyperpolarization(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
     except:
         error_handle('fitahp.pickle',traces)
         amp=0
@@ -80,7 +80,7 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
     biomarkers['AHPAmp'] =  amp
     biomarkers['AHPTau'] =  tau
     biomarkers['AHPTrough'] = trough
-    biomarkers['ISI'] = InterSpikeInterval(traces)
+    biomarkers['ISI'] = inter_spike_interval(traces)
         
     return biomarkers
     
@@ -531,8 +531,6 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
         trough = np.mean(troughs)
         return amp, tau, trough
 
-FitAfterHyperpolarisation = fit_afterhyperpolarization # Alias
-
 '''
 def expFunc(t, amp, slope, start):
     return amp*(1 - np.exp(-slope*t)+start)    
@@ -563,8 +561,11 @@ return amp, tau
 '''
 
 
-def InterSpikeInterval(traces):
-    # Calculate average interspike interval from a divided set of traces
+def inter_spike_interval(traces):
+    ''' Calculate average interspike interval from a divided set of traces
+        Total interspike interval is the time difference between the first and last peak of a trace,
+        divided by the number of intervals (number of APs - 1)
+    '''
     numAPs = traces['numAPs']
     if numAPs < 2:
         #print('ISI cannot be calculated with < 2 APs')
@@ -578,7 +579,7 @@ def InterSpikeInterval(traces):
         # Get the time difference
         times = traces['t']        
         time_diff = times[-1][last_spike] - times[0][first_spike]
-        assert time_diff > 0, 'time_diff for ISI < 0'
+        assert time_diff > 0, 'time_diff for ISI < 0: {}'.format(time_diff)
         # Divide by number of intervals (numAPs - 1) to get mean ISI
         inter_spike_interval = time_diff/(numAPs-1)
         return inter_spike_interval
@@ -711,7 +712,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
         pass
 
 CalculateRheobase = calculate_rheobase # Alias for compatibility
-    
+
 def calculate_threshold(traces, dvdt_threshold=5.):
     thresholds = []
     for t,v in zip(traces['t'], traces['v']):
@@ -754,7 +755,7 @@ def CalculateAHPAmp(traces,dvdtThreshold=5):
             v = traces['v'][i]
             t2 = traces['t'][i+1]
             v2 = traces['v'][i+1]
-            amp, tau, trough = FitAfterHyperpolarisation(t,v,t2,v2,dvdtThreshold)
+            amp, tau, trough = fit_afterhyperpolarization(t,v,t2,v2,dvdtThreshold)
             AHPAmpVals.append(amp)
     elif traces['numAPs'] == 1:
         v = traces['v'][0]
@@ -768,6 +769,134 @@ def CalculateAHPAmp(traces,dvdtThreshold=5):
 def CalculateAHPTau():
     # TODO
     return 0
+
+# -- Firing Patterns --
+# See Balachandar and Prescott 2018 for algorithms
+
+def determine_firing_pattern(traces, stimulus_start_time):
+    """
+    Define firing pattern of traces as one or more of n types:
+    1. Reluctant
+    2. Single
+    3. Tonic
+    4. Delayed
+    5. Gap
+    6. Phasic/burst firing
+    """
+
+    def first_spike_delay(traces, stimulus_start_time):
+        # Find delay between stim start and first spike
+        first_spike_v = traces['v'][0]
+        first_spike_t = traces['t'][0]
+        single_spike_index = APPeak(first_spike_v)[1]
+        single_spike_time = first_spike_t[single_spike_index]
+        delay = single_spike_time - stimulus_start_time
+        print("delay = {}".format(delay))
+        return delay
+
+    def first_two_spikes_isi(traces):
+        # Find delay between first and second spikes
+        spike_times = []
+        for i in [0,1]:
+            spike_idx = APPeak(traces['v'][i])[1]
+            spike_times.append(traces['t'][i][spike_idx])
+        
+        delay = spike_times[1] - spike_times[0]
+        return delay
+
+    def second_third_spikes_isi(traces):
+        # Find delay between second and third spikes
+        spike_times = []
+        for i in [1,2]:
+            spike_idx = APPeak(traces['v'][i])[1]
+            spike_times.append(traces['t'][i][spike_idx])
+        
+        delay = spike_times[1] - spike_times[0]
+        return delay
+
+    def check_delayed(traces):
+        # Check if firing pattern is delayed
+        delayed = False
+        numAPs = traces['numAPs']
+        # Delayed firing pattern criterion for 1 spike:
+        # Delay from stim start to first spike is > 100 ms
+        if numAPs == 1:
+            if first_spike_delay(traces, stimulus_start_time) > 100.0
+                delayed = True
+        # Delayed firing pattern criterion for  > 1 spike:
+        # Delay between stimulus start and firing first spike is > 1.5 
+        # times the ISI between spikes 1 and 2.
+        elif numAPs > 1:
+            if first_spike_delay(traces, stimulus_start_time) > 1.5*first_two_spikes_isi(traces):
+                delayed  = True
+        return delayed
+
+    def check_gap(traces):
+        gap = False
+        numAPs = traces['numAPs']
+        # Gap firing criteria:
+        # Number of spikes > 2
+        # ISI between spikes 1 and 2 > 1.5 times ISI between spikes 2 and 3
+        gap = False
+        if traces['numAPs'] > 2:
+            if first_two_spikes_isi(traces) > 1.5*second_third_spikes_isi(traces)
+                gap = True
+        return gap    
+
+
+    def check_phasic(traces):
+        """
+        Phasic/bursting - characterized by one or more burst of 2 or more APs,
+        followed by a quiescent period.
+        Not sure how to characterize currently.
+        1. Find all AP peaks.
+        2. Divide trace up into quiet periods and firing periods
+        Quiet period is region where distance between two APs or last AP and 
+        stimulus end is greater than some multiple of the average ISI (median?).
+        """
+        
+        phasic = False
+        # Cannot have a burst with less than 2 APs
+        if traces['numAPs'] > 1:
+            # Find times of all AP peaks
+            AP_peak_times = []
+            for v,t in zip(traces['v'], traces['t']):
+                idx = APPeak(v)[1]
+                tpeak = t[idx]
+                AP_peak_times.append(tpeak)
+            
+            # See if there are periods of quiet between bursts or not
+            ISIs = 
+
+        return phasic
+
+
+
+    firing_pattern = []
+    numAPs = traces['numAPs']
+    if numAPs == 0:
+        firing_pattern.append('reluctant')
+    elif numAPs == 1:
+        firing_pattern.append('single')
+        # Check for delayed spiking
+        if check_delayed(traces):
+            firing_pattern.append('delayed')
+    elif numAPs > 1:
+        firing_pattern.append('multi')
+        # Determine if tonic spiking
+        delayed = check_delayed(traces)
+        gap = check_gap(traces)
+        if (not delayed) and (not gap):
+            firing_pattern.append('tonic')
+        if delayed:
+            firing_pattern.append('delayed')
+        if gap:
+            firing_pattern.append('gap')
+
+    print(" TODO:Phasic,bursting")
+    return firing_pattern
+
+
     
 # ---- Plotting ----
 

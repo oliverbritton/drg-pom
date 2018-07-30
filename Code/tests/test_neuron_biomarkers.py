@@ -15,12 +15,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-""" Current functions tested:
+""" Current biomarkers and supporting functions tested:
 'APFullWidth',
  'APPeak',
  'APRiseTime',
  'APSlopeMinMax'
- 'FitAfterHyperpolarisation',
+ 'fit_afterhyperpolarization',
  'InterSpikeInterval',
  'RMP',
  'Rheobase',
@@ -58,7 +58,7 @@ def TestAPPeak(traces):
         APPeak = nb.APPeak(v)
         plt.plot(t,v,color=sns.color_palette()[i])
         plt.scatter(t[APPeak[1]],APPeak[0],s=20,color=sns.xkcd_rgb["bright red"])
-    
+        print("Trace {}: APPeak = {} mV, {} ms".format(i+1,APPeak[0], t[APPeak[1]]))
 
 def TestAPRiseTime(traces,dvdtthreshold):
     for idx,(t,v) in enumerate(zip(traces['t'],traces['v']),1):
@@ -69,8 +69,8 @@ def TestAPRiseTime(traces,dvdtthreshold):
         print("Trace {}: APRiseTime = {} ms".format(idx,APRiseTime))
         
 
-def TestFitAfterHyperpolarisation(traces,dvdtThreshold):    
-        amps, taus, ts, vs, popts = nb.FitAfterHyperpolarisation(traces,5,full_output=True)
+def test_fit_afterhyperpolarization(traces,dvdtThreshold):    
+        amps, taus, ts, vs, popts = nb.fit_afterhyperpolarization(traces,5,full_output=True)
         for amp,tau,t,v,popt in zip(amps,taus,ts,vs,popts):
             plt.figure()
             plt.title("Amp = {} mV, tau = {} ms".format(amp,tau))
@@ -143,10 +143,11 @@ def TestAllBiomarkers(traces, model):
     APSlopeMinVals, APSlopeMaxVals = nb.CalculateAPSlopeMinMax(traces)
     biomarkers['APSlopeMin'] = np.mean(APSlopeMinVals)
     biomarkers['APSlopeMax'] = np.mean(APSlopeMaxVals)
-    amp, tau = nb.FitAfterHyperpolarisation(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
+    amp, tau, trough = nb.fit_afterhyperpolarization(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
     biomarkers['AHPAmp'] =  amp
     biomarkers['AHPTau'] =  tau
-    biomarkers['ISI'] = nb.InterSpikeInterval(traces)
+    biomarkers['AHPTrough'] = trough
+    biomarkers['ISI'] = nb.inter_spike_interval(traces)
     biomarkers['RMP'] =  np.mean(nb.CalculateRMP(traces))
     # Need to do rheobase separately
     biomarkers['Rheobase'] =  nb.CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
@@ -165,8 +166,8 @@ dvdtThreshold = 5
 #TestAPFullWidth(traces,threshold)
 #TestAPPeak(traces)
 #TestAPRiseTime(traces,dvdtThreshold)
-#TestFitAfterHyperpolarisation(traces,dvdtThreshold)
-#TestInterSpikeInterval
+#test_fit_afterhyperpolarization(traces,dvdtThreshold)
+#test_inter_spike_interval
 #TestRMP(traces) # TODO make it average the voltage after the minimum """
 #TestRheobase([trace,trace],[50,100])
 #print("***")

@@ -422,11 +422,14 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
     if concs_to_record:
         concs = record_concs(cell=cell, concs_to_record=concs_to_record)
         
-
     h.finitialize(-65) # Vital! And has to go after record
+
+    # Now setup ions
+#    model.ko = 30.0
+
     # Run simulation
     neuron.run(t_stop)
-    
+#    print(model.ko)
     if make_plot:
         # TODO - sort out simulation_plot to work with currents, currently only default
         # (plot Vm only) is supported
