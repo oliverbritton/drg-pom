@@ -531,7 +531,7 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
         trough = np.mean(troughs)
         return amp, tau, trough
 
-'''
+"""
 def expFunc(t, amp, slope, start):
     return amp*(1 - np.exp(-slope*t)+start)    
     
@@ -558,14 +558,14 @@ ampIdx = np.argmin(workingVoltage)
 
 tau = 'Time constant not implemented'
 return amp, tau
-'''
+"""
 
 
 def inter_spike_interval(traces):
-    ''' Calculate average interspike interval from a divided set of traces
+    """ Calculate average interspike interval from a divided set of traces
         Total interspike interval is the time difference between the first and last peak of a trace,
         divided by the number of intervals (number of APs - 1)
-    '''
+    """
     numAPs = traces['numAPs']
     if numAPs < 2:
         #print('ISI cannot be calculated with < 2 APs')
@@ -772,6 +772,7 @@ def CalculateAHPTau():
 
 # -- Firing Patterns --
 # See Balachandar and Prescott 2018 for algorithms
+# TODO: Find algorithms for phasic and burst patterns
 
 def determine_firing_pattern(traces, stimulus_start_time):
     """
@@ -781,7 +782,8 @@ def determine_firing_pattern(traces, stimulus_start_time):
     3. Tonic
     4. Delayed
     5. Gap
-    6. Phasic/burst firing
+    6. Phasic - multi-AP firing that ends before end of stimulus
+    7. Burst firing
     """
 
     def first_spike_delay(traces, stimulus_start_time):
@@ -821,7 +823,7 @@ def determine_firing_pattern(traces, stimulus_start_time):
         # Delayed firing pattern criterion for 1 spike:
         # Delay from stim start to first spike is > 100 ms
         if numAPs == 1:
-            if first_spike_delay(traces, stimulus_start_time) > 100.0
+            if first_spike_delay(traces, stimulus_start_time) > 100.0:
                 delayed = True
         # Delayed firing pattern criterion for  > 1 spike:
         # Delay between stimulus start and firing first spike is > 1.5 
@@ -839,20 +841,15 @@ def determine_firing_pattern(traces, stimulus_start_time):
         # ISI between spikes 1 and 2 > 1.5 times ISI between spikes 2 and 3
         gap = False
         if traces['numAPs'] > 2:
-            if first_two_spikes_isi(traces) > 1.5*second_third_spikes_isi(traces)
+            if first_two_spikes_isi(traces) > 1.5*second_third_spikes_isi(traces):
                 gap = True
         return gap    
 
 
-    def check_phasic(traces):
+    def check_phasic(traces, stimulus_start_time):
         """
-        Phasic/bursting - characterized by one or more burst of 2 or more APs,
-        followed by a quiescent period.
-        Not sure how to characterize currently.
-        1. Find all AP peaks.
-        2. Divide trace up into quiet periods and firing periods
-        Quiet period is region where distance between two APs or last AP and 
-        stimulus end is greater than some multiple of the average ISI (median?).
+        Phasic - firing of multiple APs followed by a period of quiescence. 
+        Not currently sure how to search for, look at implementation ideas below.
         """
         
         phasic = False
@@ -866,9 +863,28 @@ def determine_firing_pattern(traces, stimulus_start_time):
                 AP_peak_times.append(tpeak)
             
             # See if there are periods of quiet between bursts or not
-            ISIs = 
+            ISIs = inter_spike_interval(traces)
+            assert False, "Phasic checking not implemented yet"
+
+        """
+        Implementation ideas...
+        Use the ratio of the time from last spike to end of stimulus to the maximum ISI?
+        """
+        def that_idea(AP_peak_times, ISIs):
+            pass
 
         return phasic
+
+    def check_bursting(traces, stimulus_start_time):
+        """
+        Bursting - bursts of APs separated by rest periods
+        Not sure how to characterize currently.
+        1. Find all AP peaks.
+        2. Divide trace up into quiet periods and firing periods
+        Quiet period is region where distance between two APs or last AP and 
+        stimulus end is greater than some multiple of the average ISI (median?).
+        """
+        pass
 
 
 

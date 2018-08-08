@@ -756,6 +756,13 @@ class PopulationOfModels(object):
             columns=pd.MultiIndex.from_product([[name], sim_results.columns]), 
             index=self.results.index)
         formatted_results[:] = sim_results
+        # Check for typing and set type if all entries are the same type
+        """
+        for result in formatted_results:
+            types = [type(i) for i in formatted_results[result]
+            if all([i == types[0] for i in types]):
+                formatted_results[result] = formatted_results[result].astype(types[0])
+        """
             
         # If no name collision add new columns, otherwise replace the old columns
         
