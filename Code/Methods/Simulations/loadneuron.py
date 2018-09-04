@@ -55,6 +55,7 @@ def get_mech_lib_name(platform):
         mech_lib_name = 'libnrnmech.so'
     else:
         raise Exception('Platform {} not supported.'.format(sys.platform))
+    return mech_lib_name
 
 def get_mechanism_dir(type='prototype'):
     """
