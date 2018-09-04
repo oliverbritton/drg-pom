@@ -584,6 +584,81 @@ def multiply_parameter(model, parameter, multiplier):
     val = getattr(model,parameter)
     setattr(model,parameter,val*multiplier)
 
+def convert_list_to_string(list_of_lists):
+    """ 
+    Convert a list of lists of strings into a list of string
+    This is a placeholder to use for firing patterns until I recode and rerun sims
+    to use strings rather than lists of strings.
+    This is because lists as data elements don't play nice with pandas.
+    You can't do df['column'] == ['a','b'] as it thinks you're equality checking the entire Series
+    rather than element by element as something like df['column'] == 'a, b' would do.
+    """
+    def convert(list_of_strs):
+        if isinstance(list_of_strs, list):
+            return ', '.join(list_of_strs)
+        else: # E.g. for nans
+            return list_of_strs
+
+    return [convert(list_of_strs) for list_of_strs in list_of_lists]
+
+
+def construct_simulation_set(sim_factors):
+    """
+    Construct a set of simulations using all combinations of factors
+    sim_factors should be a dict with the name of each parameter and it's range of values 
+    use an OrderedDict if you want a specific ordering of factors in the output
+    """
+
+    sim_parameter_combinations = list(itertools.product(*[val for _,val in sim_factors.items()]))
+
+    sims = np.array([])
+    for sim_parameter_set in sim_parameter_combinations:
+        sim_details = {}
+        for i, name in enumerate(sim_factors):
+            sim_details[name] = sim_parameter_set[i]
+        sims = np.append(sims, sim_details) 
+    
+    return sims
+
+def divide_into_sections(simulations, n):
+    """
+    Chunk set of simulations into n sections 
+    """
+
+    # Divide into n sections using utils function
+    n = 10
+    # Divide simulation_parameters into 10 segments
+    num_sims = len(simulations)
+    base_num_sims_per_section = num_sims // n
+    num_sections_with_one_extra = num_sims % n
+
+
+    num_sims_allocated = 0
+    sim_nums = {}
+    for i in range(n):
+        if i < num_sections_with_one_extra:
+            num_sims_in_section = base_num_sims_per_section + 1
+        else:
+            num_sims_in_section = base_num_sims_per_section
+
+        sim_start = num_sims_allocated
+        sim_end = num_sims_allocated + num_sims_in_section
+
+        sim_nums[i+1] = np.arange(sim_start,sim_end) # Assign sim numbers to section i+1
+        num_sims_allocated += num_sims_in_section # Keep track of which simulations are distributed
+
+    return sim_nums
+
+def get_simulation_section(simulations, section, n):
+    """
+    Get a section of a set of simulations chunked into n sections
+    Section starts from 1. 
+    """
+    assert (section > 0) & (section <= n), "section should start from 1 and go to n"
+    sim_sections = divide_into_sections(simulations, n)
+    simulation_section = simulations[sim_sections[section+1]]
+    return simulation_section
+
 '''
 def build_model(mechanisms=['nav17vw', 'nav18hw', 'kdrtf'], conductances=[1.0,1.0,1.0]):
     cell = h.Section()

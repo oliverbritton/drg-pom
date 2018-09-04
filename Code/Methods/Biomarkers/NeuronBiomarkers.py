@@ -20,9 +20,9 @@ def calculate_biomarkers(traces, model):
     # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
 
     biomarkers = calculate_simple_biomarkers(traces, model)
-    biomarkers['RMP'] =  np.mean(CalculateRMP(traces))
+    biomarkers['RMP'] =  np.mean(calculate_rmp(traces))
     # Need to do rheobase separately
-    biomarkers['Rheobase'] =  CalculateRheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
+    biomarkers['Rheobase'] =  calculate_rheobase(model, amp_step=0.1, amp_max=5, make_plot=False,)
     
     return biomarkers
     
@@ -33,7 +33,7 @@ def average_biomarker_values(biomarkers, how_to_handle_nans='return'):
     elif how_to_handle_nans == 'remove': # Risky option. Advantage is we still get a number back in mixed cases of nan and non-nan biomarkers, which is potentially risky as it hides a problem in one or more APs.
         biomarkers = biomarkers[~np.isnan(biomarkers)]
     else:
-        raise ValueError('Not an accepted value.')
+        raise ValueError("{} is not an accepted nan handling method.".format(how_to_handle_nans))
         
     mean_result = np.mean(biomarkers)
     return mean_result
@@ -54,18 +54,18 @@ def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
         print("Error, traces dumped to {}.".format(filename))
 
     try:
-        biomarkers['APFullWidth'] = average_biomarker_values(CalculateAPFullWidth(traces,threshold=0), how_to_handle_nans)
+        biomarkers['APFullWidth'] = average_biomarker_values(calculate_ap_full_width(traces,threshold=5.,method='gradient'), how_to_handle_nans)
     except:
         error_handle('fullwidth.pickle',traces)
-    biomarkers['APPeak'] = average_biomarker_values(CalculateAPPeak(traces),how_to_handle_nans)
+    biomarkers['APPeak'] = average_biomarker_values(calculate_ap_peak(traces),how_to_handle_nans)
     
     try:
-        biomarkers['APRiseTime'] = average_biomarker_values(CalculateAPRiseTime(traces,dvdtthreshold=5),how_to_handle_nans)
+        biomarkers['APRiseTime'] = average_biomarker_values(calculate_ap_rise_time(traces,dvdtthreshold=5),how_to_handle_nans)
     except:
         error_handle('risetime.pickle',traces)
-    APSlopeMinVals, APSlopeMaxVals = CalculateAPSlopeMinMax(traces)
-    biomarkers['APSlopeMin'] = average_biomarker_values(APSlopeMinVals, how_to_handle_nans)
-    biomarkers['APSlopeMax'] = average_biomarker_values(APSlopeMaxVals, how_to_handle_nans)
+    ap_slope_mins, ap_slope_maxs = calculate_ap_slope_min_max(traces)
+    biomarkers['APSlopeMin'] = average_biomarker_values(ap_slope_mins, how_to_handle_nans)
+    biomarkers['APSlopeMax'] = average_biomarker_values(ap_slope_maxs, how_to_handle_nans)
     biomarkers['Threshold'] = average_biomarker_values(calculate_threshold(traces), how_to_handle_nans)
     
     amp, tau, trough = fit_afterhyperpolarization(traces=traces,dvdt_threshold=5, ahp_model='single_exp', full_output=False)
@@ -146,19 +146,17 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=False, sim_k
     
 " --- Calculation and trace manipulation functions -- "
 
-def split_trace_into_aps(t,v,threshold=20,timeThreshold=5):#
+def split_trace_into_aps(t,v,threshold=20,time_threshold=5):#
     " Threshold is at +20 mV to avoid RF causing spurious AP detection "
 	
     # Units for defaults
-    # t, timeThreshold - ms
+    # t, time_threshold - ms
     # v, threshold - mV
 
     assert len(t) == len(v), "v and t length mismatch"
-        
-    
 
     crossings = []
-    timeCrossings = np.array([])
+    time_crossings = np.array([])
     
     # Check this for loop ignores last element
     # Looks for crossings from below
@@ -166,19 +164,19 @@ def split_trace_into_aps(t,v,threshold=20,timeThreshold=5):#
         if voltage < threshold:
             if v[i+1] >= threshold:
                 crossings.append(i)
-                timeCrossings = np.append(timeCrossings,t[i])
+                time_crossings = np.append(time_crossings,t[i])
                 
     # For each crossing, remove all instances within 5 ms, leaving only the first crossing of the threshold 
-    groupedCrossings = np.zeros(np.size(crossings),float) 
+    grouped_crossings = np.zeros(np.size(crossings),float) 
     
     for i in range(len(crossings)-1):
-        if groupedCrossings[i] == 0:
-            nearbyCrossings = np.array( (timeCrossings[i+1:] - timeCrossings[i]) < timeThreshold )
+        if grouped_crossings[i] == 0:
+            nearby_crossings = np.array( (time_crossings[i+1:] - time_crossings[i]) < time_threshold )
             # Assign 
-            groupedCrossings[i+1:] += nearbyCrossings
-            assert all(groupedCrossings < 2), "Grouped crossing grouped more than once"
+            grouped_crossings[i+1:] += nearby_crossings
+            assert all(grouped_crossings < 2), "Grouped crossing grouped more than once"
             
-    firstCrossIndices = np.where(groupedCrossings == 0)
+    firstCrossIndices = np.where(grouped_crossings == 0)
     # Need to turn crossings into a numpy array to index it with np.where
     firstCrossings = np.array(crossings)[firstCrossIndices]
     numAPs = len(firstCrossings)
@@ -236,22 +234,22 @@ def split_trace_into_aps(t,v,threshold=20,timeThreshold=5):#
     assert startIdx[0] == 0, "First AP doesn't start at beginning of trace."
     assert endIdx[-1] == len(v)-1, "Last AP doesn't end at end of trace."
     
-    return{'t':times, 'v':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}  
-        
-SplitTraceIntoAPs = split_trace_into_aps # alias
+    return{'t':times, 'v':voltages, 'startIndices':startIdx, 'endIndices':endIdx, 'numAPs':numAPs}   
+SplitTraceIntoAPs = split_trace_into_aps # Alias
     
-def VoltageGradient(t,v, method='gradient'):
+def voltage_gradient(t,v, method='gradient'):
     # There is a gradient function in numpy to take central differences
     if method == 'gradient':
         dvdt = np.gradient(v)/np.gradient(t) # Central differences except at end points
     elif method == 'diff':
-        dvdt = np.diff(v)/np.diff(t) # DIfference between adjacent points 
+        dvdt = np.diff(v)/np.diff(t) # Difference between adjacent points 
     else :
         raise ValueError("Method not found.")
     return dvdt
+VoltageGradient = voltage_gradient # Alias
     
 # --- Biomarkers ---
-def RMP(v):
+def rmp(v):
     # RMP should be calculated from a quiescent trace (no stimulus)
     # Ignore first 90% of trace to remove artifacts
     vLen = len(v)
@@ -259,6 +257,7 @@ def RMP(v):
     RMP = min(v[startIdx:])
     RMPIdx = np.argmin(v[startIdx:]) 
     return RMP, RMPIdx
+RMP = rmp # Alias
     
 def input_res(t, v, current_injection_time):
     # Input resistance calculated from a protocol with an equilibration phase
@@ -276,7 +275,7 @@ def input_res(t, v, current_injection_time):
 # Rheobase - find the first trace with an action potential
 # Assumes traces are sorted in order from smallest amplitude upwards
     """ To Do - check that simulations is a bunch of simulations, not just an array """
-def Rheobase(simulations,amps):
+def rheobase(simulations,amps):
     # Check amps is sorted
     for i in range(len(amps)-1):
         assert amps[i+1] > amps[i], 'Amps in rheobase biomarker not increasing monotonically!'
@@ -288,19 +287,21 @@ def Rheobase(simulations,amps):
             return {'rheobase':amp, 'trace':simulation}       
     # If no APs found
     return {'rheobase':np.nan, 'trace':[]}
+Rheobase = rheobase # Alias
     
-def APPeak(v):
+def ap_peak(v):
 
     peak = max(v)
     location = np.argmax(v)
     return [peak,location]
+APPeak = ap_peak # Alias
     
 def threshold(t, v, dvdt_threshold=5., method='gradient'):
     # Calculation of threshold voltage as described in Davidson et al., 2014 PAIN
     # Threshold is in V/s - default of 5 is what was used by Davidson et al.
-    dvdt = VoltageGradient(t,v, method=method)    
+    dvdt = voltage_gradient(t,v, method=method)    
     thresholds = []
-    for i,gradient in enumerate(dvdt[0:-1]):
+    for i, gradient in enumerate(dvdt[0:-1]):
         if (gradient < dvdt_threshold) & (dvdt[i+1] > dvdt_threshold): # Look for crossing of threshold
             thresholds.append(v[i])
     if thresholds:
@@ -308,80 +309,125 @@ def threshold(t, v, dvdt_threshold=5., method='gradient'):
     else:
         return np.nan
         
-    
-    # Threshold here is a dVdt threshold in V/s!
-    # Default threshold is taken from Davidson et al. 2014, PAIN
-def APRiseTime(t,v,threshold=5):
+def ap_rise_time(t,v,threshold=5):
+    """ 
+    Threshold here is a dVdt threshold in mV/ms`
+    Default threshold is taken from Davidson et al. 2014, PAIN
+    """
     assert threshold > 0, 'Rise time threshold is a gradient threshold, should be > 0!'
-    dVdt = VoltageGradient(t,v)
-    peak = APPeak(v)
-    peakIdx = peak[1]
-    peakTime = t[peakIdx]
+    dVdt = voltage_gradient(t,v)
+    peak = ap_peak(v)
+    peak_idx = peak[1]
+    peak_time = t[peak_idx]
     
     # If dVdt is a tuple, second part is gradient
-    foundThresholds = []
+    found_thresholds = []
     for i,gradient in enumerate(dVdt[0:-1]): # Is dVdt a time vector as well?
         if gradient < threshold:
             if dVdt[i+1] > threshold:
-                foundThresholds.append(i)
+                found_thresholds.append(i)
     
-    numThresholds = len(foundThresholds)
-    if numThresholds == 1:
-        thresholdTime = t[foundThresholds[0]]
-        riseTime = peakTime - thresholdTime
-        if riseTime < 0:
-            #riseTime = 'Rise time < 0: %.3f' % riseTime
-            riseTime = np.nan
-#        assert riseTime >=0, 'Rise time < 0!'
-    elif numThresholds == 0:
-        riseTime = np.nan
-    elif numThresholds > 1:
+    num_threshold = len(found_thresholds)
+    if num_threshold == 1:
+        threshold_time = t[found_thresholds[0]]
+        rise_time = peak_time - threshold_time
+        if rise_time < 0:
+            #rise_time = 'Rise time < 0: %.3f' % rise_time
+            rise_time = np.nan
+#        assert rise_time >=0, 'Rise time < 0!'
+    elif num_threshold == 0:
+        rise_time = np.nan
+    elif num_threshold > 1:
 #        assert False, 'More than 1 threshold for rise time - APs may not be clearly separated.'
         # Take the first one - later ones are probably rapid spikes e.g. on the shoulder
-        thresholdTime = t[foundThresholds[0]]
-        riseTime = peakTime - thresholdTime
+        threshold_time = t[found_thresholds[0]]
+        rise_time = peak_time - threshold_time
+    return rise_time
+APRiseTime = ap_rise_time # Alias
         
-    return riseTime
-        
-def APSlopeMinMax(t,v):
-    dVdt = VoltageGradient(t,v)
-    slopeMin = min(dVdt)
-    slopeMax = max(dVdt)
+def ap_slope_min_max(t,v):
+    dVdt = voltage_gradient(t,v)
+    slope_min = min(dVdt)
+    slope_max = max(dVdt)
     ### Need mins and maxes
-    return [slopeMin,slopeMax]
-    
-def APFullWidth(t,v,threshold=0):
-    ups = []
-    downs = []
-    for i in range(len(v)-1):
-        # Find ups (cross thresh from below)
-        if v[i] < threshold:
-            if v[i+1] >= threshold: # Equals here so we trigger once if we flatten off at exactly threshold
-                ups.append(i)
-        #Find downs (cross thresh from above)
-        if v[i] > threshold:
-            if v[i+1] <= threshold:
-                downs.append(i)
-    numUps = len(ups)
-    numDowns = len(downs)
+    return [slope_min,slope_max]
+APSlopeMinMax = ap_slope_min_max # Alias    
 
-    if (numUps < 1) | (numDowns < 1):
+
+
+def ap_full_width(t,v ,_threshold=5., threshold_type='gradient'):
+    """
+    Calculate full width of AP by one of two methods, a voltage threshold
+    or a voltage/time gradient threshold
+    Defaults are consistent with Davidson et al. 2014 (5 mV/ms gradient to find threshold voltage)
+
+    _threshold named to avoid overlapping with threshold function
+    """
+
+    if threshold_type == 'voltage':
+        ups, downs = find_threshold_crossings(v, _threshold)
+    elif threshold_type == 'gradient':
+        # Find voltage at which we cross the dvdt threshold
+        dvdt = np.gradient(v)/np.gradient(t)
+        gradient_threshold = None
+        for i, _ in enumerate(dvdt[:-1]):
+            if (dvdt[i] < _threshold) and (dvdt[i+1] >= _threshold):
+                gradient_threshold = v[i]
+                break
+        # Return if we don't cross the threshold
+        if gradient_threshold:
+            ups, downs = find_threshold_crossings(v, gradient_threshold)
+        else:
+            return np.nan
+    else:
+        raise ValueError("threshold type: {} not recognised".format(threshold_type))
+
+    #print(arr)
+    #print(ups,downs)
+    num_ups = len(ups)
+    num_downs = len(downs)
+
+    if (num_ups < 1) | (num_downs < 1):
         # Not enough crossings
-        fullWidth = np.nan
-    elif (numUps == 1) & (numDowns == 1): 
+        full_width = np.nan
+    elif (num_ups == 1) & (num_downs == 1): 
         # One crossing of threshold each way
-        fullWidth = t[downs[0]] - t[ups[0]]
-        
-    elif (numUps > 1) | (numDowns > 1):
+        full_width = t[downs[0]] - t[ups[0]]
+    elif (num_ups > 1) | (num_downs > 1):
         # Too many crossings
-        # Find earliest crossing from below
-        # and latest crossing from above
+        # Find earliest crossing from below and latest crossing from above
         # to calculate full width
-        earliestUp = ups[0]
-        latestDown = downs[-1]
-        fullWidth = t[latestDown] - t[earliestUp]
-    
-    return fullWidth
+        first_up = ups[0]
+        last_down = downs[-1]
+        full_width = t[last_down] - t[first_up]
+
+    return full_width
+
+APFullWidth = ap_full_width # Alias
+
+
+def ap_half_width(t,v, dvdt_threshold=5.):
+    """
+    Definition from neuroelectro.org:
+    AP duration at membrane voltage halfway between AP threshold and AP peak.
+    Currently only uses gradient method for finding threshold for simplicity.
+    """
+    # Calculate AP threshold and AP peak voltages
+    v_threshold = threshold(t,v, dvdt_threshold=dvdt_threshold, method='gradient')
+    v_peak = ap_peak(v)[0]
+    half_width_v_threshold = (v_threshold + v_peak)/2.
+
+    # Find crossing points
+    ups, downs = find_threshold_crossings(v,half_width_v_threshold)
+
+    # Check we have crossings
+    if ups and downs:
+        last_down = downs[-1]
+        first_up = ups[0]
+        half_width = t[last_down] - t[first_up]
+        return half_width
+    else:
+        return np.nan
 
 def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
     """ 
@@ -548,8 +594,8 @@ ampIdx = np.argmin(workingVoltage)
 
 #    dvdt = VoltageGradient(workingTime[ampIdx:], workingVoltage[ampIdx:])
 #    plt.plot(workingTime[ampIdx:-1],dvdt)
-#    temp = np.argwhere(dvdt > dvdtThreshold) # Temp because we only need the first element
-#    takeoffIdx = temp[0][0] # TODO This will break if there's no points above dvdtThreshold
+#    temp = np.argwhere(dvdt > dvdt_threshold) # Temp because we only need the first element
+#    takeoffIdx = temp[0][0] # TODO This will break if there's no points above dvdt_threshold
 #    plt.plot(workingTime[ampIdx:ampIdx+takeoffIdx],workingVoltage[ampIdx:ampIdx+takeoffIdx])
 #    plt.plot(workingTime,workingVoltage)
 # AHP time constant
@@ -607,16 +653,21 @@ def calculate_rmp(traces):
     return RMPVals
 CalculateRMP = calculate_rmp # Alias
     
-def CalculateInputRes():
+def calculate_input_res():
     input_res_vals = []
     for i,v in enumerate(traces['v']):
         input_res_vals.append(input_res(v))
     return input_res_vals
+CalculateInputRes = calculate_input_res # Alias
     
-    
-def CalculateRampAP():
+def calculate_ramp_ap():
+    """ 
+    Can't remember what this biomarker was supposed to do? 
+    We just run ramp simulations and calculate biomarkers on those now.
+    """
     # TODO
     return 0
+CalculateRampAP = calculate_ramp_ap # Alias
     
 
 def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, sim_kwargs=None, search='simple'):
@@ -646,7 +697,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
         stim_period_indices = [t >= (delay-run_up)]
         t = t[stim_period_indices]
         v = v[stim_period_indices]        
-        traces = SplitTraceIntoAPs(t,v,threshold=0.,timeThreshold=5.)
+        traces = split_trace_into_aps(t,v,threshold=0.,time_threshold=5.)
         if traces['numAPs'] > 0: # rheobase found
             if make_plot:
                 plot_traces(traces)
@@ -710,7 +761,6 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
         # no rheobase. If the first 5? searches fail we switch to binary.
         # TODO
         pass
-
 CalculateRheobase = calculate_rheobase # Alias for compatibility
 
 def calculate_threshold(traces, dvdt_threshold=5.):
@@ -719,62 +769,66 @@ def calculate_threshold(traces, dvdt_threshold=5.):
         thresholds.append(threshold(t, v, dvdt_threshold=dvdt_threshold, method='gradient'))
     return thresholds
 
-def CalculateAPPeak(traces):
-    APPeakVals = []
+def calculate_ap_peak(traces):
+    ap_peak_vals = []
     for _,v in zip(range(len(traces['t'])),traces['v']):
-        APPeakVals.append(APPeak(v)[0])
-    return APPeakVals
+        ap_peak_vals.append(ap_peak(v)[0])
+    return ap_peak_vals
+CalculateAPPeak = calculate_ap_peak # Alias
     
-def CalculateAPRiseTime(traces,dvdtthreshold=5.):
-    APRiseTimeVals = []
+def calculate_ap_rise_time(traces,dvdtthreshold=5.):
+    ap_rise_time_vals = []
     for t,v in zip(traces['t'],traces['v']):
-        APRiseTimeVals.append(APRiseTime(t,v,dvdtthreshold))
-    return APRiseTimeVals
+        ap_rise_time_vals.append(ap_rise_time(t,v,dvdtthreshold))
+    return ap_rise_time_vals
+CalculateAPRiseTime = calculate_ap_rise_time # Alias
     
-def CalculateAPSlopeMinMax(traces):
-    APSlopeMinVals = []
-    APSlopeMaxVals = [] 
+def calculate_ap_slope_min_max(traces):
+    ap_slope_min_vals = []
+    ap_slope_max_vals = [] 
     for t,v in zip(traces['t'],traces['v']):
-        dVdt = VoltageGradient(t,v)
-        APSlopeMinVals.append(min(dVdt))
-        APSlopeMaxVals.append(max(dVdt))
-    return APSlopeMinVals, APSlopeMaxVals
-    
-def CalculateAPFullWidth(traces,threshold=0):
-    
-    APFullWidthVals = []
+        dvdt = voltage_gradient(t,v)
+        ap_slope_min_vals.append(min(dvdt))
+        ap_slope_max_vals.append(max(dvdt))
+    return ap_slope_min_vals, ap_slope_max_vals
+CalculateAPSlopeMinMax = calculate_ap_slope_min_max # Alias
+
+def calculate_ap_full_width(traces,threshold=0, method='voltage'):
+    ap_full_width_vals = []
     for t,v in zip(traces['t'],traces['v']):
-        APFullWidthVals.append(APFullWidth(t,v,threshold))
-    return APFullWidthVals
-    
-def CalculateAHPAmp(traces,dvdtThreshold=5):
-    AHPAmpVals = []
+        ap_full_width_vals.append(ap_full_width(t,v,threshold,method))
+    return ap_full_width_vals
+CalculateAPFullWidth = calculate_ap_full_width # Alias
+
+def calculate_ahp_amp(traces,dvdt_threshold=5):
+    ahp_amp_vals = []
     if traces['numAPs'] > 1:
         for i in range(traces['numAPs']-1):
             t = traces['t'][i]
             v = traces['v'][i]
             t2 = traces['t'][i+1]
             v2 = traces['v'][i+1]
-            amp, tau, trough = fit_afterhyperpolarization(t,v,t2,v2,dvdtThreshold)
+            amp, tau, trough = fit_afterhyperpolarization(t,v,t2,v2,dvdt_threshold)
             AHPAmpVals.append(amp)
     elif traces['numAPs'] == 1:
         v = traces['v'][0]
-        maxIdx = np.argmax(v)
-        workingVoltage = v[maxIdx:]### join
-        amp = min(workingVoltage)
-        AHPAmpVals.append(amp)
+        max_idx = np.argmax(v)
+        working_voltage = v[max_idx:]### join
+        amp = min(working_voltage)
+        ahp_amp_vals.append(amp)
+    return ahp_amp_vals
+CalculateAHPAmp = calculate_ahp_amp # Alias
     
-    return AHPAmpVals
-    
-def CalculateAHPTau():
+def calculate_ahp_tau():
     # TODO
     return 0
+CalculateAHPTau = calculate_ahp_tau # Alias
 
 # -- Firing Patterns --
 # See Balachandar and Prescott 2018 for algorithms
 # TODO: Find algorithms for phasic and burst patterns
 
-def determine_firing_pattern(traces, stimulus_start_time):
+def determine_firing_pattern(traces, stim_start, stim_end):
     """
     Define firing pattern of traces as one or more of n types:
     1. Reluctant
@@ -784,23 +838,25 @@ def determine_firing_pattern(traces, stimulus_start_time):
     5. Gap
     6. Phasic - multi-AP firing that ends before end of stimulus
     7. Burst firing
+    8. Wide
+    9. Repolarisation failure
     """
 
-    def first_spike_delay(traces, stimulus_start_time):
+    def first_spike_delay(traces, stim_start):
         # Find delay between stim start and first spike
         first_spike_v = traces['v'][0]
         first_spike_t = traces['t'][0]
-        single_spike_index = APPeak(first_spike_v)[1]
+        single_spike_index = ap_peak(first_spike_v)[1]
         single_spike_time = first_spike_t[single_spike_index]
-        delay = single_spike_time - stimulus_start_time
-        print("delay = {}".format(delay))
+        delay = single_spike_time - stim_start
+        #print("delay = {}".format(delay))
         return delay
 
     def first_two_spikes_isi(traces):
         # Find delay between first and second spikes
         spike_times = []
         for i in [0,1]:
-            spike_idx = APPeak(traces['v'][i])[1]
+            spike_idx = ap_peak(traces['v'][i])[1]
             spike_times.append(traces['t'][i][spike_idx])
         
         delay = spike_times[1] - spike_times[0]
@@ -810,7 +866,7 @@ def determine_firing_pattern(traces, stimulus_start_time):
         # Find delay between second and third spikes
         spike_times = []
         for i in [1,2]:
-            spike_idx = APPeak(traces['v'][i])[1]
+            spike_idx = ap_peak(traces['v'][i])[1]
             spike_times.append(traces['t'][i][spike_idx])
         
         delay = spike_times[1] - spike_times[0]
@@ -819,63 +875,80 @@ def determine_firing_pattern(traces, stimulus_start_time):
     def check_delayed(traces):
         # Check if firing pattern is delayed
         delayed = False
-        numAPs = traces['numAPs']
+        num_aps = traces['numAPs']
         # Delayed firing pattern criterion for 1 spike:
         # Delay from stim start to first spike is > 100 ms
-        if numAPs == 1:
-            if first_spike_delay(traces, stimulus_start_time) > 100.0:
+        if num_aps == 1:
+            if first_spike_delay(traces, stim_start) > 100.0:
                 delayed = True
         # Delayed firing pattern criterion for  > 1 spike:
         # Delay between stimulus start and firing first spike is > 1.5 
         # times the ISI between spikes 1 and 2.
-        elif numAPs > 1:
-            if first_spike_delay(traces, stimulus_start_time) > 1.5*first_two_spikes_isi(traces):
+        elif num_aps > 1:
+            if first_spike_delay(traces, stim_start) > 1.5*first_two_spikes_isi(traces):
                 delayed  = True
         return delayed
 
     def check_gap(traces):
         gap = False
-        numAPs = traces['numAPs']
+        num_aps = traces['numAPs']
         # Gap firing criteria:
         # Number of spikes > 2
         # ISI between spikes 1 and 2 > 1.5 times ISI between spikes 2 and 3
         gap = False
-        if traces['numAPs'] > 2:
+        if num_aps > 2:
             if first_two_spikes_isi(traces) > 1.5*second_third_spikes_isi(traces):
                 gap = True
         return gap    
 
 
-    def check_phasic(traces, stimulus_start_time):
+    def check_phasic(traces, stim_end, ratio_threshold=0.25):
         """
         Phasic - firing of multiple APs followed by a period of quiescence. 
-        Not currently sure how to search for, look at implementation ideas below.
+        Cases
+        1. Idea is use ratio of - Time from last spike to stimulus end:time from first to last spike
+        If the ratio is above some threshold.
+        2. Simply time from last peak to end of stimulus compared to a threshold.
         """
         
         phasic = False
-        # Cannot have a burst with less than 2 APs
-        if traces['numAPs'] > 1:
-            # Find times of all AP peaks
-            AP_peak_times = []
-            for v,t in zip(traces['v'], traces['t']):
-                idx = APPeak(v)[1]
-                tpeak = t[idx]
-                AP_peak_times.append(tpeak)
-            
-            # See if there are periods of quiet between bursts or not
-            ISIs = inter_spike_interval(traces)
-            assert False, "Phasic checking not implemented yet"
+        # Characterisation cases
+        case1 = True
+        case2 = False
+        
+        # First, check we have multiple APs
+        # We will class single spikes as single spikes, not phasic.
+        num_aps = traces['numAPs']
+        if num_aps < 2:
+            return False
+        
+        spike_times = []
+        for i in range(num_aps):
+            spike_idx = ap_peak(traces['v'][i])[1]
+            spike_times.append(traces['t'][i][spike_idx])
+        
+        # Case 1
+        if case1:
+            last_spike_to_stim_end = stim_end - spike_times[-1]
+            # check stimulus ended before last spike, if not can't be phasic
+            if last_spike_to_stim_end > 0:
+                first_to_last_spike = spike_times[-1] - spike_times[0]
+                assert first_to_last_spike > 0
 
-        """
-        Implementation ideas...
-        Use the ratio of the time from last spike to end of stimulus to the maximum ISI?
-        """
-        def that_idea(AP_peak_times, ISIs):
-            pass
+                ratio = last_spike_to_stim_end/first_to_last_spike
+                #print("Ratio = {}".format(ratio))
+                if ratio > ratio_threshold:
+                    phasic = True
+        
+        # Case 2
+        if case2:
+            raw_time_threshold = 50.0
+            if last_spike_to_stimulus_end > raw_time_threshold:
+                phasic = True
 
         return phasic
 
-    def check_bursting(traces, stimulus_start_time):
+    def check_bursting(traces, stim_start):
         """
         Bursting - bursts of APs separated by rest periods
         Not sure how to characterize currently.
@@ -884,32 +957,78 @@ def determine_firing_pattern(traces, stimulus_start_time):
         Quiet period is region where distance between two APs or last AP and 
         stimulus end is greater than some multiple of the average ISI (median?).
         """
-        pass
+        bursting = False
+        return bursting
 
+    def check_wide(traces, mean_width_threshold=10.0):
+        """
+        Abnormally wide APs - feature seen when inserting hNav 1.8 into mice (Han et al. 2015).
+        """
+        wide = False
+
+        # Get width of each AP using AP half width biomarker
+        # Use half width as we can compare against data in Han et al. 2015
+        # Figure 8D shows half-width distributions, which motivated the choice to 
+        # set default width threshold for 'wide' designation to 10 ms.
+        half_widths = []
+        for t, v in zip(traces['t'], traces['v']):
+            half_widths.append(ap_half_width(t ,v, dvdt_threshold=5.))
+
+        if half_widths: # Check we have widths
+            if np.mean(half_widths) > mean_width_threshold:
+                wide = True
+        return wide
+
+    def check_rep_fail(traces, rep_fail_threshold=0.0):
+        """
+        Repolarisation failure - trace does not recover to a reasonably depolarised voltage
+        This can be set by user but we'll start with using 0 mV as default threshold and 
+        can tune as needed.
+        """
+        rep_fail = False
+
+        last_trace = traces['v'][-1]
+        # Check last element of last trace against threshold
+        if last_trace[-1] > rep_fail_threshold:
+            rep_fail = True
+        return rep_fail
 
 
     firing_pattern = []
-    numAPs = traces['numAPs']
-    if numAPs == 0:
+    num_aps = traces['numAPs']
+    if num_aps == 0:
         firing_pattern.append('reluctant')
-    elif numAPs == 1:
+    elif num_aps == 1:
         firing_pattern.append('single')
-        # Check for delayed spiking
         if check_delayed(traces):
             firing_pattern.append('delayed')
-    elif numAPs > 1:
+        if check_wide(traces):
+            firing_pattern.append('wide')
+        if check_rep_fail(traces):
+            firing_pattern.append('rep_fail')
+    elif num_aps > 1:
         firing_pattern.append('multi')
-        # Determine if tonic spiking
+        # Determine if tonic spiking - can't be delayed, gap, phasic or repolarisation failure
+        phasic = check_phasic(traces, stim_end, ratio_threshold=0.25)
         delayed = check_delayed(traces)
         gap = check_gap(traces)
-        if (not delayed) and (not gap):
+        rep_fail = check_rep_fail(traces)
+        if (not delayed) and (not gap) and (not phasic) and (not rep_fail):
             firing_pattern.append('tonic')
+        if phasic:
+            firing_pattern.append('phasic')
         if delayed:
             firing_pattern.append('delayed')
         if gap:
             firing_pattern.append('gap')
+        if rep_fail:
+            firing_pattern.append('rep_fail')
+        # Check wide
+        if check_wide(traces, mean_width_threshold=10.0):
+            firing_pattern.append('wide')
 
-    print(" TODO:Phasic,bursting")
+
+    #print(" TODO:Bursting")
     return firing_pattern
 
 
@@ -922,24 +1041,26 @@ def plot_traces(traces):
 
 # ---- I/O ----
 
-def WriteHeader(biomarkerFile):
+def write_header(biomarker_file):
     string = 'Index'
     for biomarker in db.biomarkerNames:      
         string += (';' + biomarker)
     string += ';' + 'stimAmp'
     string += '\n'
-    biomarkerFile.write(string)
+    biomarker_file.write(string)
     return
+WriteHeader = write_header # Alias
         
-def WriteBiomarkers(biomarkers,biomarkerFile):
+def write_biomarkers(biomarkers,biomarker_file):
     # Write the values of each biomarker in csv format
     string = str(biomarkers['Index'])    
     for biomarker in db.biomarkerNames:        
         string += (';' + str(biomarkers[biomarker]))
     string += (';' + str(biomarkers['stimAmp']))
     string += '\n'
-    biomarkerFile.write(string)
+    biomarker_file.write(string)
     return
+WriteBiomarkers = write_biomarkers # Alias
         
 # ---- Util ----
 
@@ -965,17 +1086,22 @@ def get_biomarker_names(biomarker_set='all'):
         raise ValueError('biomarker_set {} not found'.format(biomarker_set))
     return biomarker_names
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+def find_threshold_crossings(arr, _threshold):
+    """
+    Find all indices at which a threshold is crossed from above and from below
+    in an array. Used for finding indices to compute ap widths and half widths.
+    """
+    #print("threshold = {}".format(_threshold))
+    ups = []
+    downs = []
+    for i, _ in enumerate(arr[:-1]): # Don't iterate on last element
+        # Get crossings of threshold from below
+        if arr[i] < _threshold:
+            if arr[i+1] >= _threshold:
+                ups.append(i)
+        # Get crossings of threshold from above
+        if arr[i] > _threshold:
+            if arr[i+1] <= _threshold:
+                downs.append(i)
+    return ups, downs
 

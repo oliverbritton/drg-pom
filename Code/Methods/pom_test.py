@@ -140,7 +140,8 @@ def simulate_iclamp(sim_id,
                                         v_init,
                                         celsius,
                                         options,
-                                        metadata,):
+                                        metadata,
+                                        flags,):
     """
     Runs a full simulation in IClamp mode (finds rheobase, finds rmp, and calculates biomarkers at rheobase)
     
@@ -164,11 +165,11 @@ def simulate_iclamp(sim_id,
     celsius (oC)
     options (dict)
     metadata(dict)
+    flags(dict) - flags for special options such as passing extra data to the simulation
     
     Returns
     -----------
     """
-
 
     # General setup
     import neuron
@@ -190,9 +191,9 @@ def simulate_iclamp(sim_id,
     results_names = biomarker_names 
     for name in results_names:
         results[name] = np.nan # @TODO - do this better to support biomarkers with variable lengths
+    results['Firing pattern'] = np.nan
    
     """ Setup model """    
-
 
     # Build model with separate mechanisms and mechanism parameter names
     cell = sh.build_model(mechanisms=mechanisms, mechanism_names=mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
@@ -230,12 +231,15 @@ def simulate_iclamp(sim_id,
         rheobase_found = False # Or set all other biomarkers to np.nan?
     
     # TODO - just call sh.simulation(**sim_kwargs), adding extra args to those above as needed
-    if rheobase_found:    
+    if rheobase_found or (amp is not None):    
         stims = []
         for stim_idx in range(num_stims):
             stims.append(stim_func(0.5, sec=cell))
             stims[-1].dur = dur
-            stims[-1].amp = rheobase
+            if amp is None:
+                stims[-1].amp = rheobase # If amp is None use rheobase as amp
+            else:
+                stims[-1].amp = amp # Predetermined amplitude
             stims[-1].delay = delay + stim_idx*(dur + interval)
             
         v,t = sh.set_vt(cell=cell)
@@ -257,11 +261,38 @@ def simulate_iclamp(sim_id,
         
         # --- Analyse simulation for biomarkers ---
         traces = nb.SplitTraceIntoAPs(t,v)
+        # This is the borked bit - TODO: fix this
         biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
+        
+        try:
+            # Check flags for alternate biomarker calculations
+            for flag in flags:
+                if flag == "ramp_threshold_sim_for_width":
+                    _threshold = flags[flag]
+                    biomarkers['APFullWidth'] = nb.average_biomarker_values(
+                            nb.calculate_ap_full_width(traces, threshold=_threshold, method='voltage'),
+                            how_to_handle_nans="return")
+        except Exception as e:
+            with open("{}_{}.txt".format(sim_id,stim_func),'w') as f:
+                f.write(str(e))
+                biomarkers['APFullWidth'] = "FAILURE"
 
         #print("biomarkers.keys: {}".format(biomarkers.keys())) #debug
         #print("results.keys: {}".format(results.keys())) # debug
 
+        # Firing pattern
+        
+        if num_stims == 1:
+            stim_start = delay
+            stim_end = delay + dur
+            try:
+                biomarkers['Firing pattern'] = nb.determine_firing_pattern(traces, stim_start, stim_end)
+            except Exception as e:
+                with open("{}_{}".format(sim_id,str(stim_func)),'w') as f:
+                    f.write(str(e))
+        else:
+            biomarkers['Firing pattern'] = "Couldn't determine as num stims = {}, not 1".format(num_stims)
+        
         for result in biomarkers:
             results[result] = biomarkers[result]
             
@@ -325,7 +356,8 @@ def simulate_vclamp(sim_id,
                                     durations,
                                     celsius,
                                     options,
-                                    metadata,):
+                                    metadata,
+                                    flags,):
     """
     Simulation of standard voltage clamp protocol.
     Example implementing following protocol for K+ recordings from Anabios:
@@ -353,6 +385,7 @@ def simulate_vclamp(sim_id,
     celsius (oC)
     options (dict)
     metadata(dict)
+    flags(dict) - flags for special options such as passing extra data to the simulation
     
     Returns
     -----------
@@ -1011,7 +1044,6 @@ class Simulation(object):
         # Population-specific setup
         if population != None:
             self.population = population # Set reference to population
-            
             self.simulation_ran = False # Check if simulation has been run - only run once
         else:
             # @TODO: Add in support for single cell simulations
@@ -1023,16 +1055,19 @@ class Simulation(object):
         else:
             assert False, "options not enabled in constructor" # @TODO do this better
     
+
     def reset_simulation(self):
-        """ Reset simulation for a rerrun.
+        """ 
+        Reset simulation for a rerun.
         """
         self.traces = {}
         self.plotting_pointer = 0
         
         
-    def pom_simulation(self, simulation_type, cores=1, plot=False, save=False, save_type='fig', benchmark=True, rerun=False):
+    def pom_simulation(self, simulation_type, cores=1, plot=False, save=False,
+            save_type='fig', benchmark=True, rerun=False):
         """
-        Run  simulations 
+        Run simulations 
         
         Parameters
         -----------------
@@ -1040,16 +1075,17 @@ class Simulation(object):
         cores: int, default 1
         plot: bool, default False
         save: bool, default False
-        save_type: str, default 'fig', options are  defined by allowed_save_types()
+        save_type: str, default 'fig', options aredefined by allowed_save_types()
         benchmark: bool, default True
         
         Returns
         -----------
-        Dataframe of biomarker results indexed by their index in the population associated with 
-        this simulation class.
+        Dataframe of biomarker results indexed by their index in the population
+        associated with this simulation class.
         """
         if (self.simulation_ran == True) & (self.rerun == False):
-            raise ValueError("This simulation has already been ran, cannot run same simulation again with the same simulator with name: {} without specifying simulation is a rerun.".format(self.name))
+            raise ValueError("This simulation has already been ran, cannot run same simulation again"
+            "with the same simulator with name: {} without specifying simulation is a rerun.".format(self.name))
             
         if self.population == None:
             raise ValueError('No population specified - cannot run population of models simulation!')
@@ -1059,23 +1095,24 @@ class Simulation(object):
         assert(save_type in allowed_save_types()), "Save type not recognised."
         options = {'plot':plot, 'save':save, 'save_type':save_type}
         self.options = options # save options so we can use them to process output
+        self.protocols['options'] = options
         # Metadata is used for saving and plotting
         metadata = {'population_name':self.population.name, 'simulation_name':self.name}
-        self.protocols['options'] = options
         self.protocols['metadata'] = metadata
 
-        # Simulation setup:
-        #simulation_type = self.protocols['simulation_type']
+        # Simulation setup
         self.set_simulation_function(simulation_type)
         num_sims = len(self.population.results.index)
-        self.results = pd.DataFrame(index=self.population.results.index, 
-                                                       columns=self.get_biomarker_names(simulation_type, self.protocols['outputs']) )
+        self.results = pd.DataFrame(
+                index=self.population.results.index, 
+                columns=self.get_biomarker_names(simulation_type, self.protocols['outputs']), 
+                )
                                                        
         # ---- Main parallel simulation loop ---- 
         self.model_indices = self.population.results.index.tolist()
-        self.model_indices.sort() # So that no matter the order in the dataframe we should use a consistent order across simulations, unless sort changes!
-        self.model_indices = tuple(self.model_indices) # So we can't modify the order
-        #assert np.issubdtype(self.model_indices, int), "Model indices from population index are not integers - we need them to be to label output correctly." # Actually we don't any more, I think
+        self.model_indices.sort() # No matter the order in the dataframe we use a consistent order across simulations, unless sort changes.
+        self.model_indices = tuple(self.model_indices) # Make order immutable
+
         assert(len(self.model_indices) == len(set(self.model_indices))), "Duplicates in model indices." 
         print("Simulation set of {} simulations begun.".format(num_sims))
         start  = time.time()
@@ -1083,22 +1120,18 @@ class Simulation(object):
         
         #num_per_batch = 4
         #num_runs = int(np.ceil(float(len(self.model_indices)/num_per_batch))
-        
         #for run in range(num_runs):
+
         self.count = 0
         for i, model_idx in enumerate(self.model_indices):   
-            active_parameters = self.population.results['Parameters'].loc[model_idx]
-            # @TODO! - Think about how we want to use mechanisms and mechanism names - is there a better format?
-            # @TODO - Understand how to handle multiprocessing errors so we can return an error message if the parameter names and mechanism names don't line up.
-            # @TODO - We have we have population.parameter_designations, population.mechanism_names and population.results['Parameters']....should we consolidate at least the parameters and mechanism names into a single data structure?
-            mechanisms = {self.population.parameter_designations[param]:val for param, val in active_parameters.items()} # iteritems over pd.Series to get key value pairs and generate a dict from them
-            
+            mechanisms = self.build_parameters(model_idx)
             # @TODO - allow different cellular parameters and ionic concs to be input, as well as variation in parameters
             
-            sim_kwargs= self.build_simulation_kwargs(sim_id=model_idx, 
-                                                                                      simulation_type=simulation_type, 
-                                                                                      simulation_parameters=self.protocols, 
-                                                                                      mechanisms=mechanisms)
+            sim_kwargs = self.build_simulation_kwargs(
+                    sim_id = model_idx,
+                    simulation_type = simulation_type,
+                    simulation_parameters = self.protocols,
+                    mechanisms = mechanisms)
                                                                       
             pool.apply_async(self.simulation_function, kwds=sim_kwargs, callback=self.log_result)
         
@@ -1149,16 +1182,52 @@ class Simulation(object):
         else: 
             raise ValueError('simulation type: {} is not found.'.format(simulation_type))
 
-            
+
+    def build_parameters(self, model_idx):
+        """
+        Construct parameter data for a model including parameter changes if required
+        @TODO! - Think about how we want to use mechanisms and mechanism names - is there a better format?
+        @TODO - Understand how to handle multiprocessing errors so we can return an error message if the
+        parameter names and mechanism names don't line up.
+        @TODO - We have we have population.parameter_designations, population.mechanism_names and
+        population.results['Parameters']....should we consolidate at least the parameters and mechanism
+        names into a single data structure?
+
+        Format of parameter_scaling is a dict with format:
+        {parameter:scaling_factor}
+        where parameter is the public parameter name shown in pop.results
+        and where scaling factor is a number that the base parameter value will be multiplied by
+        """
+
+        # Make working copy of base parameter set. Important to copy otherwise we may modify population.results
+        active_parameters = self.population.results['Parameters'].loc[model_idx].copy()
+
+        # If we have parameters to scale, find the NEURON parameter name and apply scaling
+        # TODO - should we use a better name than 'parameter_scaling'? Maybe allow several names like:
+        # parameter_scaling, drug_block, drug block, parameter change, etc.? (But if there's more than
+        # one of these names in protocols we throw an error). 
+        if 'parameter_scaling' in self.protocols:
+            for param, scaling_factor in self.protocols['parameter_scaling'].items():
+                # Check parameter is present and apply scaling factor
+                assert param in self.population.parameter_designations, (
+                "Parameter {} not present in parameter designations".format(param))
+                active_parameters.loc[param] *= scaling_factor
+
+        # Finally, build mechanisms from parameters using parameter_designations to translate from public parameter
+        # names to NEURON names
+        mechanisms = {self.population.parameter_designations[param]:val for param, val in active_parameters.items()} 
+        return mechanisms
+              
     def get_simulation_protocol_names(self):
         """
         Gets list of parameter names for each simulation 
         """
         names = {}
-        names['always'] = ['sim_id', 'options', 'metadata'] # always assign these for every simulation
+        names['always'] = ['sim_id', 'options', 'metadata',] # always assign these for every simulation
         names['clamp'] = ['mechanisms', 'mechanism_names', 'biomarker_names', 'ions', 't_stop', 'outputs', 'celsius'] # Common to IClamp and VClamp
         names['iclamp'] = ['amp', 'dur', 'delay', 'interval', 'num_stims', 'stim_func', 'v_init', 'sampling_freq']
         names['vclamp'] = ['hold', 'steps', 'delta', 'durations']
+        names['optional'] = ['flags', 'parameter_scaling'] # use these if provided but don't require them
         return names
         
 
@@ -1187,13 +1256,23 @@ class Simulation(object):
         # Now do specific parameters
         for kwarg in names[simulation_type]:
             kwargs[kwarg] = simulation_parameters[kwarg]
+
+        # Check for optional parameters and process them
+        for kwarg in names['optional']:
+            # Flags
+            if kwarg == 'flags':
+                if kwarg in simulation_parameters:
+                    kwargs['flags'] = self.process_flags(simulation_parameters['flags'], sim_id)
+                else:
+                    kwargs['flags'] = {} # Set empty dict if no flags provided
+
+
             
-        # finally, assign the "always" names
+        # Finally, assign the "always" names
         for kwarg in names['always']:
             kwargs[kwarg] = simulation_parameters[kwarg]
             
-        assert set(kwargs.keys()) == set(get_function_args(self.simulation_function)), "Kwargs don't match function argument list"
-            
+        assert set(kwargs.keys()) == set(get_function_args(self.simulation_function)), "Kwargs don't match function argument list"  
         return kwargs
         
         
@@ -1227,17 +1306,19 @@ class Simulation(object):
     
     
     def get_simulation_protocol_defaults(self):
-        """ Get default values for simulation protocols.
-              This could be useful if some are missing in the input? 
-              Or do we want to enforce having all the inputs?
-              I think we want to force all inputs for research purposes - makes every 
-              simulation parameter explicit.
+        """ 
+        Get default values for simulation protocols.
+        This could be useful if some are missing in the input? 
+        Or do we want to enforce having all the inputs?
+        I think we want to force all inputs for research purposes - makes every 
+        simulation parameter explicit.
         """
-        pass
+        assert False, "Not implemented to encourage simulation inputs to be explicitly documented in run scripts."
             
         
     def get_biomarker_names(self, sim_type, outputs):
-        """ Generate the list of biomarker names we'll calculate.
+        """ 
+        Generate the list of biomarker names we'll calculate.
         Currently a bit messy as to add a new biomarker we need to add it here
         and in the simulation code. But it should cause an error if I miss one or the other.
         
@@ -1248,25 +1329,59 @@ class Simulation(object):
         biomarker_names = {}
         
         # Common iclamp and vclamp names
-        biomarker_names['iclamp'] = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax', 'AHPAmp', 'AHPTau', 'AHPTrough', 'ISI', 'RMP', 'Rheobase']
+        biomarker_names['iclamp'] = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',
+                'AHPAmp', 'AHPTau', 'AHPTrough', 'ISI', 'RMP', 'Rheobase', 'Firing pattern']
         biomarker_names['vclamp'] = []
         
-        # Set biomarkers that are only calculated when request through outputs
+        # Set biomarkers that are only calculated when requested through outputs
         if 'ik' in outputs:
             biomarker_names['iclamp'].extend([]) # Nothing yet
             biomarker_names['vclamp'].extend(['ik_steps_absmax'])
         if 'ina' in outputs:
-            raise ValueError
+            biomarker_names['iclamp'].extend([]) # Nothing yet
+            biomarker_names['vclamp'].extend([]) # Nothing yet
             
         return biomarker_names[sim_type.lower()]
+
+
+    def process_flags(self, flags, sim_id):
+        """
+        Processes any flags given to the simulation and returns the correct information.
+        """
+        processed_flags = {}
+        for flag, val in flags.items():
+            assert flag in self.allowed_flags(), "Flag {} not in allowed_flags".format(flag)
+            if flag == "ramp_threshold_sim_for_width":
+                sim_name = val
+                # Checks
+                assert self.population != None, "Need a population"
+                assert sim_name in self.population.results.columns, "sim_name {} not found".format(sim_name)
+                assert sim_id in self.population.results.index, "sim_id {} not found".format(sim_id)
+
+                threshold = self.population.results.at[sim_id, (sim_name, 'Threshold')]
+                processed_flags[flag] = threshold
+            else:
+                raise ValueError("Flag {} not supported.".format(flag))
+
+        return processed_flags
+
+    def allowed_flags(self):
+        """
+        Returns a list of allowed strings to be passed to simulations as flags
+        """
+        allowed_flags = []
+        # Provide the name of a previously run simulation to use that simulation for threshold
+        # in calculation of AP full width following Davidson et al. PAIN 2014. 
+        allowed_flags.append("ramp_threshold_sim_for_width") 
+        return allowed_flags
         
-    
     " Output functions "
 
     def log_test(self, result):
         for biomarker in self.results.columns:
             self.results.loc[0, biomarker] = result
     
+
     def log_result(self, result):
         """
         Stores the result from a simulation using callback functionality. 
@@ -1281,8 +1396,12 @@ class Simulation(object):
             # @TODO - do this when we create the results df to avoid doing it all the time!
             #if isinstance(result[biomarker], collections.Sequence):
             #self.results[biomarker] = self.results[biomarker].astype(object)
-                
-            self.results.loc[sim_id, biomarker] = result[biomarker]
+
+               self.results.at[sim_id, biomarker] = result[biomarker] 
+               # Use at not loc because loc breaks with lists (like firing patterns)
+               # at can only access one value whereas loc could access multiple values
+               # in this case we are always only wanting to put a result into a single cell
+               # see: https://stackoverflow.com/questions/26483254/python-pandas-insert-list-into-a-cell
             
         # If we are doing figure plotting of multiple traces
         # store the trace in temporary storage
@@ -1293,17 +1412,16 @@ class Simulation(object):
         filename = filename =  '{0}_{1}_traces_{2}.png'.format(self.population.name, self.name, self.count)
         plotted = self.trace_plot(self.num_subplots, filename)
         if plotted: 
-                self.count+=1 # only increment if we plot
+                self.count += 1 
                 
     
     def trace_plot(self, traces_to_plot, filename, force_plot=False, require_contiguous=True):
-        """  If we want to save subplots of traces, decide if we have enough saved traces to plot
-               First implementation was to just look for contiguous blocks - but what if we plot 1->101 
-               and miss trace 0 in the first?
-               Second implementation (CURRENTLY USED): demand we start with the first sim_id, then when we've done a plot move the pointer to sim_id+traces_to_plot+1.
-               Can support 
-               Third implementation if necessary (NOT DONE): if big simulations
-
+        """  
+        If we want to save subplots of traces, decide if we have enough saved traces to plot
+        First implementation was to just look for contiguous blocks - but what if we plot 1->101 
+        and miss trace 0 in the first?
+        Second implementation (CURRENTLY USED): demand we start with the first sim_id, then when we've done a plot
+        move the pointer to sim_id+traces_to_plot+1.
         """
         
         # Only do anything if the right save options are set
@@ -1326,7 +1444,7 @@ class Simulation(object):
                     ids = self.traces.keys()
                     ids = sorted(ids)
                     required_format = self.model_indices[self.plotting_pointer:self.plotting_pointer+traces_to_plot]
-                    # Change this if statement if we want to be able to plot blocks beyond the first (third implementation idea in function docstring)
+                    # Change this if statement if we want to be able to plot blocks beyond the first
                     if all([i == j for i,j in zip(ids[0:traces_to_plot], required_format)]):  
                         make_plot = True
                         self.plotting_pointer += traces_to_plot
@@ -1385,7 +1503,7 @@ class Simulation(object):
             elif make_plot == False:
                 return False
             else: 
-                raise ValueError
+                raise ValueError("make_plot is invalid value: {}".format(make_plot))
                 
        
         

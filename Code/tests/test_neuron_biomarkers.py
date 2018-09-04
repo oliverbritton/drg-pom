@@ -38,20 +38,29 @@ def TestSplitTrace(trace):
     plt.show()
     """ TO DO Test threshold and time """
     
-def TestAPFullWidth(traces,threshold):    
-    
+def TestAPFullWidth(traces, threshold, threshold_type='voltage'):    
+    """ Test ap full width biomarker """
     count = 0
     for idx,(t,v) in enumerate(zip(traces['t'],traces['v']),1):
+        ap_full_width = nb.ap_full_width(t,v,threshold,threshold_type)
+        t_peak = t[np.argmax(v)]        
+
         cl = sns.color_palette()[count]
-        count += 1
-        APFullWidth = nb.APFullWidth(t,v,threshold)
         plt.plot(t,v,color=cl)
-        i = np.argmax(v)
-        tPeak = t[i]        
-        plt.plot([tPeak,tPeak+APFullWidth],[threshold]*2,color=cl)
-        print("Trace {}: Width = {} ms".format(idx, APFullWidth))
-    
-    
+        if threshold_type == 'voltage':
+            plt.plot([t_peak,t_peak+ap_full_width],[threshold]*2,color=cl)
+        elif threshold_type == 'gradient':
+            # Find voltage at which we cross the dvdt threshold
+            dvdt = np.gradient(v)/np.gradient(t)
+            gradient_threshold = None
+            for i, _ in enumerate(dvdt[:-1]):
+                if (dvdt[i] < threshold) and (dvdt[i+1] >= threshold):
+                    gradient_threshold = v[i]
+                    break
+            if gradient_threshold:
+                plt.plot([t_peak,t_peak+ap_full_width],[gradient_threshold]*2,color=cl)
+        print("Trace {}: Width = {} ms".format(idx, ap_full_width))    
+        count +=1 
     
 def TestAPPeak(traces):
     for i,t,v in zip(range(len(traces['t'])),traces['t'],traces['v']):
