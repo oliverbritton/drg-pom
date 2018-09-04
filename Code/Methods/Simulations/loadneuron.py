@@ -31,17 +31,15 @@ def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, )
 
     if are_mechanisms_loaded() == False:
         if nrnmech_path == None:
-            nrnmech_path = os.path.join(get_mechanism_dir(type), 'nrnmech.dll')
+            nrnmech_path = os.path.join(get_mechanism_dir(type), get_mech_lib_name(platform))
         else:
-            # Add platform specific mechanism libraries if needed
-            if ('nrnmech.dll' not in nrnmech_path) & (platform == 'windows'):
-                nrnmech_path =  os.path.join(nrnmech_path, 'nrnmech.dll')
-            elif ('libnrnmech.so' not in nrnmech_path) & (platform == 'linux'):
-                nrnmech_path =  os.path.join(nrnmech_path, 'libnrnmech.so')
+            # If path is provided, check it contains library name
+            if get_mech_lib_name(platform) not in nrnmech_path:
+                nrnmech_path =  os.path.join(nrnmech_path, get_mech_lib_name(platform))
             else:
                 pass
 
-        print('Loading nrnmech.dll from {}.'.format(nrnmech_path))
+        print('Loading {} from {}.'.format(get_mech_lib_name(platform), nrnmech_path))
         h.nrn_load_dll(nrnmech_path) # Neuron mechanism loading function
 
     if verbose:
@@ -50,7 +48,14 @@ def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, )
         else:
             print("Mechanisms NOT loaded!")
 
-            
+def get_mech_lib_name(platform):
+    if platform == 'windows':
+        mech_lib_name = 'nrnmech.dll'
+    elif platform == 'linux':
+        mech_lib_name = 'libnrnmech.so'
+    else:
+        raise Exception('Platform {} not supported.'.format(sys.platform))
+
 def get_mechanism_dir(type='prototype'):
     """
     Returns the directory nrnmech.dll is stored in. 
