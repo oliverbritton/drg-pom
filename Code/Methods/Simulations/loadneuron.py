@@ -10,6 +10,14 @@ from neuron import h
 
 if 'mechanisms_loaded' not in locals():
     mechanisms_loaded = False
+
+# Get platform
+if sys.platform == 'win32':
+    platform = 'windows'
+elif sys.platform == 'linux':
+    platform = 'linux'
+else:
+    raise Exception('Platform {} not supported.'.format(sys.platform))
     
     
 def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, ):
@@ -26,9 +34,9 @@ def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, )
             nrnmech_path = os.path.join(get_mechanism_dir(type), 'nrnmech.dll')
         else:
             # Add platform specific mechanism libraries if needed
-            if ('nrnmech.dll' not in nrnmech_path) & (sys.platform == 'win32'):
+            if ('nrnmech.dll' not in nrnmech_path) & (platform == 'windows'):
                 nrnmech_path =  os.path.join(nrnmech_path, 'nrnmech.dll')
-            elif ('libnrnmech.so' not in nrnmech_path) & (sys.platform == 'linux'):
+            elif ('libnrnmech.so' not in nrnmech_path) & (platform == 'linux'):
                 nrnmech_path =  os.path.join(nrnmech_path, 'libnrnmech.so')
             else:
                 pass
@@ -52,9 +60,17 @@ def get_mechanism_dir(type='prototype'):
     """
     " Leave room for different dirs in the future "
     if type == 'prototype':
-        path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
+        if platform == 'windows':
+            path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
+        elif platform == 'linux':
+            path = '/home/scratch/olibri/Dropbox/Backups/Neuron/Code/Models/Currents/Prototypes/x86_64/.libs'
+        else:
+            raise Exception('Platform {} not supported.'.format(sys.platform))
     elif type == 'IClamp':
-        path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\IClamp'
+        if platform == 'windows':
+            path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\IClamp'
+        else:
+            raise Exception('Platform {} not supported.'.format(sys.platform))
     else:
         raise ValueError('Unsupported type: {} given to get_mechanism_dir'.format(type))
     return path
