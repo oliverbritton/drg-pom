@@ -656,7 +656,7 @@ def get_simulation_section(simulations, section, n):
     """
     assert (section > 0) & (section <= n), "section should start from 1 and go to n"
     sim_sections = divide_into_sections(simulations, n)
-    simulation_section = simulations[sim_sections[section+1]]
+    simulation_section = simulations[sim_sections[section]] # This is a bug that prevents doing the first seciton
     return simulation_section
 
 '''

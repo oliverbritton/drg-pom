@@ -1,6 +1,8 @@
 import sys
 
 import numpy as np
+import pandas as pd
+
 from scipy import optimize
 import Methods.Biomarkers.DavidsonBiomarkers as db
 import Methods.simulation_helpers as sh
@@ -1061,6 +1063,163 @@ def write_biomarkers(biomarkers,biomarker_file):
     biomarker_file.write(string)
     return
 WriteBiomarkers = write_biomarkers # Alias
+
+# ---- Frequency intensity curve biomarkers ----
+
+class FICurves(object):
+    """
+    Class to hold FI curve data
+    Frequencies
+    Amplitudes
+    Results
+    Which simulations go together
+    
+    And allow you to extract FI curves, plot them and obtain summary statistics
+    """
+    
+    
+    def __init__(self, results, simulations):
+        self.results = results.copy()
+        self.simulations = simulations.copy()
+        self.groups = [] # Data storage for each group
+        """ 
+        Get all the simulations that have a constant stimulus amplitude and aren't run to rheobase 
+        and group by block parameters and stimulus type TODO: And also check all other features (e.g. 
+        """
+        self.group_simulations()
+        self.get_FI_curves()
+        
+        # Process results to remove parameters
+        if 'Parameters' in self.results.columns.levels[0]:
+            self.results = self.results.drop('Parameters',axis=1,level=0)
+            self.results.columns = self.results.columns.drop('Parameters',level=0)
+        
+        
+        """
+        If we need multiple stim unit definitions:
+        1. Turn above line into for loop
+        2 Create a function called get_stim_amp_designations that gives all the things like nA or pA to search for
+        3. Search for any of them in the simulation name and accept those that hit one and only one of them
+        """
+
+                
+    def group_simulations(self):
+        """
+        Group simulations together that are the same except for their stimulus amplitudes
+        """
+        self.groups = []
+        for name, sim in self.simulations.items():
+            amp, shared_params = self.get_simulation_parameters(sim.protocols) 
+            # Check for a fixed amplitude (not a simulation to find rheobase)
+            if amp:
+                # Check whether there is an existing group with matching shared parameters (scaling factors, stim function)
+                group = self.check_for_existing_group(shared_params)
+                if group is not None:
+                    # Add sim name and amplitude to group as key, val
+                    self.groups[group]['simulations'][name] = amp
+                    #print("Appending: {}".format(self.groups[group]))
+                else:
+                    new_group = {'simulations': {name:amp}, 'shared_params':shared_params}
+                    #print("Making: {}".format(new_group))
+                    self.groups.append(new_group)  
+                    
+                    
+    def get_simulation_parameters(self, sim_protocols):
+        """
+        Extract needed simulation parameters
+        Currently: amplitude, stimulus type and scaling factors
+        """          
+        amp = sim_protocols['amp']
+        shared_params = {}
+        shared_params['stim_type'] = sim_protocols['stim_func']
+        if 'parameter_scaling' in sim_protocols:
+            shared_params['parameter_scaling'] = sim_protocols['parameter_scaling']
+        return amp, shared_params
+    
+    
+    def check_for_existing_group(self, shared_params):
+        """
+        Check groups for a group that mathches other_params.
+        Returns:
+        Group index if group exists
+        None if group does not exist
+        """
+        # Check if other_params matches all other_params in any other group
+        group_idx = None
+        for i, group in enumerate(self.groups):
+            if shared_params == group['shared_params']:
+                assert group_idx is None, "group_idx should equal None, instead: {}".format(group_idx)
+                group_idx = i
+
+        return group_idx
+
+                                
+    def get_FI_curves(self):
+        """
+        Use the ISIs to compute firing curves for each group, for models that have non-nan ISIs
+        Firing curves are calculated for each simulation group
+        """
+        num_groups = len(self.groups)
+        assert num_groups > 0, "Num groups: {} is not > 0".format(num_groups)
+        
+        # Iterate through each group
+        for group in self.groups:
+            """
+            Get frequencies for each simulation in the group and build into a dataframe
+            Dataframe format:
+            rows = model indices
+            columns = simulation amplitudes
+            """
+            idx = self.results.index
+            amps = [amp for amp in group['simulations'].values()]
+            fi_data = pd.DataFrame(index=idx, columns=amps)
+            # Populate this group's fi curve df 
+            for sim_name, amp in group['simulations'].items():
+                ISIs = self.results.loc[:,(sim_name,'ISI')]
+                frequencies = self.calculate_frequencies(ISIs)
+                fi_data.loc[:,amp] = frequencies
+            
+            # Save this group's data
+            group['FI'] = fi_data
+            
+    def plot_FI_curves(self):
+        """
+        Plot FI curves and maybe compute some summary statistics
+        Do scatter and line plots so that if we have a single datapoint for a model it still gets plotted
+        """
+        num_groups = len(self.groups)
+        subplot_dim = int(np.ceil(np.sqrt(num_groups))) # Number of subplots (square)
+        plt.figure(figsize=(10,10))
+        
+        for i, group in enumerate(self.groups):
+            plt.subplot(subplot_dim,subplot_dim, i+1)
+            fi_data = group['FI'].copy()
+            
+            for idx in fi_data.index:
+                data = fi_data.loc[idx,:]
+                plt.plot(data.index, data)
+                plt.scatter(data.index, data)
+                
+            plt.xlim(min(fi_data.columns)-0.1, max(fi_data.columns)+0.1)
+            plt.ylim(0, None)
+            
+            # Make a rough title
+            separator = '_'
+            for i, sim_name in enumerate(group['simulations']):
+                if i == 0:
+                    temp_title = sim_name
+                else:
+                    s1 = temp_title.split(separator)
+                    s2 = sim_name.split(separator)
+                    title_parts = [part for part in s1 if part in s2]
+                    title = separator.join(title_parts)
+            plt.title(title)
+            plt.xlabel('I (nA)')
+            plt.ylabel('f (Hz)')
+
+    def calculate_frequencies(self, ISIs):
+        return 1000.0/ISIs # Converts ms to Hz: ISI of 500 ms = 2 Hz, ISI of 2000 ms = 0.5 Hz
+
         
 # ---- Util ----
 

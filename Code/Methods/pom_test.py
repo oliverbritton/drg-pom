@@ -1506,4 +1506,15 @@ class Simulation(object):
                 raise ValueError("make_plot is invalid value: {}".format(make_plot))
                 
        
-        
+# --- Utils ---
+
+def set_dataframe_types(df):
+    """
+    Set all columns where all data has
+    """
+    typed_df = df.copy()
+    for column in typed_df:
+        types = [type(i) for i in typed_df[column]]
+        if all([i == types[0] for i in types]):
+            typed_df[column] = typed_df[column].astype(types[0])
+    return typed_df
