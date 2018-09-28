@@ -170,8 +170,9 @@ def simulate_iclamp(sim_id,
     Returns
     -----------
     """
-
     # General setup
+    with open('test.txt','w') as f:
+        f.write(str(mechanisms))
     import neuron
     from neuron import h
     sim_type = 'iclamp'
@@ -197,7 +198,6 @@ def simulate_iclamp(sim_id,
 
     # Build model with separate mechanisms and mechanism parameter names
     cell = sh.build_model(mechanisms=mechanisms, mechanism_names=mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
-    
     h.celsius = celsius
 
     # @TODO - put setting ionic conditions into a function to share with VClamp
@@ -231,13 +231,18 @@ def simulate_iclamp(sim_id,
         rheobase_found = False # Or set all other biomarkers to np.nan?
     
     # TODO - just call sh.simulation(**sim_kwargs), adding extra args to those above as needed
-    if rheobase_found or (amp is not None):    
+    if rheobase_found or (amp is not None) or ("rheobase_sim_for_stim_amp" in flags):    
         stims = []
         for stim_idx in range(num_stims):
             stims.append(stim_func(0.5, sec=cell))
             stims[-1].dur = dur
             if amp is None:
-                stims[-1].amp = rheobase # If amp is None use rheobase as amp
+                # Normal condition: rheobase from this simulation is amp
+                if "rheobase_sim_for_stim_amp" not in flags:
+                    stims[-1].amp = rheobase # If amp is None use rheobase as amp
+                # Use rheobase from another simulation as amp
+                else:
+                    stims[-1].amp = flags["rheobase_sim_for_stim_amp"]
             else:
                 stims[-1].amp = amp # Predetermined amplitude
             stims[-1].delay = delay + stim_idx*(dur + interval)
@@ -1002,6 +1007,23 @@ class PopulationOfModels(object):
             self.calibration_applied = False
         else:
             print("Calibration not currently applied to results.")
+
+    " --- Utility functions --- "
+    def replace_mechanism(self, old_mech_name, new_mech_name):
+
+        # Replace old (e.g.) wt mechanism in population with new (e.g. mutant) mechanism
+        for i, mech_name in enumerate(self.mechanism_names):
+            if mech_name == old_mech_name:
+                self.mechanism_names[i] = new_mech_name
+        old_params = self.mechanisms.pop(old_mech_name, None) # Delete old entry and get value
+        new_params = {}
+        for name, param in old_params.items():
+            new_params[name] = param.replace(old_mech_name, new_mech_name)        
+            self.parameter_designations[name] = param.replace(old_mech_name, new_mech_name)
+        self.mechanisms[new_mech_name] =  new_params
+        # Model details will auto update
+        self.model_description = self.model_description.replace(old_mech_name, new_mech_name)
+    
             
 class Simulation(object):
     """
@@ -1360,6 +1382,17 @@ class Simulation(object):
 
                 threshold = self.population.results.at[sim_id, (sim_name, 'Threshold')]
                 processed_flags[flag] = threshold
+
+            elif flag == "rheobase_sim_for_stim_amp":
+                sim_name = val
+                # Checks
+                assert self.population != None, "Need a population"
+                assert sim_name in self.population.results.columns, "sim_name {} not found".format(sim_name)
+                assert sim_id in self.population.results.index, "sim_id {} not found".format(sim_id)
+
+                amp = self.population.results.at[sim_id, (sim_name, 'Rheobase')]
+                processed_flags[flag] = amp
+                
             else:
                 raise ValueError("Flag {} not supported.".format(flag))
 
@@ -1372,7 +1405,9 @@ class Simulation(object):
         allowed_flags = []
         # Provide the name of a previously run simulation to use that simulation for threshold
         # in calculation of AP full width following Davidson et al. PAIN 2014. 
-        allowed_flags.append("ramp_threshold_sim_for_width") 
+        allowed_flags.append("ramp_threshold_sim_for_width")
+        # Use rheobase from a previous simulation as the stimulus amplitude
+        allowed_flags.append("rheobase_sim_for_stim_amp")
         return allowed_flags
         
     " Output functions "
