@@ -40,7 +40,7 @@ def average_biomarker_values(biomarkers, how_to_handle_nans='return'):
     mean_result = np.mean(biomarkers)
     return mean_result
     
-def calculate_simple_biomarkers(traces, model, how_to_handle_nans='return'):
+def calculate_simple_biomarkers(traces, model="Not needed", how_to_handle_nans='return'):
     """ Calculate every biomarker that can be calculated from a normal simulation trace and output to dict - rheobase and RMP need to be calculated separately."""
     biomarkers = {}
     # biomarker_names = ['APFullWidth', 'APPeak', 'APRiseTime', 'APSlopeMin', 'APSlopeMax',. 'AHPAmp', 'AHPTau', 'ISI', 'RMP', 'Rheobase']
