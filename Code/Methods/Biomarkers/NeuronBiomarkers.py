@@ -149,7 +149,19 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=False, sim_k
 " --- Calculation and trace manipulation functions -- "
 
 def split_trace_into_aps(t,v,threshold=20,time_threshold=5):#
-    " Threshold is at +20 mV to avoid RF causing spurious AP detection "
+    """
+    Threshold is at +20 mV to avoid RF causing spurious AP detection.
+    However, sometimes you can get repetitive firing with a peak under 20 mV.  
+    
+
+    One idea is to do split trace and then calculate AP width using a voltage threshold of something like -25 mV.
+    Then, if AP width is really long (> 100 ms?), redo the calculation with a lower threshold (0 mV?). 
+    If mean AP width is then < 100 ms, we use the new split. We could write a log file to say that this happened,
+    with the trace in it. 
+
+    However, that is complex and may break if something comes up I haven't thought of.
+    Instead we could reset the default threshold to 0 mV but add in a gradient check on the voltage crossing from below. This should be at least 1 mV/ms perhaps. 
+    """
 	
     # Units for defaults
     # t, time_threshold - ms
@@ -168,7 +180,7 @@ def split_trace_into_aps(t,v,threshold=20,time_threshold=5):#
                 crossings.append(i)
                 time_crossings = np.append(time_crossings,t[i])
                 
-    # For each crossing, remove all instances within 5 ms, leaving only the first crossing of the threshold 
+    # For each crossing, remove all instances within the time threshold, leaving only the first crossing of the threshold 
     grouped_crossings = np.zeros(np.size(crossings),float) 
     
     for i in range(len(crossings)-1):
@@ -367,6 +379,7 @@ def ap_full_width(t,v ,_threshold=5., threshold_type='gradient'):
     """
 
     if threshold_type == 'voltage':
+        assert not np.isnan(_threshold), "Threshold {} is nan".format(_threshold)
         ups, downs = find_threshold_crossings(v, _threshold)
     elif threshold_type == 'gradient':
         # Find voltage at which we cross the dvdt threshold

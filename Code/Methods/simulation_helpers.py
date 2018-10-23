@@ -442,8 +442,8 @@ def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mec
         output['I'] = recast_currents
     if concs:
         print("UNTESTED USING RECASTING BUT UNTESTED")
-        recast_concs = recast_recorded_currents(concs)
-        output['concs'] = recast_concs
+        #recast_concs = recast_recorded_currents(concs)
+        output['concs'] = concs
 
     return output
         
