@@ -620,22 +620,22 @@ def construct_simulation_set(sim_factors):
     
     return sims
 
+
 def divide_into_sections(simulations, n):
     """
-    Chunk set of simulations into n sections 
+    Chunk set of simulations into n sections
+    Returns:
+    Dictionary of sim_numbers with keys from 1 to n.
     """
 
-    # Divide into n sections using utils function
-    n = 10
-    # Divide simulation_parameters into 10 segments
+    # Divide simulation_parameters into n segments
     num_sims = len(simulations)
     base_num_sims_per_section = num_sims // n
     num_sections_with_one_extra = num_sims % n
 
-
-    num_sims_allocated = 0
     sim_nums = {}
-    for i in range(n):
+    num_sims_allocated = 0
+    for i in range(1,n+1): # Sections are not 0-indexed
         if i < num_sections_with_one_extra:
             num_sims_in_section = base_num_sims_per_section + 1
         else:
@@ -644,10 +644,10 @@ def divide_into_sections(simulations, n):
         sim_start = num_sims_allocated
         sim_end = num_sims_allocated + num_sims_in_section
 
-        sim_nums[i+1] = np.arange(sim_start,sim_end) # Assign sim numbers to section i+1
+        sim_nums[i] = np.arange(sim_start,sim_end) 
         num_sims_allocated += num_sims_in_section # Keep track of which simulations are distributed
-
     return sim_nums
+
 
 def get_simulation_section(simulations, section, n):
     """
@@ -656,8 +656,9 @@ def get_simulation_section(simulations, section, n):
     """
     assert (section > 0) & (section <= n), "section should start from 1 and go to n"
     sim_sections = divide_into_sections(simulations, n)
-    simulation_section = simulations[sim_sections[section]] # This is a bug that prevents doing the first seciton
+    simulation_section = simulations[sim_sections[section]] # This is a bug that prevents doing the first sectioon
     return simulation_section
+
 
 '''
 def build_model(mechanisms=['nav17vw', 'nav18hw', 'kdrtf'], conductances=[1.0,1.0,1.0]):
