@@ -9,7 +9,7 @@ Created on Thu Mar 10 14:57:27 2016
 """
 import os
 import NeuronProjectStart as nrnst
-import Methods.PopulationOfModels as pom
+import Methods.pom_test as pom
 import Methods.Biomarkers.NeuronBiomarkers as nb
 import numpy as np
 from matplotlib import pyplot as plt
@@ -21,7 +21,7 @@ import seaborn as sns
  'APRiseTime',
  'APSlopeMinMax'
  'fit_afterhyperpolarization',
- 'InterSpikeInterval',
+ 'Ipom_test,
  'RMP',
  'Rheobase',
  'SplitTraceIntoAPs',
@@ -29,14 +29,15 @@ import seaborn as sns
  """
 
 """ Tests """
-def TestSplitTrace(trace):
-    
-    traces = nb.SplitTraceIntoAPs(trace['t'],trace['v'])
+def test_split_trace(trace):
+    t,v = trace['t'], trace['v']
+    traces = nb.split_trace_into_aps(t,v)
     for i in range(traces['numAPs']):
         plt.plot(traces['t'][i],traces['v'][i])
         
     plt.show()
     """ TO DO Test threshold and time """
+TestSplitTrace = test_split_trace
     
 def TestAPFullWidth(traces, threshold, threshold_type='voltage'):    
     """ Test ap full width biomarker """
@@ -118,12 +119,12 @@ def test_threshold(traces, dvdt_threshold=5.0):
     
 """ Load test traces """
 
-def LoadTestTrace():
+def load_test_trace():
     projectDir = nrnst.GetProjectDir()
     testTraceDir = os.path.join(projectDir,'Simulations','Test','NeuronBiomarker') 
     prefix  = 'SecondTest_'
     val = 30
-    trace = pom.ReadTraceFile(os.path.join(testTraceDir,prefix+str(val)+'.dat'))
+    trace = pom.read_trace(os.path.join(testTraceDir,prefix+str(val)+'.dat'))
     return trace
     
 def LoadTestRheobaseTraces():
@@ -165,7 +166,7 @@ def TestAllBiomarkers(traces, model):
     
 
 """ Setup """
-trace = LoadTestTrace()
+trace = load_test_trace()
 traces = nb.SplitTraceIntoAPs(trace['t'],trace['v'])
 threshold = 0
 dvdtThreshold = 5

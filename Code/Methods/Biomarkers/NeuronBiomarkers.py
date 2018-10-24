@@ -148,19 +148,21 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=False, sim_k
     
 " --- Calculation and trace manipulation functions -- "
 
-def split_trace_into_aps(t,v,threshold=20,time_threshold=5):#
+def split_trace_into_aps(t,v,threshold=0,time_threshold=5, check_voltage_gradient=True):#
     """
-    Threshold is at +20 mV to avoid RF causing spurious AP detection.
-    However, sometimes you can get repetitive firing with a peak under 20 mV.  
+    Threshold is at 0 mV which can let RF to cause spurious AP detection unless
+    we perform a voltage gradient check, which defaults to True.
     
-
+    -- Old ideas to solve the spurious AP detection problem with threshold at 0 mV --
     One idea is to do split trace and then calculate AP width using a voltage threshold of something like -25 mV.
     Then, if AP width is really long (> 100 ms?), redo the calculation with a lower threshold (0 mV?). 
     If mean AP width is then < 100 ms, we use the new split. We could write a log file to say that this happened,
     with the trace in it. 
 
     However, that is complex and may break if something comes up I haven't thought of.
-    Instead we could reset the default threshold to 0 mV but add in a gradient check on the voltage crossing from below. This should be at least 1 mV/ms perhaps. 
+    Instead we could reset the default threshold to 0 mV but add in a gradient check on the voltage crossing from below.
+    Currently a gradient threshold of 1 mV/ms seems like it should be effective although I don't have any examples of slow
+    calcium initated APs to test against. 
     """
 	
     # Units for defaults
@@ -172,13 +174,14 @@ def split_trace_into_aps(t,v,threshold=20,time_threshold=5):#
     crossings = []
     time_crossings = np.array([])
     
-    # Check this for loop ignores last element
     # Looks for crossings from below
-    for i,voltage in enumerate(v[:-1]): # Check this works
-        if voltage < threshold:
-            if v[i+1] >= threshold:
-                crossings.append(i)
-                time_crossings = np.append(time_crossings,t[i])
+    for i,voltage in enumerate(v[:-1]):
+        if (voltage < threshold) & (v[i+1] >= threshold):
+            # Check local voltage gradient if neeeded, if gradient is too small ignore the crossing
+            if (check_voltage_gradient) & (is_voltage_gradient_too_small(i, t, v, dvdt_threshold=1.0, time_window=5.0)):
+                continue # Don't add the crossing if the local voltage gradient is small and we're checking for that
+            crossings.append(i)
+            time_crossings = np.append(time_crossings,t[i])
                 
     # For each crossing, remove all instances within the time threshold, leaving only the first crossing of the threshold 
     grouped_crossings = np.zeros(np.size(crossings),float) 
@@ -261,6 +264,39 @@ def voltage_gradient(t,v, method='gradient'):
         raise ValueError("Method not found.")
     return dvdt
 VoltageGradient = voltage_gradient # Alias
+
+
+def is_voltage_gradient_too_small(i, t, v, dvdt_threshold, time_window):
+    """
+    Check if the voltage gradient around the threshold crossing from below at v[i] to v[i+1]
+    is too small to have a reasonable likelihood of being a real AP.
+    Inputs:
+    i - index at which threshold is crossed, between v[i] and v[i+1]
+    t,v - time and voltage arrays
+    dvdt threshold - mV/ms
+    time window (either side of indices i and i+1, so effective window is double the size) - ms
+    """ 
+    voltage_gradient_too_small = False
+    
+    # Get time window around v[i] and v[i+1]
+    lower_t_bound = t[i] - time_window
+    if lower_t_bound < 0: lower_t_bound = 0
+    upper_t_bound = t[i+1] + time_window
+
+    # Get indices of t and v that are within the window
+    t = np.array(t)
+    window_indices = (t >= lower_t_bound) & (t <= upper_t_bound)
+    _t = t[window_indices]
+
+    _v = v[window_indices]
+    _dvdt = np.gradient(_v,_t)
+
+    # Check mean gradient against threshold
+    if np.mean(_dvdt) < dvdt_threshold:
+        voltage_gradient_too_small = True
+
+    return voltage_gradient_too_small
+
     
 # --- Biomarkers ---
 def rmp(v):
