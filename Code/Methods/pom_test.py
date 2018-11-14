@@ -171,8 +171,10 @@ def simulate_iclamp(sim_id,
     -----------
     """
     # General setup
-    with open('test.txt','w') as f:
-        f.write(str(mechanisms))
+
+    #with open('test.txt','w') as f:
+    #    f.write(str(mechanisms))
+
     import neuron
     from neuron import h
     sim_type = 'iclamp'
@@ -221,8 +223,14 @@ def simulate_iclamp(sim_id,
 
     
     # Rheobase simulation
-    rheobase = nb.calculate_rheobase(cell, amp_step=0.1, amp_max=5, 
+    rheobase = nb.calculate_rheobase(cell, amp_step=0.1, amp_max=5.0, 
         make_plot=False, sim_kwargs=sim_kwargs)
+
+    # Courser grained rheobase if the first one fails. Amp max of 50 corresponds
+    # to maximum ramp stimulus amplitude used in the Nav 1.8 study.
+    if rheobase is nb.RHEO_FAIL:
+        rheobase = nb.calculate_rheobase(cell, amp_step=1.0, amp_max=50.0,
+            make_plot=False, sim_kwargs=sim_kwargs)
    
     # Only continue if we've found a rheobase
     if rheobase is not nb.RHEO_FAIL:
@@ -236,17 +244,19 @@ def simulate_iclamp(sim_id,
         for stim_idx in range(num_stims):
             stims.append(stim_func(0.5, sec=cell))
             stims[-1].dur = dur
+            stims[-1].delay = delay + stim_idx*(dur + interval)
+            # Set amp
             if amp is None:
                 # Normal condition: rheobase from this simulation is amp
                 if "rheobase_sim_for_stim_amp" not in flags:
                     stims[-1].amp = rheobase # If amp is None use rheobase as amp
-                # Use rheobase from another simulation as amp
+                # Alternatively if flag is set: use the rheobase from another simulation as amp
                 else:
                     stims[-1].amp = flags["rheobase_sim_for_stim_amp"]
             else:
-                stims[-1].amp = amp # Predetermined amplitude
-            stims[-1].delay = delay + stim_idx*(dur + interval)
-            
+                # Predetermined amplitude
+                stims[-1].amp = amp
+ 
         v,t = sh.set_vt(cell=cell)
         vectors = sh.record_currents(cell, outputs)
 
@@ -265,7 +275,7 @@ def simulate_iclamp(sim_id,
             raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
         
         # --- Analyse simulation for biomarkers ---
-        traces = nb.SplitTraceIntoAPs(t,v)
+        traces = nb.split_trace_into_aps(t,v)
         # This is the borked bit - TODO: fix this
         biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
         
@@ -802,15 +812,13 @@ class PopulationOfModels(object):
                 formatted_results[result] = formatted_results[result].astype(types[0])
         """
             
-        # If no name collision add new columns, otherwise replace the old columns
-        
+        # If no name collision add new columns, otherwise replace the old columns 
         if self.simulations[name].name_collision == False:
             self.results = pd.concat([self.results, formatted_results], axis=1)
         elif self.simulations[name].name_collision == True:
             #print("columns in self.results: {}\n columns in formatted_results: {}".format(self.res))
             _df = formatted_results[name].copy()
             self.results[name] = _df
-            
         else:
             raise ValueError('name_collision not set')
             
@@ -819,22 +827,6 @@ class PopulationOfModels(object):
             pop.simulations['test'].results.info() to debug memory and
             pop.simulations['test'].results.memory_usage().sum() to measure it.
         """
-
-            
-    def run_bespoke_simulation(self, sim_name, sim_protocols, biomarkers_to_calculate):
-        """
-        Run a non-standard simulation, e.g. with drug block, or supra-threshold stimuli and save
-        """
-        
-        # Build model, checking for optional other parameters in sim protocols
-        
-        # Setup stim protocols from sim_protocols
-        
-        # Do the simulation on the current parameter sets
-        
-        # Calculate the biomarkers
-        
-        # Save to results under "sim_name"
 
         
     " --- Calibration functions --- "
@@ -962,6 +954,8 @@ class PopulationOfModels(object):
         # Then pickle
         with open(filename, 'wb') as f:
             pickle.dump(self,f)
+    
+    save_pom = pickle_pom # Alias
             
     
     def load_parameter_set(self, filename, load_comment=False, comment='#'):
@@ -1420,10 +1414,7 @@ class Simulation(object):
     def log_result(self, result):
         """
         Stores the result from a simulation using callback functionality. 
-        @OPTIMIZE - if we had loads of biomarkers it would make sense to vectorize the for loop?
         """
-        #self.results = 'boo' # debug
-        #return
         keys = result.keys()
         biomarker_names = [key for key in keys if key not in ['sim_id', 'trace']]
         sim_id = result['sim_id']
@@ -1545,7 +1536,7 @@ class Simulation(object):
 
 def set_dataframe_types(df):
     """
-    Set all columns where all data has
+    Set all columns in the DataFrame where all data has the same type to that type
     """
     typed_df = df.copy()
     for column in typed_df:

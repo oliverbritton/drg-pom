@@ -178,7 +178,8 @@ def split_trace_into_aps(t,v,threshold=0,time_threshold=5, check_voltage_gradien
     for i,voltage in enumerate(v[:-1]):
         if (voltage < threshold) & (v[i+1] >= threshold):
             # Check local voltage gradient if neeeded, if gradient is too small ignore the crossing
-            if (check_voltage_gradient) & (is_voltage_gradient_too_small(i, t, v, dvdt_threshold=1.0, time_window=5.0)):
+            # Time window set to 1.0 to try to counteract bug with averaging too much of the pre-upstroke. 
+            if (check_voltage_gradient) & (is_voltage_gradient_too_small(i, t, v, dvdt_threshold=1.0, time_window=1.0)):
                 continue # Don't add the crossing if the local voltage gradient is small and we're checking for that
             crossings.append(i)
             time_crossings = np.append(time_crossings,t[i])

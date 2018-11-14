@@ -636,7 +636,7 @@ def divide_into_sections(simulations, n):
     sim_nums = {}
     num_sims_allocated = 0
     for i in range(1,n+1): # Sections are not 0-indexed
-        if i < num_sections_with_one_extra:
+        if i <= num_sections_with_one_extra: # Bug fix - should be <=
             num_sims_in_section = base_num_sims_per_section + 1
         else:
             num_sims_in_section = base_num_sims_per_section
