@@ -345,7 +345,191 @@ def pivot_dataframe_for_heatmap(df, x, y, z, labels):
     df = df.pivot(index=labels[1], columns=labels[0], values=labels[2])
     df = df.iloc[::-1] # Reverse index to have origin at 0 0
     return df
+
+" --- Pipeline section 3: Answering firing pattern questions  --- "
     
+# Regions 
+def define_region(pop, firing_pattern_thresholds={}, other_thresholds={}, stim_type='step', verbose=False):
+    """
+    Use some condition e.g. % of models with a given firing pattern to define a region of simulation space to analyse further.
+    """
+
+    import operator
+    opcodes  = {'>':operator.gt, '>=':operator.ge, '<':operator.lt, '<=':operator.le}
+
+    firing_pattern_percentages = an.get_firing_pattern_percentages(pop) # Excludes rheobase simulations
+    firing_pattern_percentages = an.process_firing_pattern_data(firing_pattern_percentages)
+    region = {}
+
+    # Check each simulation against all thresholds, if it passes them all then add to defined region
+    simulations = firing_pattern_percentages.index # Already excluded rheobase simulations and parameters in process_firing_pattern_data
+    count = 0
+    for simulation in simulations:
+        accept_simulation = True
+
+        # Firing pattern thresholds
+        for firing_pattern, threshold_vals in firing_pattern_thresholds.items():
+            op = opcodes[threshold_vals[0]]
+            threshold = threshold_vals[1]
+            fp_percentage = firing_pattern_percentages.loc[simulation,(firing_pattern, stim_type)]
+            # Check if threshold is accepted
+            if not op(fp_percentage, threshold):
+                accept_simulation = False
+
+        # Other thresholds (aggregated biomarkers)
+        for threshold, val in other_thresholds.items():
+            print('Other thresholds (aggregated biomarkers) not implemented yet.')
+            # Get aggregated biomarker data and do the same operation on it as for firing pattern but with biomarker values not percentages
+
+        if accept_simulation:
+            count += 1
+            amplitude = firing_pattern_percentages.loc[simulation,('Amp', stim_type)]
+            scaling_factors = dict(firing_pattern_percentages.loc[simulation, 'Scaling factors'])
+            region[simulation] = {'Amp':amplitude}
+            for scaling_factor, val in scaling_factors.items():
+                region[simulation][scaling_factor] = val
+
+    if verbose:
+        print('{} simulations out of {} accepted.'.format(count, len(simulations)))
+    return region
+
+def visualise_region(pop, region, stim_type, scaling_factor='GNav18'):
+    # Visualise region as scatter plot with one scaling factor and amp
+    
+    firing_pattern_percentages = an.get_firing_pattern_percentages(pop) # Excludes rheobase simulations
+    firing_pattern_percentages = an.process_firing_pattern_data(firing_pattern_percentages)
+    
+    for sim in firing_pattern_percentages.index:
+        amp = firing_pattern_percentages.loc[sim, ('Amp', stim_type)]
+        sf_val = firing_pattern_percentages.loc[sim, ('Scaling factors', scaling_factor)]
+        plt.scatter(sf_val, amp, color='k')
+        
+    # Now plot region
+    for sim, sim_vals in region.items():
+        amp = sim_vals['Amp']
+        sf_val = sim_vals[scaling_factor]
+        plt.scatter(sf_val, amp, color='r')
+
+# Population and model consistency
+def pom_consistency_in_region(pop, region, firing_pattern, stim_type, amp_stim_relationship):
+    """
+    Plot or find mean and std dev of the distribution of firing pattern consistency in the population, 
+    within a defined region. See brown notebook 1 for a sketch of histogram and cumulative consistency plots.
+    """
+    
+    " Get consistency for each model "
+    model_consistencies = pd.DataFrame(index=pop.results.index, columns=['Consistency'])
+    for model in pop.results.index:
+        model_consistency = model_consistency_in_region(model, pop, region, firing_pattern, stim_type, amp_stim_relationship)
+        model_consistencies.at[model, 'Consistency'] = model_consistency
+        
+    pom_consistency = model_consistencies
+    return pom_consistency
+
+def model_consistency_in_region(model, pop, region, firing_pattern, stim_type, amp_stim_relationship):
+    """
+    Calculate consistency percentage for one model for the given firing pattern, population and simulation region
+    """
+    
+    num_simulations = 0 # Count total number of simulations or could calc directly from region and check we don't get any errors with 
+              # any simulation in the region
+    num_consistent_simulations = 0
+    for simulation in region:
+        sim_full_name = short_name_to_full(simulation, stim_type, amp_stim_relationship, delimiter='_', amp_units='pA')
+        simulation_firing_pattern = pop.results.at[model, (sim_full_name, 'Firing pattern')]
+        # Check if firing pattern is part of simulation firing pattern
+        if firing_pattern in simulation_firing_pattern:
+            num_consistent_simulations += 1
+        num_simulations += 1
+        
+    model_consistency = 100.*(num_consistent_simulations/num_simulations)
+    return model_consistency
+        
+def short_name_to_full(short_name, stim_type, amp_stim_relationship, delimiter='_', amp_units='pA'):
+    """
+    Convert short name of a simulation without stim type and with amp converted by amp_stim_relationship
+    to the full name of the simulation.
+    E.g.
+    With amp_stim_relationship = {'step':1, 'ramp':10}:
+    '2_1_2_400_pA_GNav18_0.1' would become:
+    For step - '2_1_2_step_400_pA_GNav18_0.1'
+    For ramp - '2_1_2_ramp_4000_pA_GNav18_0.1'
+    """
+    
+    s = short_name
+
+    amp_str = get_amp_str_from_sim_name(s, amp_units, delimiter)
+    amp_val = get_amplitude(s, amp_units, delimiter)
+    parts = s.split(amp_str)
+    parts[0] += (stim_type + delimiter)
+
+    stim_type_amp_str = str(amp_val * amp_stim_relationship[stim_type])
+    parts[0] += stim_type_amp_str
+
+    full_name = ''.join(parts)
+    return full_name
+
+def pom_consistency_stats(pom_consistency):
+    return {'mean':pom_consistency['Consistency'].mean(), 'std':pom_consistency['Consistency'].std()}
+
+def pom_consistency_hist(pom_consistency):
+    plt.hist(pom_consistency)
+    
+def pom_consistency_cumulative_plot(pom_consistency, bins=10):
+    " See https://stackoverflow.com/questions/15408371/cumulative-distribution-plots-python for code source"
+    data = pom_consistency['Consistency']
+    values, base = np.histogram(data, bins=bins)
+    cumulative = np.cumsum(values)
+    plt.plot(base[:-1], cumulative)
+
+ # Subpopulation identification over multiple simulations
+def assign_subpopulation_from_region(pop, region, criteria, verbose=False):
+    """
+    Compute required consistencies and assign subpopulations to a population of models based on results from
+    a simulation region.
+    Inputs:
+    pop - a PopulationOfModels class
+    region - a list of simulations
+    criteria - has the format: {name:[firing pattern, opcode, value]}
+    E.g. {'single < 25':['single', '>=', 25]}
+    
+    """
+    import operator
+    opcodes  = {'>':operator.gt, '>=':operator.ge, '<':operator.lt, '<=':operator.le}
+    
+    # Build consistencies for each criteria 
+    consistencies = pd.DataFrame(index=pop.results.index)
+    for criterion in criteria:
+        
+        firing_pattern = criteria[criterion][0]
+        pom_consistency = pom_consistency_in_region(pop, 
+                                            region, 
+                                            firing_pattern=firing_pattern, 
+                                            stim_type='step', 
+                                            amp_stim_relationship={'step':1,'ramp':10})
+        consistencies[firing_pattern] = pom_consistency
+          
+    # Find the models that fulfill all consistency criteria
+    models_passing_criteria = pd.DataFrame(index=consistencies.index)
+    for criterion, criterion_params in criteria.items():
+        firing_pattern = criterion_params[0]
+        opcode = criterion_params[1]
+        val = criterion_params[2]
+        op = opcodes[opcode]     
+        consistency = consistencies[firing_pattern]
+        models_passing_criteria[criterion] = op(consistency,val)
+        
+    models_passing_all_criteria = models_passing_criteria.all(axis=1)
+    # Filter away models that don't pass all criteria
+    subpopulation = pd.DataFrame(index=pop.results.index)
+    subpopulation = subpopulation[models_passing_all_criteria]
+    
+    if verbose:
+        print('{} models out of {} in population of models are in the subpopulation'.format(
+            len(subpopulation.index), len(pop.results.index))
+             )
+        
+    return subpopulation
 
 " --- Utility --- "
     

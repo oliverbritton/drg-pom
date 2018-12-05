@@ -285,12 +285,16 @@ def simulate_iclamp(sim_id,
                 if flag == "ramp_threshold_sim_for_width":
                     _threshold = flags[flag]
                     biomarkers['APFullWidth'] = nb.average_biomarker_values(
-                            nb.calculate_ap_full_width(traces, threshold=_threshold, method='voltage'),
+                            nb.calculate_ap_width(traces, alpha=0.0, threshold=_threshold, method='voltage'),
+                            how_to_handle_nans="return")
+                    biomarkers['APHalfWidth'] = nb.average_biomarker_values(
+                            nb.calculate_ap_width(traces, alpha=0.5, threshold=_threshold, method='voltage'),
                             how_to_handle_nans="return")
         except Exception as e:
             with open("{}_{}.txt".format(sim_id,stim_func),'w') as f:
                 f.write(str(e))
                 biomarkers['APFullWidth'] = "FAILURE"
+                biomarkers['APHalfWidth'] = "FAILURE"
 
         #print("biomarkers.keys: {}".format(biomarkers.keys())) #debug
         #print("results.keys: {}".format(results.keys())) # debug
@@ -1513,7 +1517,10 @@ class Simulation(object):
                         plt.legend(legend)
                         legend_plotted=True     
                     
-                    plt.title(sim_id) 
+                    # Annotate with model id and firing pattern
+                    firing_pattern = self.results.at[sim_id, 'Firing pattern']
+                    plt.title('{}: {}'.format(sim_id, firing_pattern))
+                    #plt.title(sim_id) 
                 
                 # Save figure
                 fig.savefig(filename, dpi=150)

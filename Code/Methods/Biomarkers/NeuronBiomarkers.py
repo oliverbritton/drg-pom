@@ -59,6 +59,12 @@ def calculate_simple_biomarkers(traces, model="Not needed", how_to_handle_nans='
         biomarkers['APFullWidth'] = average_biomarker_values(calculate_ap_full_width(traces,threshold=5.,method='gradient'), how_to_handle_nans)
     except:
         error_handle('fullwidth.pickle',traces)
+    
+    try:
+        biomarkers['APHalfWidth'] = average_biomarker_values(calculate_ap_half_width(traces,threshold=5.,method='gradient'), how_to_handle_nans)
+    except:
+        error_handle('halfwidth.pickle',traces)
+                   
     biomarkers['APPeak'] = average_biomarker_values(calculate_ap_peak(traces),how_to_handle_nans)
     
     try:
@@ -258,7 +264,7 @@ SplitTraceIntoAPs = split_trace_into_aps # Alias
 def voltage_gradient(t,v, method='gradient'):
     # There is a gradient function in numpy to take central differences
     if method == 'gradient':
-        dvdt = np.gradient(v)/np.gradient(t) # Central differences except at end points
+        dvdt = np.gradient(v,t)# Central differences except at end points
     elif method == 'diff':
         dvdt = np.diff(v)/np.diff(t) # Difference between adjacent points 
     else :
@@ -347,10 +353,10 @@ def ap_peak(v):
     return [peak,location]
 APPeak = ap_peak # Alias
     
-def threshold(t, v, dvdt_threshold=5., method='gradient'):
-    # Calculation of threshold voltage as described in Davidson et al., 2014 PAIN
+def threshold(t, v, dvdt_threshold=5.):
+    # Calculation of threshold voltage as described in Davidson et al., 2014 PAIN using gradient
     # Threshold is in V/s - default of 5 is what was used by Davidson et al.
-    dvdt = voltage_gradient(t,v, method=method)    
+    dvdt = np.gradient(v,t)    
     thresholds = []
     for i, gradient in enumerate(dvdt[0:-1]):
         if (gradient < dvdt_threshold) & (dvdt[i+1] > dvdt_threshold): # Look for crossing of threshold
@@ -366,7 +372,7 @@ def ap_rise_time(t,v,threshold=5):
     Default threshold is taken from Davidson et al. 2014, PAIN
     """
     assert threshold > 0, 'Rise time threshold is a gradient threshold, should be > 0!'
-    dVdt = voltage_gradient(t,v)
+    dVdt = np.gradient(v,t)
     peak = ap_peak(v)
     peak_idx = peak[1]
     peak_time = t[peak_idx]
@@ -397,14 +403,53 @@ def ap_rise_time(t,v,threshold=5):
 APRiseTime = ap_rise_time # Alias
         
 def ap_slope_min_max(t,v):
-    dVdt = voltage_gradient(t,v)
+    dVdt = np.gradient(v,t)
     slope_min = min(dVdt)
     slope_max = max(dVdt)
     ### Need mins and maxes
     return [slope_min,slope_max]
 APSlopeMinMax = ap_slope_min_max # Alias    
 
+def ap_width(t, v, alpha, _threshold=5., threshold_type='gradient'):
+    """
+    Generic ap width calculating function. Alpha determines the fraction of the voltage
+    gap between threshold and ap peak that is used to set the voltage threshold.
 
+    Specifically, if Th is the calculate threshold voltage and P is the peak voltage,
+    the voltage threshold used depends on alpha so that width threshold WTh = alpha*P + (1-alpha)*Th
+
+    So for full width alpha = 0, as we just use the bare threshold Th, for half width alpha = 0.5,
+    and alpha = 1 should give a width of 0 as it goes all the way to the peak.
+    
+    Defaults are consistent with Davidson et al. 2014 (5 mV/ms gradient to find threshold voltage)
+
+    _threshold named to avoid overlapping with threshold function
+    """ 
+    
+    # Calculate AP threshold and AP peak voltages
+    if threshold_type == 'gradient':
+        v_threshold = threshold(t, v, _threshold)
+    elif threshold_type == 'voltage':
+        v_threshold = _threshold
+    else:
+        raise ValueError("threshold type: {} not recognised".format(threshold_type))
+    if np.isnan(v_threshold):
+        return np.nan
+    
+    v_peak = ap_peak(v)[0]
+    width_v_threshold = alpha * v_peak + (1.0 - alpha) * v_threshold
+
+    # Find crossing points
+    ups, downs = find_threshold_crossings(v, width_v_threshold)
+
+    # Check we have crossings
+    if ups and downs:
+        last_down = downs[-1]
+        first_up = ups[0]
+        width = t[last_down] - t[first_up]
+        return width
+    else:
+        return np.nan
 
 def ap_full_width(t,v ,_threshold=5., threshold_type='gradient'):
     """
@@ -414,13 +459,13 @@ def ap_full_width(t,v ,_threshold=5., threshold_type='gradient'):
 
     _threshold named to avoid overlapping with threshold function
     """
-
+    
     if threshold_type == 'voltage':
         assert not np.isnan(_threshold), "Threshold {} is nan".format(_threshold)
         ups, downs = find_threshold_crossings(v, _threshold)
     elif threshold_type == 'gradient':
         # Find voltage at which we cross the dvdt threshold
-        dvdt = np.gradient(v)/np.gradient(t)
+        dvdt = np.gradient(v,t)
         gradient_threshold = None
         for i, _ in enumerate(dvdt[:-1]):
             if (dvdt[i] < _threshold) and (dvdt[i+1] >= _threshold):
@@ -465,7 +510,7 @@ def ap_half_width(t,v, dvdt_threshold=5.):
     Currently only uses gradient method for finding threshold for simplicity.
     """
     # Calculate AP threshold and AP peak voltages
-    v_threshold = threshold(t,v, dvdt_threshold=dvdt_threshold, method='gradient')
+    v_threshold = threshold(t,v, dvdt_threshold=dvdt_threshold,)
     v_peak = ap_peak(v)[0]
     half_width_v_threshold = (v_threshold + v_peak)/2.
 
@@ -547,9 +592,7 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
     for i, (t, v) in enumerate(zip(ts, vs)):
         # Start from the minimum, until dvdt exceeds the threshold given as input
         min_idx  = np.argmin(v)
-        dv = np.gradient(v)
-        dt = np.gradient(t)
-        dvdt = dv/dt
+        dvdt = np.gradient(v,t)
         threshold_exceeded = dvdt > dvdt_threshold
         if any(threshold_exceeded):
             cutoff_idx = np.where(threshold_exceeded)[0][0] - 1
@@ -818,7 +861,7 @@ CalculateRheobase = calculate_rheobase # Alias for compatibility
 def calculate_threshold(traces, dvdt_threshold=5.):
     thresholds = []
     for t,v in zip(traces['t'], traces['v']):
-        thresholds.append(threshold(t, v, dvdt_threshold=dvdt_threshold, method='gradient'))
+        thresholds.append(threshold(t, v, dvdt_threshold=dvdt_threshold,))
     return thresholds
 
 def calculate_ap_peak(traces):
@@ -839,16 +882,26 @@ def calculate_ap_slope_min_max(traces):
     ap_slope_min_vals = []
     ap_slope_max_vals = [] 
     for t,v in zip(traces['t'],traces['v']):
-        dvdt = voltage_gradient(t,v)
+        dvdt = np.gradient(v,t)
         ap_slope_min_vals.append(min(dvdt))
         ap_slope_max_vals.append(max(dvdt))
     return ap_slope_min_vals, ap_slope_max_vals
 CalculateAPSlopeMinMax = calculate_ap_slope_min_max # Alias
 
-def calculate_ap_full_width(traces,threshold=0, method='voltage'):
-    ap_full_width_vals = []
+def calculate_ap_width(traces, alpha, threshold=0, method='voltage'):
+    ap_width_vals = []
     for t,v in zip(traces['t'],traces['v']):
-        ap_full_width_vals.append(ap_full_width(t,v,threshold,method))
+        ap_width_vals.append(ap_width(t,v,alpha,threshold,method))
+    return ap_width_vals
+
+def calculate_ap_half_width(traces, threshold=0, method='voltage'):
+    alpha = 0.5
+    ap_half_width_vals = calculate_ap_width(traces,alpha,threshold,method)
+    return ap_half_width_vals
+
+def calculate_ap_full_width(traces,threshold=0, method='voltage'):
+    alpha = 0.0 # Calculate at the threshold so set alpha = 0
+    ap_full_width_vals = calculate_ap_width(traces,alpha,threshold,method)
     return ap_full_width_vals
 CalculateAPFullWidth = calculate_ap_full_width # Alias
 
