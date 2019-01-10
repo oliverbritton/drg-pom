@@ -208,6 +208,7 @@ def simulate_iclamp(sim_id,
     for ion in ion_mechanisms:
         if ion in ions:
             cell.insert(ion_mechanisms[ion])
+ 
     
     # --- Run simulations ---
     # Assemble simulation kwargs
@@ -264,7 +265,6 @@ def simulate_iclamp(sim_id,
         neuron.run(t_stop)
 
         v,t = np.array(v), np.array(t)
-   
         # Sampling
         if sampling_freq == 20000: # Hz
         # TODO - use delta t between each element of t to calculate frequency,
@@ -354,13 +354,13 @@ def simulate_iclamp(sim_id,
             # Last element in list will be the front-most part of the filename
                 if name in metadata.keys():
                     filename = '{}_{}'.format(metadata[name], filename)
-            
             save_trace(trace, filename)
 
     if plot: #@TODO 
         pass
         
-    return results    
+    return results
+
 
 def simulate_vclamp(sim_id,
                                     biomarker_names,
@@ -1152,9 +1152,8 @@ class Simulation(object):
                     simulation_type = simulation_type,
                     simulation_parameters = self.protocols,
                     mechanisms = mechanisms)
-                                                                      
             pool.apply_async(self.simulation_function, kwds=sim_kwargs, callback=self.log_result)
-        
+
             # @TODO - not sure how to estimate time to completion when we're using a Pool.
             """
             if benchmark:

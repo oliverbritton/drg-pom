@@ -618,6 +618,7 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
         # which would equate to a 1 ms minimum AHP duration.
         
         length_threshold = 10
+        dt = np.gradient(t)
         assert np.mean(dt) < 0.1, "dt is large, check length_threshold"
         if (len(t) <= length_threshold) | (len(v) <= length_threshold):
             return hyperpolarisation_fit_failure(full_output)
