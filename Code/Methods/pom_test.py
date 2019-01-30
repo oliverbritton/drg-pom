@@ -264,13 +264,27 @@ def simulate_iclamp(sim_id,
         h.finitialize(v_init) # Vital! And has to go after record
         neuron.run(t_stop)
 
+        # Clean up outputs after simulation
         v,t = np.array(v), np.array(t)
-        # Sampling
+
+        # Recast any recorded currents so they're not mutable
+        # by future simulations
+        vectors = sh.recast_recorded_currents(vectors)
+
+        # Sampling for v, currents, concs
         if sampling_freq == 20000: # Hz
         # TODO - use delta t between each element of t to calculate frequency,
         # then downsample to required frequency.
-        # But at the moment we just need to match Davidson et al. (20 kHz). 
+        # But at the moment we just need to match Davidson et al. (20 kHz).
+        # Neuron records at 40 kHz so just take every second element
             t = t[::2]; v = v[::2] # 20 kHz
+
+        # Currents
+            for cur_name, cur in vectors.items():
+                for cur_component in cur:
+                    vectors[cur_name][cur_component] = vectors[cur_name][cur_component][::2]
+
+            # To do - concs
         else:
             raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
         
@@ -278,7 +292,7 @@ def simulate_iclamp(sim_id,
         traces = nb.split_trace_into_aps(t,v)
         # This is the borked bit - TODO: fix this
         biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
-        
+       
         try:
             # Check flags for alternate biomarker calculations
             for flag in flags:
@@ -318,7 +332,7 @@ def simulate_iclamp(sim_id,
         # Build trace for output
         trace = {'t':t, 'v':v}
         for vector in vectors:
-            trace[vector] = np.array(vectors[vector])
+            trace[vector] = vectors[vector]
             
     elif rheobase_found == False:
         trace = None # pass an empty trace
@@ -358,7 +372,10 @@ def simulate_iclamp(sim_id,
 
     if plot: #@TODO 
         pass
-        
+    with open("debug.txt","w") as f:
+        f.write(str(results))
+
+
     return results
 
 
@@ -1503,10 +1520,22 @@ class Simulation(object):
                     if isinstance(trace, np.ndarray):
                         for j in range(1,trace.shape[1]):
                             plt.plot(trace[:,0], trace[:,j]) # Col 0 is time                          
-                    if isinstance(trace, dict):
+                    elif isinstance(trace, dict):
                         for key in [key for key in trace.keys() if key != 't']: # DRY
-                            plt.plot(trace['t'],trace[key])
-                            
+                            _data = trace[key]
+                            # If data is a dictionary assume it's an ionic current 
+                            # and try to reshape each entry in dictionary into an np.ndarray (from a hoc vector)
+                            # Plot if the result has the same length as time
+                            if isinstance(_data, dict):
+                                for _current_type, _current in _data.items():
+                                    _ndarray_current = np.array(_current)
+                                    if len(trace['t']) == len(_ndarray_current):
+                                        plt.plot(trace['t'],_ndarray_current)
+                            # If it's not a dictionary, plot it if it's the same length as time
+                            else:
+                                if len(trace['t']) == len(_data):
+                                    plt.plot(trace['t'], _data)
+
                     # Legend
                     if legend_plotted == False:
                         if isinstance(trace,dict):
