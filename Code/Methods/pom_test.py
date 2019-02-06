@@ -174,7 +174,6 @@ def simulate_iclamp(sim_id,
 
     #with open('test.txt','w') as f:
     #    f.write(str(mechanisms))
-
     import neuron
     from neuron import h
     sim_type = 'iclamp'
@@ -354,7 +353,6 @@ def simulate_iclamp(sim_id,
     # Output @TODO - wrap into function as code is mostly shared with simulate_vclamp
     plot = options['plot']
     save = options['save']
-
     
     if save == True:
         save_type = options['save_type']
@@ -372,10 +370,7 @@ def simulate_iclamp(sim_id,
 
     if plot: #@TODO 
         pass
-    with open("debug.txt","w") as f:
-        f.write(str(results))
-
-
+    dump_exception(results)
     return results
 
 
@@ -760,14 +755,15 @@ class PopulationOfModels(object):
         self.simulations[name].rerun = rerun
         self.simulations[name].name_collision = name_collision
     
-    def run_simulation(self, 
-    name, 
-    simulation_type,
-    protocols=None,
-    cores=1,
-    plot=False, save=False, save_type='fig', 
-    benchmark=True,
-    rerun=False,):
+    def run_simulation( self, 
+                        name, 
+                        simulation_type,
+                        protocols=None,
+                        cores=1,
+                        plot=False, save=False, save_type='fig', 
+                        benchmark=True,
+                        rerun=False,
+                        ):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
@@ -1399,8 +1395,7 @@ class Simulation(object):
 
             elif flag == "rheobase_sim_for_stim_amp":
                 sim_name = val
-                # Checks
-                assert self.population != None, "Need a population"
+                # Check self.population != None, "Need a population"
                 assert sim_name in self.population.results.columns, "sim_name {} not found".format(sim_name)
                 assert sim_id in self.population.results.index, "sim_id {} not found".format(sim_id)
 
@@ -1469,7 +1464,6 @@ class Simulation(object):
         Second implementation (CURRENTLY USED): demand we start with the first sim_id, then when we've done a plot
         move the pointer to sim_id+traces_to_plot+1.
         """
-        
         # Only do anything if the right save options are set
         if (self.options['save'] == True) & ('fig' in process_save_type(self.options['save_type'])):
             subplot_dim = int(np.ceil(np.sqrt(traces_to_plot))) # Number of subplots (square)
@@ -1579,3 +1573,7 @@ def set_dataframe_types(df):
         if all([i == types[0] for i in types]):
             typed_df[column] = typed_df[column].astype(types[0])
     return typed_df
+
+def dump_exception(e, filename="debug.txt"):
+    with open(filename, "w") as f:
+        f.write(str(e))

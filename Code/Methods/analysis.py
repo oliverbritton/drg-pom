@@ -357,8 +357,8 @@ def define_region(pop, firing_pattern_thresholds={}, other_thresholds={}, stim_t
     import operator
     opcodes  = {'>':operator.gt, '>=':operator.ge, '<':operator.lt, '<=':operator.le}
 
-    firing_pattern_percentages = an.get_firing_pattern_percentages(pop) # Excludes rheobase simulations
-    firing_pattern_percentages = an.process_firing_pattern_data(firing_pattern_percentages)
+    firing_pattern_percentages = get_firing_pattern_percentages(pop) # Excludes rheobase simulations
+    firing_pattern_percentages = process_firing_pattern_data(firing_pattern_percentages)
     region = {}
 
     # Check each simulation against all thresholds, if it passes them all then add to defined region
@@ -396,8 +396,8 @@ def define_region(pop, firing_pattern_thresholds={}, other_thresholds={}, stim_t
 def visualise_region(pop, region, stim_type, scaling_factor='GNav18'):
     # Visualise region as scatter plot with one scaling factor and amp
     
-    firing_pattern_percentages = an.get_firing_pattern_percentages(pop) # Excludes rheobase simulations
-    firing_pattern_percentages = an.process_firing_pattern_data(firing_pattern_percentages)
+    firing_pattern_percentages = get_firing_pattern_percentages(pop) # Excludes rheobase simulations
+    firing_pattern_percentages = process_firing_pattern_data(firing_pattern_percentages)
     
     for sim in firing_pattern_percentages.index:
         amp = firing_pattern_percentages.loc[sim, ('Amp', stim_type)]
