@@ -95,7 +95,7 @@ def plot_currentscape(voltage, currents, figsize=(3,4)):
 	return fig
 plotCurrentscape = plot_currentscape
 
-def plotVoltageDistributions(Vdist): 
+def plot_voltage_distributions(Vdist): 
     im=Vdist
     fig = figure()
     cmmap='Greys'		
@@ -107,8 +107,9 @@ def plotVoltageDistributions(Vdist):
     axis('off')     
     subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)    
     return fig
+plotVoltage_distributions = plot_voltage_distributions
 
-def plotVoltageDistributionsEnhanceEdges(Vdist): 
+def plot_voltage_distributions_enhance_edges(Vdist): 
     im=Vdist
     fig = figure(figsize=(3,6))    
     #choose a colormap (see also gnuplot1, gnuplot2, helix)
@@ -127,8 +128,9 @@ def plotVoltageDistributionsEnhanceEdges(Vdist):
     subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)    
     clim(0.0,0.3)
     return fig
+plotVoltageDistributionsEnhanceEdges = plot_voltage_distributions_enhance_edges
 
-def plotCurrentSharesDistributions(current_share_dist): 
+def plot_current_shares_distributions(current_share_dist): 
     im=current_share_dist
     fig = figure()
     cmmap='gnuplot2'		
@@ -144,7 +146,64 @@ def plotCurrentSharesDistributions(current_share_dist):
     axis('off')     
     subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)    
     return fig    
-   
+plotCurrentSharesDistributions = plot_current_shares_distributions
+
+def plot_pie_chart(time, currents, n=0, legend=['Nav17','Nav18','Nav19','Kdr','KA','KM','HCN']):
+    """
+    Plot pie chart
+    """
+    # Plot pie charts and batons
+    num_currents = currents.shape[0]+1
+    color_set = plt.cm.Set1(np.arange(num_currents)/num_currents)
+
+
+    delta_t = (time[-1] - time[0])/len(time)
+    curr = currents
+
+    # Positive currents
+    c_pos= curr.copy()
+    c_pos[curr<0]=0
+
+    # Negative currents
+    c_neg=curr.copy()
+    c_neg[curr>0]=0
+
+    # Sum of all positive currents and all negative currents
+    norm_pos = np.sum(abs(np.array(c_pos)),axis=0)
+    norm_neg = np.sum(abs(np.array(c_neg)),axis=0)
+
+    # Get normalised currents for positive and negative currents
+    c_norm = curr.copy()
+    c_norm[curr>0] = (abs(curr)/norm_pos)[curr>0]
+    c_norm[curr<0] = -(abs(curr)/norm_neg)[curr<0]   
+
+    c_norm_pos = np.zeros(np.shape(c_norm))
+    c_norm_pos[c_norm>0] = c_norm[c_norm>0]
+
+    c_norm_neg = np.zeros(np.shape(c_norm))
+    c_norm_neg[c_norm<0] = c_norm[c_norm<0]
+
+    sizes_pos = c_norm_pos[:,n]
+    sizes_neg = abs(c_norm_neg[:,n])
+    sizes=sizes_pos/2
+    #print(sum(sizes))
+
+    fig1, ax1 = plt.subplots()    
+    ax1.pie(sizes_neg[::1]/2, colors=color_set[::1], shadow=False, startangle=0, counterclock=False)
+    ax1.axis('equal') 
+
+
+    ax1.pie(sizes_pos[::1]/2,colors=color_set[::1],shadow=False, startangle=180,counterclock=False)
+    ax1.axis('equal') 
+
+    plt.legend(legend)
+    plt.plot(np.linspace(-1.1,1.1,10),np.zeros(10), lw=5,color='black')
+    plt.xlim(-1.05,1.05)
+    plt.ylim(-1.05,1.05)
+    plt.title('{:.3g} ms'.format(n*delta_t))
+
+    plt.axis('off')         
+
 " ---- Utilities ---- "
 
 def format_trace_for_currentscape(trace, current_names=None, return_current_names=False):

@@ -526,7 +526,7 @@ def ap_half_width(t,v, dvdt_threshold=5.):
     else:
         return np.nan
 
-def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp', full_output=False):
+def fit_afterhyperpolarization(traces, dvdt_threshold, max_time_from_peak=50., ahp_model = 'single_exp', full_output=False):
     """ 
     Gather afterhyperpolarisation regions from a set of traces and fit them to a model 
     of a single exponential (other models can be added as needed)
@@ -550,6 +550,11 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
             return np.nan, np.nan, np.nan
     
     # Arrange data to contain each interval between peaks (num APs > 1) or peak to end of trace (n=1) 
+    """
+    This caused a bug for thr last AP since when the stimulus turns off there is a bigger AHP than the AHP itself.
+    Instead, for the last trace in the sequence only, check only for 50 ms after the peak. Could also check for some
+    multiple of AP full width, but 50 ms should be sufficient for all but very long abnormal APs. 
+    """
     num_APs = traces['numAPs']
     if num_APs < 1:
         return hyperpolarisation_fit_failure(full_output) 
@@ -560,11 +565,17 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
         # Check that the peak is not right at the end of the trace
         if max_idx == len(_v)-1:
             return hyperpolarisation_fit_failure(full_output)
-        ts = [_t[max_idx+1:]] # Single element lists from just after peak to end of trace
-        vs = [_v[max_idx+1:]] 
+        # Get the period between t(peak) and t(peak) + max_time_from_peak
+        t_peak = _t[max_idx]
+        t_end = t_peak + max_time_from_peak
+        end_idx = np.argmin(abs(_t - t_end))
+
+        ts = [_t[max_idx+1:end_idx]] # Single element lists from just after peak to end of max_time_from_peak period
+        vs = [_v[max_idx+1:end_idx]] 
     elif num_APs > 1:
         ts = []
         vs = []
+        # Traces 1 to N-1
         for i in range(num_APs-1):
             _ts = [traces['t'][idx] for idx in [i, i+1]]
             _vs = [traces['v'][idx] for idx in [i, i+1]]
@@ -579,7 +590,22 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, ahp_model = 'single_exp',
             _v = np.concatenate([_v_start, _v_end], axis=0)
             ts.append(_t)
             vs.append(_v)
-            
+
+        # Trace N - final trace - use same process as for when there is only 1 AP except change the index
+        _t = traces['t'][num_APs-1]
+        _v = traces['v'][num_APs-1]
+        max_idx = np.argmax(_v)
+        # Check that the peak is not right at the end of the trace
+        if max_idx == len(_v)-1:
+            return hyperpolarisation_fit_failure(full_output)
+        # Get the period between t(peak) and t(peak) + max_time_from_peak
+        t_peak = _t[max_idx]
+        t_end = t_peak + max_time_from_peak
+        end_idx = np.argmin(abs(_t - t_end))
+
+        ts.append(_t[max_idx+1:end_idx])
+        vs.append(_v[max_idx+1:end_idx])
+        
     # For each interval attempt to fit an AHP
     amps = []
     taus = []
