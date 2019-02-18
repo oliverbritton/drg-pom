@@ -603,7 +603,8 @@ def calculate_percentage_of_firing_patterns(firing_patterns):
     firing_patterns is a series or list of lists of firing patterns
     """
     assert type(firing_patterns) == pd.Series, "firing_patterns is not a pandas Series"
-    
+    firing_patterns = firing_patterns.dropna() # Clean up data
+
     firing_patterns_in_this_sim = []
     for model_fps in firing_patterns: # Iterate over models
         for fp in model_fps: # Iterate over firing patterns for one model
@@ -632,7 +633,7 @@ def get_all_firing_patterns_in_population(pop):
     all_firing_patterns = []
     for sim in sims:
         df = pop.results[sim].copy()
-        sim_firing_patterns = df['Firing pattern']
+        sim_firing_patterns = df['Firing pattern'].dropna() # Drop nans to avoid error in trying to iterate on a nan below
         
         for model_fps in sim_firing_patterns: 
             for fp in model_fps:

@@ -1188,7 +1188,7 @@ class Simulation(object):
         if benchmark: print("Simulations finished in {} s".format(time.time()-start))
         
         # Clear out any remaining figs
-        if (save== True) & ('fig' in process_save_type(save_type)) & (len(self.traces) > 0):
+        if (save == True) & ('fig' in process_save_type(save_type)) & (len(self.traces) > 0):
             plotted = True
             timeout_counter = 0
             while(plotted):
@@ -1196,7 +1196,7 @@ class Simulation(object):
                 plotted = self.trace_plot(self.num_subplots, filename, force_plot=True)
                 if plotted: self.count += 1
                 timeout_counter += 1
-                if timeout_counter > 100: raise RuntimeError('Plotting timed out at end of simulation.')
+                if timeout_counter > 10*num_sims/self.num_subplots: raise RuntimeError('Plotting timed out at end of simulation.') # Timeout if we wait for 10x the max number of plots
         
         # End and lock simulation
         self.simulation_ran = True

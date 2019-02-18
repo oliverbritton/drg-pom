@@ -148,59 +148,63 @@ def plot_current_shares_distributions(current_share_dist):
     return fig    
 plotCurrentSharesDistributions = plot_current_shares_distributions
 
-def plot_pie_chart(time, currents, n=0, legend=['Nav17','Nav18','Nav19','Kdr','KA','KM','HCN']):
+def plot_pie_chart(currents, title='', legend=['Nav17','Nav18','Nav19','Kdr','KA','KM','HCN'], autopct=None):
     """
     Plot pie chart
+    
+    Inputs:
+    currents - an array of currents, each array element should be a float - not a vector of currents like the original pie chart function in Alonso Marder
+    title - title string for plot
+    legend - ordered list of current names
     """
     # Plot pie charts and batons
     num_currents = currents.shape[0]+1
     color_set = plt.cm.Set1(np.arange(num_currents)/num_currents)
 
-
-    delta_t = (time[-1] - time[0])/len(time)
-    curr = currents
-
     # Positive currents
-    c_pos= curr.copy()
-    c_pos[curr<0]=0
+    c_pos= currents.copy()
+    c_pos[currents<0]=0
 
-    # Negative currents
-    c_neg=curr.copy()
-    c_neg[curr>0]=0
+    # Negative currents:w
+
+    c_neg=currents.copy()
+    c_neg[currents>0]=0
 
     # Sum of all positive currents and all negative currents
     norm_pos = np.sum(abs(np.array(c_pos)),axis=0)
     norm_neg = np.sum(abs(np.array(c_neg)),axis=0)
 
     # Get normalised currents for positive and negative currents
-    c_norm = curr.copy()
-    c_norm[curr>0] = (abs(curr)/norm_pos)[curr>0]
-    c_norm[curr<0] = -(abs(curr)/norm_neg)[curr<0]   
+    c_norm = currents.copy()
+    c_norm[currents>0] = (abs(currents)/norm_pos)[currents>0]
+    c_norm[currents<0] = -(abs(currents)/norm_neg)[currents<0]   
 
     c_norm_pos = np.zeros(np.shape(c_norm))
     c_norm_pos[c_norm>0] = c_norm[c_norm>0]
 
     c_norm_neg = np.zeros(np.shape(c_norm))
     c_norm_neg[c_norm<0] = c_norm[c_norm<0]
-
-    sizes_pos = c_norm_pos[:,n]
-    sizes_neg = abs(c_norm_neg[:,n])
-    sizes=sizes_pos/2
+   
+    # n not needed as function takes one set of currents, not vectors of currents
+    sizes_pos = c_norm_pos
+    sizes_neg = abs(c_norm_neg)
+    #sizes=sizes_pos/2
     #print(sum(sizes))
 
     fig1, ax1 = plt.subplots()    
-    ax1.pie(sizes_neg[::1]/2, colors=color_set[::1], shadow=False, startangle=0, counterclock=False)
+    ax1.pie(sizes_neg[::1]/2, colors=color_set[::1], autopct=autopct, shadow=False, startangle=0, counterclock=False)
     ax1.axis('equal') 
 
 
-    ax1.pie(sizes_pos[::1]/2,colors=color_set[::1],shadow=False, startangle=180,counterclock=False)
+    ax1.pie(sizes_pos[::1]/2,colors=color_set[::1], autopct=autopct, shadow=False, startangle=180,counterclock=False)
     ax1.axis('equal') 
 
     plt.legend(legend)
     plt.plot(np.linspace(-1.1,1.1,10),np.zeros(10), lw=5,color='black')
     plt.xlim(-1.05,1.05)
     plt.ylim(-1.05,1.05)
-    plt.title('{:.3g} ms'.format(n*delta_t))
+    #plt.title('{:.3g} ms'.format(n*delta_t))
+    plt.title(title)
 
     plt.axis('off')         
 
