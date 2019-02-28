@@ -71,11 +71,11 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                              sim_types, sim_type_amp_relationship,
                              sim_name_conversions,
                              how_to_fill):
-    
-    # Fill in the dataframe we've created
+    """"
+    Fill in a dataframe with aggregated biomarker data
+    """    
 
 
-    
     # Check inputs
     assert how_to_fill in how_to_fill_options(), "Method: {} for filling in biomarker data not supported".format(how_to_fill)
     assert any([amp_scale_factor == 1 for _,amp_scale_factor in sim_type_amp_relationship.items()]), "No base value of 1 for any of the sim types in sim_type_amp_relationship"
@@ -99,6 +99,11 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                 data = unaggregated_data.std()
             elif how_to_fill == 'median':
                 data = unaggregated_data.median()
+            elif how_to_fill == 'mean_freq_fillna':
+                assert biomarker == 'ISI', "Biomarker for frequency needs to be ISI not {}".format(biomarker) 
+                # Convert to frequency, then fill nans with 0s and take mean
+                unaggregated_data = 1000.0/unaggregated_data
+                data = unaggregated_data.fillna(0).mean() 
             else:
                 raise ValueError("How to fill method: {} not supported.".format(how_to_fill))
             
@@ -297,7 +302,7 @@ def format_firing_pattern_percentages(firing_pattern_percentages, short_sim_name
 
 " --- 3D visualisation--- "
 
-def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300)):
+def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zticks=None):
     """
     Construct a 3d plot 
     """
@@ -323,6 +328,9 @@ def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300)):
     plt.xlabel(labels[0])
     plt.ylabel(labels[1])
     ax.set_zlabel(labels[2], fontsize=20, rotation=40)
+
+    if zticks != None:
+        ax.set_zticks(zticks)
 
     " Rotate "
     # Rotate it
@@ -571,7 +579,7 @@ def get_non_rheobase_sim_names(pop):
  
 def how_to_fill_options():
     "Different options for filling in a summary biomarker for a whole population."
-    return ['mean', 'std', 'median']
+    return ['mean', 'std', 'median', 'mean_freq_fillna']
 
 def get_amp_str_from_sim_name(name, amp_units, delimiter):
         amp_units_with_delimiter = '{}{}'.format(delimiter, amp_units)

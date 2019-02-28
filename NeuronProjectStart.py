@@ -95,6 +95,8 @@ def get_project_path():
         path = "C:\\Users\\comra\\Dropbox\\Backups\\Neuron" 
     elif (pc_name == "OLIVERBRITTON") | (pc_name == "OliverBritton"):
         path = "E:\\CLPC48\\Neuron Project" # Could put Dropbox here instead
+    elif pc_name == 'OUCL12784':
+        path = "C:\\Users\\olibriadmin\\Dropbox\\Backups\\Neuron"
     else:
         raise Exception("Name: {} not found".format(pc_name))
     return path

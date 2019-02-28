@@ -68,6 +68,8 @@ def get_mechanism_dir(type='prototype'):
     if type == 'prototype':
         if platform == 'windows':
             path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
+            if not os.path.exists(path):
+                path = 'C:\\Users\\olibriadmin\\Dropbox\\Backups\\Neuron\\Code\\Models\\Currents\\Prototypes' 
         elif platform == 'linux':
             path = '/home/scratch/olibri/Dropbox/Backups/Neuron/Code/Models/Currents/Prototypes/x86_64/.libs'
         else:
