@@ -89,6 +89,7 @@ def calculate_simple_biomarkers(traces, model="Not needed", how_to_handle_nans='
     biomarkers['AHPTau'] =  tau
     biomarkers['AHPTrough'] = trough
     biomarkers['ISI'] = inter_spike_interval(traces)
+    biomarkers['numAPs'] = traces['numAPs']
         
     return biomarkers
     
