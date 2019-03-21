@@ -700,7 +700,6 @@ class PopulationOfModels(object):
         # Finally, set parameters
         self.parameters = parameters
         self.parameter_details = header
-        self.parameter_details = header
     
     def load_calibration_ranges(self, calibration_ranges=None, calibration_filename=None):
         """ Load calibration ranges from a dataframe or a file """
@@ -973,14 +972,26 @@ class PopulationOfModels(object):
             pickle.dump(self,f)
     
     save_pom = pickle_pom # Alias
-            
+
+    
+    def save_parameter_set(self, filename, save_comment=True, comment='#'):
+        """
+        Save parameter set and details to a csv file
+        """
+        with open(filename, 'w') as f:
+            comment_char = comment
+            f.write('{} {}\n'.format(comment_char, self.parameter_details))
+            # Round to 6 d.p., good for up to approx a million models
+            # with scaling factors of order 1, and is pandas default.
+            parameter_sets = self.parameters.round(6) 
+            parameter_sets.to_csv(f)
+
     
     def load_parameter_set(self, filename, load_comment=False, comment='#'):
         """
         Load a parameter set CSV file and return as a dataframe. Optionally, also
         return any commented lines at the top of the file. 
         """
-
         parameters = pd.read_csv(filename, sep=',', comment=comment,index_col=0)  
         if load_comment:
             comments = ''
@@ -988,12 +999,13 @@ class PopulationOfModels(object):
                 while True:
                     line = f.readline()
                     if line[0] == comment:
-                        comments += ' {}'.format(line)
+                        comments += line.lstrip(' ' + comment) # Remove leading whitespace and comment char
                     else:
                         break # Just return commented lines
             return parameters, comments
         else:
             return parameters
+
         
     def apply_calibration(self):
         """
@@ -1007,6 +1019,7 @@ class PopulationOfModels(object):
         else:
             print("Calibration not performed yet.")
 
+
     def remove_calibration(self):
         """
         Remove the last applied calibration and store the calibrated results if required.
@@ -1018,6 +1031,7 @@ class PopulationOfModels(object):
             self.calibration_applied = False
         else:
             print("Calibration not currently applied to results.")
+
 
     " --- Utility functions --- "
     def replace_mechanism(self, old_mech_name, new_mech_name):
@@ -1073,7 +1087,7 @@ class Simulation(object):
         # storage to define whether simulation is a rerun in the population or not
         self.rerun = None
         self.name_collision = None
-        
+       
         # Population-specific setup
         if population != None:
             self.population = population # Set reference to population

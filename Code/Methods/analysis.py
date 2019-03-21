@@ -321,8 +321,6 @@ def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zt
 
     " Make the plot "
     surf = ax.plot_trisurf(df['X'], df['Y'], df['Z'], cmap=plt.cm.viridis, linewidth=0.2)
-    " Color bar "
-
     fig.colorbar(surf, shrink=0.5, aspect=5)
 
     plt.xlabel(labels[0])
@@ -332,7 +330,6 @@ def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zt
     if zticks != None:
         ax.set_zticks(zticks)
 
-    " Rotate "
     # Rotate it
     ax.view_init(angle[0], angle[1])
     plt.show()
