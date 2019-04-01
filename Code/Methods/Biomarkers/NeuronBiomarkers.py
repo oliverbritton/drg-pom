@@ -6,6 +6,7 @@ import pandas as pd
 from scipy import optimize
 import Methods.Biomarkers.DavidsonBiomarkers as db
 import Methods.simulation_helpers as sh
+import Methods.analysis as an
 from matplotlib import pyplot as plt
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
@@ -1394,4 +1395,36 @@ def find_threshold_crossings(arr, _threshold):
             if arr[i+1] <= _threshold:
                 downs.append(i)
     return ups, downs
+
+
+def add_total_width_biomarker(pop, width_biomarker='APHalfWidth', filter_width=False, verbose=False):
+    """
+    Add a total width biomarker to each simulation in a population's results 
+    """
+    
+    def compute_total_width(df, width_biomarker, filter_width=False):
+        """
+        Compute the total width of a simulation from its results dataframe
+        with optional filtering out of AP Width outliers
+        """
+        freq = 1000.0/df['ISI']
+        numAPs = df['numAPs']
+        freq[numAPs == 1] = 1 # Approximation 
+
+        width = df[width_biomarker]
+        if filter_width:
+            outlier_definition = an.get_outlier_definition(width_biomarker)
+            width = width[width < outlier_definition]         
+        total_width = width * freq
+        total_width = total_width.fillna(0)
+        return total_width
+    
+    simulations = [col for col in pop.results.columns.levels[0] if col not in ['Parameters']]
+    for col in simulations:
+        if verbose:
+            print(col)
+        total_width = compute_total_width(df=pop.results[col], 
+                                          width_biomarker=width_biomarker,
+                                          filter_width=filter_width)
+        pop.results.loc[:, (col, 'APTotalWidth')] = total_width
 

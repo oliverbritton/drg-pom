@@ -1048,6 +1048,9 @@ class PopulationOfModels(object):
         self.mechanisms[new_mech_name] =  new_params
         # Model details will auto update
         self.model_description = self.model_description.replace(old_mech_name, new_mech_name)
+        
+    def rename(self, name):
+        self.name = name
     
             
 class Simulation(object):

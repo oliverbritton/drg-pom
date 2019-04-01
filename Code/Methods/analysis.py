@@ -70,7 +70,7 @@ def get_parameter_scaling(name, parameter_name, delimiter='_'):
 def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                              sim_types, sim_type_amp_relationship,
                              sim_name_conversions,
-                             how_to_fill):
+                             how_to_fill, filter_biomarkers_for_outliers=False,):
     """"
     Fill in a dataframe with aggregated biomarker data
     """    
@@ -92,18 +92,37 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
         for simulation, sim_type in simulations.items():
             # Input biomarker data
             unaggregated_data = results.loc[:,(simulation,biomarker)]
-            
+
+            # filtering of biomarkers for outliers
+            if filter_biomarkers_for_outliers:
+                if biomarker == "APHalfWidth":
+                    # Remove outliers
+                    outlier_definition = get_outlier_definition(biomarker) # ms
+                    outliers = unaggregated_data >= outlier_definition
+                    num_outliers = outliers.sum()
+                    mask = ~outliers # Invert boolean series
+                    unaggregated_data = unaggregated_data[mask]
+                    #if num_outliers > 0:
+                        #print("Removed {} AP Half Width outliers > {}".format(num_outliers, outlier_definition))
+
             if how_to_fill == 'mean':
                 data = unaggregated_data.mean()
             elif how_to_fill == 'std':
                 data = unaggregated_data.std()
             elif how_to_fill == 'median':
                 data = unaggregated_data.median()
+            elif how_to_fill == 'mean_fillna':
+                data = unaggregated_data.fillna(0).mean()
             elif how_to_fill == 'mean_freq_fillna':
                 assert biomarker == 'ISI', "Biomarker for frequency needs to be ISI not {}".format(biomarker) 
                 # Convert to frequency, then fill nans with 0s and take mean
                 unaggregated_data = 1000.0/unaggregated_data
                 data = unaggregated_data.fillna(0).mean() 
+            elif how_to_fill == 'mean_freq_dropna':
+                assert biomarker == 'ISI'
+                # Convert to frequency, then DROP nans and take mean
+                unaggregated_data = 1000.0/unaggregated_data
+                data = unaggregated_data.dropna().mean() 
             else:
                 raise ValueError("How to fill method: {} not supported.".format(how_to_fill))
             
@@ -124,7 +143,7 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
 
 " Aggregating population biomarker data per simulation "
             
-def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean'):
+def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean', filter_outliers=False):
     " Aggregate population biomarker results per simulation to analyse at a per simulation level over the ensemble population. "
     scaled_parameter = 'GNav18'
     sim_types = ['step', 'ramp'] # First entry in list is the base
@@ -167,7 +186,8 @@ def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean'):
     fill_in_grouped_sim_data(grouped_sim_data, pop.results, biomarker,
                                  sim_types, sim_type_amp_relationship,
                                  sim_name_conversions,
-                                 how_to_fill=how_to_fill)
+                                 how_to_fill=how_to_fill,
+                                 filter_biomarkers_for_outliers=filter_outliers)
 
 
     if biomarker is not 'Firing pattern':
@@ -576,7 +596,7 @@ def get_non_rheobase_sim_names(pop):
  
 def how_to_fill_options():
     "Different options for filling in a summary biomarker for a whole population."
-    return ['mean', 'std', 'median', 'mean_freq_fillna']
+    return ['mean', 'std', 'median', 'mean_fillna', 'mean_freq_fillna', 'mean_freq_dropna']
 
 def get_amp_str_from_sim_name(name, amp_units, delimiter):
         amp_units_with_delimiter = '{}{}'.format(delimiter, amp_units)
@@ -674,3 +694,15 @@ def get_biomarker_values_by_simulation(results, biomarker_names, simulation_name
     data = data.rename(columns={'':'Simulation'}) # Name the Simulation column
     return data
 
+" --- Constants --- "
+
+def get_outlier_definition(biomarker):
+    """
+    Centralised definitions of biomarker outliers for filtering
+    """
+
+    if biomarker == "APHalfWidth":
+        outlier_definition = 100.0 # mas
+    else:
+        raise ValueError(f"Biomarker {biomarker} not found.")
+    return outlier_definition
