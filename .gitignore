@@ -1,0 +1,7 @@
+*.dat
+*.hostconfig
+*.pyc
+Databases/
+Figures/
+Simulations/
+Writing/
