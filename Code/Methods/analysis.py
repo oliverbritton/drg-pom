@@ -460,12 +460,18 @@ def model_consistency_in_region(model, pop, region, firing_pattern, stim_type, a
               # any simulation in the region
     num_consistent_simulations = 0
     for simulation in region:
+        num_simulations += 1
         sim_full_name = short_name_to_full(simulation, stim_type, amp_stim_relationship, delimiter='_', amp_units='pA')
         simulation_firing_pattern = pop.results.at[model, (sim_full_name, 'Firing pattern')]
         # Check if firing pattern is part of simulation firing pattern
+
+        # Check for nans
+        if type(simulation_firing_pattern) != list:
+            if np.isnan(simulation_firing_pattern):
+                continue
+
         if firing_pattern in simulation_firing_pattern:
             num_consistent_simulations += 1
-        num_simulations += 1
         
     model_consistency = 100.*(num_consistent_simulations/num_simulations)
     return model_consistency
