@@ -544,7 +544,7 @@ def simulate_vclamp(sim_id,
 # ---CLASSES----
     
 class PopulationOfModels(object):
-
+    
     def __init__(self, 
         name,
         model_details,
@@ -1051,6 +1051,9 @@ class PopulationOfModels(object):
         
     def rename(self, name):
         self.name = name
+
+    def get_simulation_names(self):
+        return sorted(list(self.simulations.keys()))
     
             
 class Simulation(object):

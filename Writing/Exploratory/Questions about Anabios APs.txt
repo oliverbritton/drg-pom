@@ -1,6 +1,0 @@
-Questions about the Anabios data.
-
-1. Resting membrane potential at beginning is same for every neuron - clamped or set somehow? Significant differences at end of protocol.
-
-2. Rise in "fast" APs is slower than with previous burst. What causes this - increased inactivation of sodium channels, increased availability of potassium channels?
-
