@@ -1,0 +1,104 @@
+objectvar save_window_, rvp_
+objectvar scene_vector_[3]
+objectvar ocbox_, ocbox_list_, scene_, scene_list_
+{ocbox_list_ = new List()  scene_list_ = new List()}
+{pwman_place(0,0,0)}
+steps_per_ms=100
+dt=1/steps_per_ms
+
+{
+xpanel("RunControl", 0)
+v_init = -56.8
+xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+xbutton("Init & Run","run()")
+xbutton("Stop","stoprun=1")
+runStopAt = 5
+xvalue("Continue til","runStopAt", 1,"{continuerun(runStopAt) stoprun=1}", 1, 1 )
+runStopIn = 1
+xvalue("Continue for","runStopIn", 1,"{continuerun(t + runStopIn) stoprun=1}", 1, 1 )
+xbutton("Single Step","steprun()")
+t = 0
+xvalue("t","t", 2 )
+tstop = 3000
+xvalue("Tstop","tstop", 1,"tstop_changed()", 0, 1 )
+xvalue("dt","dt", 1,"setdt()", 0, 1 )
+xvalue("Points plotted/ms","steps_per_ms", 1,"setdt()", 0, 1 )
+screen_update_invl = 0.05
+xvalue("Scrn update invl","screen_update_invl", 1,"", 0, 1 )
+realtime = 0
+xvalue("Real Time","realtime", 0,"", 0, 1 )
+xpanel(1200,0)
+}
+
+proc Mode_select(){
+	// This function is for radio buttons to select 'firing mode'
+	// Selections can be added more by redefinging values of conductact and v_init
+	if ($1==1) {
+			node.gbar_kdr7 = 0
+			v_init=-57.42
+			stim.del=100
+			stim.dur=2800
+			stim.amp=0.012 //default: 0.063
+		}
+	if ($1==2) {
+			node.gbar_kdr7 = 0
+			v_init=-56.8 
+			stim.del=100
+			stim.dur=2800
+			stim.amp=0.024 
+			}
+	if ($1==3) {
+			node.gbar_kdr7 = 0
+			v_init=-56.8 
+			stim.del=100
+			stim.dur=2800
+			stim.amp=0.073
+			}
+	if ($1==4) {
+			node.gbar_kdr7 = 0.0026
+			v_init=-57.94 
+			stim.del=100
+			stim.dur=2800
+			stim.amp=0.62
+			}
+}
+
+objref vboxC, hboxC
+vboxC = new VBox()
+vboxC.intercept(1)
+
+{// ------------- Main control panel for DRG neuron --------
+xpanel("Mode selection panel",0)
+xlabel("Firing mode")
+xradiobutton("Subthreshold oscillation","Mode_select(1)")
+xradiobutton("Bursting spikes","Mode_select(2)",1)
+xradiobutton("Tonic firing","Mode_select(3)")
+xradiobutton("Singlet firing","Mode_select(4)")
+xpanel()
+
+xpanel("")
+xlabel("Conductace change")
+xvalue("gnaFast","node.gnabar_Shh_6",1,"",0,0)
+xvalue("gnaInter","node.gnabar_inter",1,"",0,0)
+xvalue("gnaSlow","node.gnabar_ls",1,"{Set_g(3,node.gnabar_ls)}",0,0)
+
+xlabel("K Conductance")
+xvalue("gbar_kdr","gbar_kdr7",1,"",0,0)
+xpanel()
+
+xpanel("")
+xlabel("Stimulation")
+xvalue("Amplitude","stim.amp",1,"",0,0)
+xvalue("Duration","stim.dur",1,"",0,0)
+xvalue("Delay","stim.del",1,"",0,0)
+
+xlabel("-------------------------")
+xlabel("Initial membrane potential")
+xvalue("Init","v_init", 1,"stdinit()", 1, 1 )
+xpanel()
+}
+vboxC.intercept(0)
+vboxC.map("Firing mode selection",0, 300, 300, 350)
+
+Mode_select(2) //Initial mode is for burst firing.
+

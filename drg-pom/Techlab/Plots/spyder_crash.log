@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "C:\Anaconda\lib\site-packages\spyderlib\spyder.py", line 2336, in main
+    mainwindow = run_spyder(app, options, args)
+  File "C:\Anaconda\lib\site-packages\spyderlib\spyder.py", line 2220, in run_spyder
+    main.setup()
+  File "C:\Anaconda\lib\site-packages\spyderlib\spyder.py", line 766, in setup
+    from spyderlib.plugins.inspector import ObjectInspector
+  File "C:\Anaconda\lib\site-packages\spyderlib\plugins\inspector.py", line 47, in <module>
+    from spyderlib.utils.inspector.sphinxify import (CSS_PATH, sphinxify,
+  File "C:\Anaconda\lib\site-packages\spyderlib\utils\inspector\sphinxify.py", line 28, in <module>
+    from docutils.utils import SystemMessage as SystemMessage
+  File "C:\Anaconda3\Lib\site-packages\docutils\utils\__init__.py", line 20, in <module>
+    import docutils.io
+  File "C:\Anaconda3\Lib\site-packages\docutils\io.py", line 340
+    (self.destination.mode, mode)), file=self._stderr)
+                                        ^
+SyntaxError: invalid syntax
