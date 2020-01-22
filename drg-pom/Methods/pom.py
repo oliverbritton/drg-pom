@@ -35,7 +35,7 @@ import neuron
 import Methods.Simulations.loadneuron as ln
 ln.load_neuron_mechanisms(verbose=True)
 
-# ---FUNCTIONS---
+# --- Utiliy functions---
 
 def load_parameters(filename):
     parameters = pd.read_csv(filename, sep=',', header=None)
@@ -97,7 +97,7 @@ def make_pom_name(name):
     return '{}_{}'.format(name,date)
 
 def allowed_save_types():
-    return ('fig', 'trace', 'both', 'all')
+    return ('fig', 'trace', 'both', 'all', 'none', None)
     
 def process_save_type(save_type):
     if save_type in ['fig', 'trace']:
@@ -106,6 +106,8 @@ def process_save_type(save_type):
         return ['fig', 'trace']
     elif save_type == 'all':
         return ['fig', 'trace']
+    elif (save_type == None) or (save_type == 'none'):
+        return []
     else:
         raise ValueError('save_type {} not found'.format(save_type))
     
@@ -115,12 +117,26 @@ def get_function_args(function):
     #@PYTHON3 - change to getfullargspec
     args  = inspect.getargspec(function)[0]
     return args
-   
+ 
+def set_dataframe_types(df):
+    """
+    Set all columns in a pd.DataFrame where all data have the same type to that type
+    """
+    typed_df = df.copy()
+    for column in typed_df:
+        types = [type(i) for i in typed_df[column]]
+        if all([i == types[0] for i in types]):
+            typed_df [column] = typed_df[column].astype(types[0])
+    return typed_df 
+
+def dump_exception(e, filename="debug.txt"):
+    with open(filename, "w") as f: 
+        f.write(str(e))  
 """   --- SIMULATION FUNCTIONS ---
- These are set outside of the Simulation class because of multiprocessing.
- Functions sent to other processes have to be serializable (picklable), and 
- member functions aren't. So the functions are at the top level of pom's scope, 
- which makes them picklable.
+    Simulation functions are defined outside of the Simulation class because of multiprocessing issues.
+    Functions sent to other processes have to be serializable (picklable), and 
+    member functions aren't. So the functions are at the top level of this module's scope, 
+    which makes them picklable. 
 """
 
 def simulate_iclamp(sim_id,
@@ -290,19 +306,21 @@ def simulate_iclamp(sim_id,
         # --- Analyse simulation for biomarkers ---
         traces = nb.split_trace_into_aps(t,v)
         # This is the borked bit - TODO: fix this
-        biomarkers = nb.calculate_simple_biomarkers(traces, cell)          
+        biomarkers = nb.calculate_simple_biomarkers(traces, cell, how_to_handle_nans='remove')          
        
         try:
             # Check flags for alternate biomarker calculations
             for flag in flags:
+
                 if flag == "ramp_threshold_sim_for_width":
                     _threshold = flags[flag]
                     biomarkers['APFullWidth'] = nb.average_biomarker_values(
                             nb.calculate_ap_width(traces, alpha=0.0, threshold=_threshold, method='voltage'),
-                            how_to_handle_nans="return")
+                            how_to_handle_nans="remove")
                     biomarkers['APHalfWidth'] = nb.average_biomarker_values(
                             nb.calculate_ap_width(traces, alpha=0.5, threshold=_threshold, method='voltage'),
-                            how_to_handle_nans="return")
+                            how_to_handle_nans="remove")
+
         except Exception as e:
             with open("{}_{}.txt".format(sim_id,stim_func),'w') as f:
                 f.write(str(e))
@@ -353,7 +371,6 @@ def simulate_iclamp(sim_id,
     # Output @TODO - wrap into function as code is mostly shared with simulate_vclamp
     plot = options['plot']
     save = options['save']
-    
     if save == True:
         save_type = options['save_type']
         save_types = process_save_type(save_type)
@@ -366,6 +383,9 @@ def simulate_iclamp(sim_id,
             # Last element in list will be the front-most part of the filename
                 if name in metadata.keys():
                     filename = '{}_{}'.format(metadata[name], filename)
+            # If we don't want to save in the directory we're in
+            if options['save_dir']:
+                filename = os.path.join(options['save_dir'], filename)
             save_trace(trace, filename)
 
     if plot: #@TODO 
@@ -541,7 +561,10 @@ def simulate_vclamp(sim_id,
     
     return results
     
-# ---CLASSES----
+""" ---CLASSES----
+    The PopulationOfModels and Simulation classes encapsulate the data and methods needed to create and analyse a population of models and
+    run simulations on a population. 
+"""
     
 class PopulationOfModels(object):
     
@@ -759,7 +782,7 @@ class PopulationOfModels(object):
                         simulation_type,
                         protocols=None,
                         cores=1,
-                        plot=False, save=False, save_type='fig', 
+                        plot=False, save=False, save_type='fig', save_dir=None, 
                         benchmark=True,
                         rerun=False,
                         ):
@@ -811,6 +834,7 @@ class PopulationOfModels(object):
             plot=plot,
             save=save, 
             save_type=save_type,
+            save_dir=save_dir,
             benchmark=benchmark,
             rerun=rerun,)
         print("Sim results:\n {}".format(sim.results)) # debug
@@ -1118,7 +1142,7 @@ class Simulation(object):
         
         
     def pom_simulation(self, simulation_type, cores=1, plot=False, save=False,
-            save_type='fig', benchmark=True, rerun=False):
+            save_type='fig', save_dir=None, benchmark=True, rerun=False):
         """
         Run simulations 
         
@@ -1146,7 +1170,7 @@ class Simulation(object):
         
         # Construct options and metadata and add to protocol
         assert(save_type in allowed_save_types()), "Save type not recognised."
-        options = {'plot':plot, 'save':save, 'save_type':save_type}
+        options = {'plot':plot, 'save':save, 'save_type':save_type, 'save_dir':save_dir}
         self.options = options # save options so we can use them to process output
         self.protocols['options'] = options
         # Metadata is used for saving and plotting
@@ -1176,7 +1200,7 @@ class Simulation(object):
         #for run in range(num_runs):
 
         self.count = 0
-        for i, model_idx in enumerate(self.model_indices):   
+        for _, model_idx in enumerate(self.model_indices):   
             mechanisms = self.build_parameters(model_idx)
             # @TODO - allow different cellular parameters and ionic concs to be input, as well as variation in parameters
             
@@ -1386,12 +1410,13 @@ class Simulation(object):
         biomarker_names['vclamp'] = []
         
         # Set biomarkers that are only calculated when requested through outputs
-        if 'ik' in outputs:
-            biomarker_names['iclamp'].extend([]) # Nothing yet
-            biomarker_names['vclamp'].extend(['ik_steps_absmax'])
-        if 'ina' in outputs:
-            biomarker_names['iclamp'].extend([]) # Nothing yet
-            biomarker_names['vclamp'].extend([]) # Nothing yet
+        if outputs:
+            if 'ik' in outputs:
+                biomarker_names['iclamp'].extend([]) # Nothing yet
+                biomarker_names['vclamp'].extend(['ik_steps_absmax'])
+            if 'ina' in outputs:
+                biomarker_names['iclamp'].extend([]) # Nothing yet
+                biomarker_names['vclamp'].extend([]) # Nothing yet
             
         return biomarker_names[sim_type.lower()]
 
@@ -1524,7 +1549,7 @@ class Simulation(object):
                 
                 # Plotting
                 fig = plt.figure(figsize=(40,40))
-                legend_plotted = False;
+                legend_plotted = False
                 for i, sim_id in enumerate(ids):
                 
                     # Trace plots
@@ -1581,19 +1606,5 @@ class Simulation(object):
                 raise ValueError("make_plot is invalid value: {}".format(make_plot))
                 
        
-# --- Utils ---
 
-def set_dataframe_types(df):
-    """
-    Set all columns in the DataFrame where all data has the same type to that type
-    """
-    typed_df = df.copy()
-    for column in typed_df:
-        types = [type(i) for i in typed_df[column]]
-        if all([i == types[0] for i in types]):
-            typed_df[column] = typed_df[column].astype(types[0])
-    return typed_df
 
-def dump_exception(e, filename="debug.txt"):
-    with open(filename, "w") as f:
-        f.write(str(e))

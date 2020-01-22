@@ -3,96 +3,102 @@
 
 
 from pylab import *
+from matplotlib import pyplot as plt
+import numpy as np
 
-def plot_currentscape(voltage, currents, figsize=(3,4)):	
-	# make a copy of currents
-	# CURRENTSCAPE CALCULATION STARTS HERE. 
-	curr=array(currents)	
-	cpos= curr.copy()
-	cpos[curr<0]=0
-	cneg= curr.copy()
-	cneg[curr>0]=0
+def plot_currentscape(voltage, currents, figsize=(3,4)):
+    # make a copy of currents
+    # CURRENTSCAPE CALCULATION STARTS HERE. 
+    curr=np.array(currents)	
+    cpos= curr.copy()
+    cpos[curr<0]=0
+    cneg= curr.copy()
+    cneg[curr>0]=0
 
-	normapos = sum(abs(array(cpos)),axis=0)
-	normaneg = sum(abs(array(cneg)),axis=0)
-	npPD=normapos
-	nnPD=normaneg
-	cnorm=curr.copy()
-	cnorm[curr>0]=(abs(curr)/normapos)[curr>0]
-	cnorm[curr<0]=-(abs(curr)/normaneg)[curr<0]
+    normapos = np.sum(abs(np.array(cpos)),axis=0)
+    normaneg = np.sum(abs(np.array(cneg)),axis=0)
+    npPD=normapos
+    nnPD=normaneg
+    cnorm=curr.copy()
+    cnorm[curr>0]=(abs(curr)/normapos)[curr>0]
+    cnorm[curr<0]=-(abs(curr)/normaneg)[curr<0]
 
-	resy=1000
-	impos=zeros((resy,shape(cnorm)[-1])) 
-	imneg=zeros((resy,shape(cnorm)[-1])) 
+    resy=1000
+    impos=np.zeros((resy,np.shape(cnorm)[-1])) 
+    imneg=np.zeros((resy,np.shape(cnorm)[-1])) 
 
-	times=arange(0,shape(cnorm)[-1])
-	for t in times:
-	    lastpercent=0
-	    for numcurr, curr in enumerate(cnorm):
-	        if(curr[t]>0):
-	            percent = int(curr[t]*(resy))   
-	            impos[lastpercent:lastpercent+percent,t]=numcurr
-	            lastpercent=lastpercent+percent        
-	for t in times:
-	    lastpercent=0
-	    for numcurr, curr in enumerate(cnorm):
-	        if(curr[t]<0):
-	            percent = int(abs(curr[t])*(resy))   
-	            imneg[lastpercent:lastpercent+percent,t]=numcurr
-	            lastpercent=lastpercent+percent        
-	im0= vstack((impos,imneg))
-	# CURRENTSCAPE CALCULATION ENDS HERE. 
+    times=np.arange(0,np.shape(cnorm)[-1])
+    for t in times:
+        lastpercent=0
+        for numcurr, curr in enumerate(cnorm):
+            if(curr[t]>0):
+                percent = int(curr[t]*(resy))   
+                impos[lastpercent:lastpercent+percent,t]=numcurr
+                lastpercent=lastpercent+percent        
+    for t in times:
+        lastpercent=0
+        for numcurr, curr in enumerate(cnorm):
+            if(curr[t]<0):
+                percent = int(abs(curr[t])*(resy))   
+                imneg[lastpercent:lastpercent+percent,t]=numcurr
+                lastpercent=lastpercent+percent        
+    im0= np.vstack((impos,imneg))
+    # CURRENTSCAPE CALCULATION ENDS HERE. 
 
-	#PLOT CURRENTSCAPE
-	fig = figure(figsize=figsize)
+    #PLOT CURRENTSCAPE
+    fig = plt.figure(figsize=figsize)
 
-	#PLOT VOLTAGE TRACE
-	xmax=len(voltage)
-	swthres=-50        
-	ax=subplot2grid((7,1),(0,0),rowspan=2)	
-	t=arange(0,len(voltage))
-	plot(t, voltage, color='black',lw=1.)
-	plot(t,ones(len(t))*swthres,ls='dashed',color='black',lw=0.75)
-	vlines(1,-50,-20,lw=1)
-	ylim(-75,70)
-	xlim(0,xmax)
-	axis('off')         
+    #PLOT VOLTAGE TRACE
+    xmax=len(voltage)
+    swthres=0       
+    ax=plt.subplot2grid((7,1),(0,0),rowspan=2)
+    t=np.arange(0,len(voltage))
+    plt.plot(t, voltage, color='black',lw=1.)
+    plt.plot(t,np.ones(len(t))*swthres,ls='dashed',color='black',lw=0.75)
+    plt.vlines(1,-50,-20,lw=1)
+    plt.ylim(-75,70)
+    plt.xlim(0,xmax)
+    plt.axis('off')         
 
-	#PLOT TOTAL INWARD CURRENT IN LOG SCALE
-	ax=subplot2grid((7,1),(2,0),rowspan=1)
-	fill_between(arange(len((npPD))),(npPD),color='black')
-	plot(5.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	plot(50.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	plot(500.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	yscale('log')
-	ylim(0.01,1500)
-	xlim(0,xmax)
-	axis('off') 
+    def plot_log_lines(seq=[0.01, 0.1, 1.]):
+        for val in seq:
+            plt.plot(val*np.ones(len(nnPD)),color='black', ls=':',lw=1)
 
-	#PLOT CURRENT SHARES
-	elcolormap='Set1'
-	ax=subplot2grid((7,1),(3,0),rowspan=3)
-	imshow(im0[::1,::1],interpolation='nearest',aspect='auto',cmap=elcolormap)
-	ylim(2*resy,0)
-	plot(resy*ones(len(npPD)),color='black',lw=2)
-	plt.gca().xaxis.set_major_locator(plt.NullLocator())
-	plt.gca().yaxis.set_major_locator(plt.NullLocator())
-	xlim(0,xmax)
-	clim(0,8)
-	axis('off') 
+    #PLOT TOTAL INWARD CURRENT IN LOG SCALE
+    ax=plt.subplot2grid((7,1),(2,0),rowspan=1)
+    plt.fill_between(np.arange(len((npPD))),(npPD),color='black')
+    plot_log_lines()
+    plt.yscale('log')
+    plt.ylim(0.01,1500)
+    plt.xlim(0,xmax)
+    plt.axis('off') 
 
-	#PLOT TOTAL OUTWARD CURRENT IN LOG SCALE
-	ax=subplot2grid((7,1),(6,0),rowspan=1)
-	fill_between(arange(len((nnPD))),(nnPD),color='black')
-	plot(5.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	plot(50.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	plot(500.*ones(len(nnPD)),color='black', ls=':',lw=1)
-	yscale('log')
-	ylim(1500,0.01)
-	xlim(0,xmax)
-	axis('off') 
-	subplots_adjust(wspace=0, hspace=0)
-	return fig
+
+    #PLOT CURRENT SHARES
+    elcolormap='Set1'
+    ax=plt.subplot2grid((7,1),(3,0),rowspan=3)
+    plt.imshow(im0[::1,::1],interpolation='nearest',aspect='auto',cmap=elcolormap)
+    plt.ylim(2*resy,0)
+    plt.plot(resy*np.ones(len(npPD)),color='black',lw=2)
+    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+    plt.gca().yaxis.set_major_locator(plt.NullLocator())
+    plt.xlim(0,xmax)
+    plt.clim(0,8)
+    plt.axis('off') 
+
+
+    #PLOT TOTAL OUTWARD CURRENT IN LOG SCALE
+    ax=plt.subplot2grid((7,1),(6,0),rowspan=1)
+    plt.fill_between(np.arange(len((nnPD))),(nnPD),color='black')
+    plot_log_lines()
+    plt.yscale('log')
+    plt.ylim(1500,0.01)
+    plt.xlim(0,xmax)
+    plt.axis('off') 
+    plt.subplots_adjust(wspace=0, hspace=0)
+    
+    return fig
+
 plotCurrentscape = plot_currentscape
 
 def plot_voltage_distributions(Vdist): 

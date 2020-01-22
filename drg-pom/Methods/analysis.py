@@ -11,11 +11,12 @@ import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 
 " Creating dataframes and aggregating population biomarker data per simulation "
+print("Debug")
 
 def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                              sim_types, sim_type_amp_relationship,
                              sim_name_conversions,
-                             how_to_fill, filter_biomarkers_for_outliers=False,):
+                             how_to_fill, filter_biomarkers_for_outliers=False, threshold=None):
     """"
     Fill in a dataframe with aggregated biomarker data
     """    
@@ -37,6 +38,10 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
             # Input biomarker data
             unaggregated_data = results.loc[:,(simulation,biomarker)]
 
+            if threshold:
+                # Only keep rows that are not below or at threshold
+                unaggregated_data = unaggregated_data[unaggregated_data <= threshold]
+                
             # filtering of biomarkers for outliers
             if filter_biomarkers_for_outliers:
                 if biomarker == "APHalfWidth":
@@ -87,7 +92,7 @@ def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                 scaling_factor_value = get_parameter_scaling(simulation, scaling_factor, delimiter='_')
                 grouped_sim_data.at[name, ('Scaling factors', scaling_factor)] = scaling_factor_value
 
-def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean', filter_outliers=False, scaled_parameters=['GNav18']):
+def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean', filter_outliers=False, scaled_parameters=['GNav18'], threshold=None):
     " Aggregate population biomarker results per simulation to analyse at a per simulation level over the ensemble population. "
 
     sim_types = ['step', 'ramp'] # First entry in list is the base
@@ -115,7 +120,8 @@ def make_grouped_sim_data(pop, biomarker='APFullWidth', agg='mean', filter_outli
                                  sim_types, sim_type_amp_relationship,
                                  sim_name_conversions,
                                  how_to_fill=agg,
-                                 filter_biomarkers_for_outliers=filter_outliers)
+                                 filter_biomarkers_for_outliers=filter_outliers,
+                                 threshold=threshold)
 
     if biomarker is not 'Firing pattern':
         grouped_sim_data = grouped_sim_data.astype(float)
@@ -468,7 +474,7 @@ def pom_consistency_hist(pom_consistency):
 
 " Plotting "
 
-def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zticks=None):
+def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zticks=None, title=None):
     """
     Construct a 3d plot 
     """
@@ -485,6 +491,10 @@ def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zt
     fig = plt.figure(figsize=(10,10))
     ax = fig.gca(projection='3d')
 
+    # Title
+    if title is not None:
+        ax.set_title(title, fontsize=18, verticalalignment='baseline')
+
     " Make the plot pop "
     surf = ax.plot_trisurf(df['X'], df['Y'], df['Z'], cmap=plt.cm.viridis, linewidth=0.2)
     fig.colorbar(surf, shrink=0.5, aspect=5)
@@ -498,8 +508,10 @@ def make_3d_plot(data, x, y, z, cutoff, fillna_value, labels, angle=(20,300), zt
 
     # Rotate it
     ax.view_init(angle[0], angle[1])
+    plt.tight_layout()
+
     plt.show()
-    return fig
+    return fig, ax
 
 def visualise_region(pop, region, stim_type, scaling_factor='GNav18'):
     " Visualise region as scatter plot with one scaling factor and amp "
@@ -526,10 +538,11 @@ def pom_consistency_cumulative_plot(pom_consistency, bins=10):
 
 def plot_biomarker_boxplots(pop, biomarker, stim_amps, sim_type, 
                             sim_types=['step', 'ramp'], 
-                            sim_type_amp_relationship={'step':1, 'ramp':10},
+                            sim_type_amp_relationship={'step':1., 'ramp':10.},
                             base_sim_type='step',
                             save=False,
                             save_path=None,
+                            fixed_scaling_factors={},
                            ):
     " Plot boxplots of biomarkers for constant stim amps varying scaling factor "
     
@@ -537,8 +550,8 @@ def plot_biomarker_boxplots(pop, biomarker, stim_amps, sim_type,
     sim_name_conversions = make_sim_name_conversions(sim_names, sim_types, sim_type_amp_relationship, base_sim_type)
     for stim_amp in stim_amps:
         
-        simulations = get_simulations_with_fixed_stim_amp(pop, stim_amp, sim_type, sim_type_amp_relationship, base_sim_type)
-        
+        simulations = get_simulations_with_fixed_stim_amp(pop, stim_amp, sim_type, sim_type_amp_relationship, base_sim_type, fixed_scaling_factors=fixed_scaling_factors)
+ 
         # Build dataframe with the simulation and biomarker value of each model
         df = pd.DataFrame()
         for sim in simulations:
@@ -555,7 +568,7 @@ def plot_biomarker_boxplots(pop, biomarker, stim_amps, sim_type,
         sns.set_context("paper", font_scale=2.2)
         sns.boxplot(x='Scaling factor', y=biomarker, data=df, whis=np.inf)
         plt.title(f'Stim amp = {stim_amp} pA.')
-        plt.xticks([0, 5, 10, 15, 20],[0, 0.5, 1.0, 1.5, 2.0])
+        #plt.xticks([0, 5, 10, 15, 20],[0, 0.5, 1.0, 1.5, 2.0])
         #plt.ylim(0,10)
         plt.ylabel('num APs')
         plt.xlabel('GNav 1.8 scaling factor')
@@ -701,7 +714,7 @@ def get_firing_pattern_percentages(pop):
     firing_pattern_percentages = firing_pattern_percentages.fillna(0)
     return firing_pattern_percentages
 
-def short_name_to_full(short_name, stim_type, amp_stim_relationship, delimiter='_', amp_units='pA'):
+def short_name_to_full(short_name, stim_type, amp_stim_relationship={'step':1, 'ramp':10}, delimiter='_', amp_units='pA'):
     """
     Convert short name of a simulation without stim type and with amp converted by amp_stim_relationship
     to the full name of the simulation.
@@ -722,7 +735,7 @@ def short_name_to_full(short_name, stim_type, amp_stim_relationship, delimiter='
     # Need to add delimiter to avoid splitting on the simulation name (eg simulation_5_10 for amp=0)
     parts[0] += (delimiter + stim_type + delimiter)
 
-    stim_type_amp_str = str(amp_val * amp_stim_relationship[stim_type])
+    stim_type_amp_str = str(amp_val * int(amp_stim_relationship[stim_type])) # Assume that all amp_stim_relationships are expressed as ints
     parts[0] += stim_type_amp_str
 
     full_name = ''.join(parts)
@@ -760,7 +773,7 @@ def process_sim_name(name, sim_types, sim_type_amp_relationship, amp_units='pA',
         
     return None
 
-def get_simulations_with_fixed_stim_amp(pop, stim_amp, sim_type, sim_type_amp_relationship, base_sim_type, sim_types=['step','ramp']):
+def get_simulations_with_fixed_stim_amp(pop, stim_amp, sim_type='step', sim_type_amp_relationship={'step':1., 'ramp':10}, base_sim_type='step', sim_types=['step','ramp'], fixed_scaling_factors={}):
     " Get names of all simulations in population with a given stimulus amplitude and type "
     
     sim_names = pop.get_simulation_names()
@@ -785,6 +798,11 @@ def get_simulations_with_fixed_stim_amp(pop, stim_amp, sim_type, sim_type_amp_re
     # Filter the dataframe to find the simulations we want
     simulations = list(grouped_sim_data[grouped_sim_data[('Amp', sim_type)] == stim_amp].index)
     simulations = [short_name_to_full(sim, sim_type, amp_stim_relationship=sim_type_amp_relationship) for sim in simulations]
+
+    # Filter simulations to only include those with particular values of a scaling factor, if required
+    for fixed_sf, val in fixed_scaling_factors.items():
+        simulations = [sim for sim in simulations if get_parameter_scaling(sim, fixed_sf, delimiter='_') == val] 
+
     return simulations
 
 " Constants "
@@ -796,7 +814,7 @@ def get_outlier_definition(biomarker):
     """
 
     if biomarker == "APHalfWidth":
-        outlier_definition = 100.0 # mas
+        outlier_definition = 100.0 # ms
     else:
         raise ValueError(f"Biomarker {biomarker} not found.")
     return outlier_definition

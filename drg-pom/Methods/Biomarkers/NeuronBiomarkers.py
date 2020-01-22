@@ -34,7 +34,11 @@ def average_biomarker_values(biomarkers, how_to_handle_nans='return'):
     if how_to_handle_nans == 'return': # Advantage is we return nan if there are any nans - good for calibration and trouble shooting - shows up weird models easily. 
         pass
     elif how_to_handle_nans == 'remove': # Risky option. Advantage is we still get a number back in mixed cases of nan and non-nan biomarkers, which is potentially risky as it hides a problem in one or more APs.
-        biomarkers = biomarkers[~np.isnan(biomarkers)]
+        biomarkers = np.array(biomarkers)
+        if biomarkers[~np.isnan(biomarkers)].size == 0:
+            return np.nan
+        else:
+            biomarkers = biomarkers[~np.isnan(biomarkers)]
     else:
         raise ValueError("{} is not an accepted nan handling method.".format(how_to_handle_nans))
         
@@ -128,7 +132,7 @@ def compute_model_biomarkers(model=None, mechanisms=None, make_plot=False, sim_k
         t = output['t']; v = output['v']
         t = t[::2]; v = v[::2] # 20 kHz
         traces = split_trace_into_aps(t,v)
-        biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='return')
+        biomarkers = calculate_simple_biomarkers(traces,model,how_to_handle_nans='remove')
 
     # RMP
     rmp_kwargs = {'amp':0.0, 'dur':3000., 'delay':0., 'interval':0., 'num_stims':1, 't_stop':3000.}
@@ -216,13 +220,13 @@ def split_trace_into_aps(t,v,threshold=0,time_threshold=5, check_voltage_gradien
 #        times.append(t)
 #        voltages.append(v)
 
-    # If we have multiple APs, for each AP find the minimum value
-    # of Vm before the next AP
     
     """ 
-    There are some commented assumptions about where traces begin and end here. The core idea is that all data points in the trace have to be assigned to 1 and only 1 AP. If areas of quiescence are a problem for particular analysis methods, they will be stripped out by other specialised functions. 
+    There are some commented assumptions about where traces begin and end here. The core idea is that all data points in the trace have to be assigned to 1 and only 1 AP. If areas of quiescence are a problem for    particular analysis methods, they will be stripped out by other specialised functions. 
     Our goal in this function is to divide up the trace without leaving any of it out, so that we have everything for any future analysis.
     """
+    # If we have multiple APs, for each AP find the minimum value
+    # of Vm before the next AP
     if numAPs > 0:
         startIdx = np.zeros(numAPs,int)
         endIdx = np.zeros(numAPs,int)    
@@ -646,11 +650,11 @@ def fit_afterhyperpolarization(traces, dvdt_threshold, max_time_from_peak=50., a
         # which would equate to a 1 ms minimum AHP duration.
         
         length_threshold = 10
+        if (len(t) <= length_threshold) | (len(v) <= length_threshold):
+            return hyperpolarisation_fit_failure(full_output)    
         dt = np.gradient(t)
         assert np.mean(dt) < 0.1, "dt is large, check length_threshold"
-        if (len(t) <= length_threshold) | (len(v) <= length_threshold):
-            return hyperpolarisation_fit_failure(full_output)
-            
+
         # We can check for this and return failure if it is the case. To do: think about whether this is the best
         # way to handle the lack of an ahp. There could also be cases where we have an AP with no AHP, 
         # and these might give odd tau and amp readings that should not be averaged. For calibration this is fine, 

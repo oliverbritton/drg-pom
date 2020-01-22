@@ -32,7 +32,7 @@ def init_model(mechanisms=[],
     L=30.,  # uM
     diam=46., # uM
     cm=1., # uF/cm^2
-    Ra=123., 
+    Ra=123., # ohm cm 
     ko=3., # mM
     ki=135.,  # mM
     nao=145., # mM
@@ -89,8 +89,10 @@ def get_init_model_values(name='first'):
     return model_values
         
 # TODO - make the build model inputs more sensibly named, they are confusing
-def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=None, mechanism_names=None,mechanism_is_full_parameter_name=False):
+def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=None, mechanism_names=None, mechanism_is_full_parameter_name=False):
     """
+    Constructs a NEURON model with specified mechanisms (ion channels etc.)
+
     Mechanism names is for if we don't want to vary the conductance of every mechanism in the model, or if we want to use different parameters. 
     """
     # Dict construction
@@ -132,8 +134,7 @@ def build_model(mechanisms={'kdrtf':1., 'katf':1., 'nav18hw':1.}, conductances=N
     
 def set_stims(amp, dur, delay, interval, num_stims, stim_func, cell):
     """
-    Setup stimulus objects for a simulation
-    Currently does not work for more than one stimulus
+    Set up stimulus objects in a NEURON model
     """
     stims = []
     for i in range(num_stims):
@@ -145,15 +146,22 @@ def set_stims(amp, dur, delay, interval, num_stims, stim_func, cell):
         return stims
         
 def simulation_plot(t, v, currents=None, plot_type='default'):
-        
+    """
+    Plot voltage trace of a NEURON simulation
+    """
     if plot_type == 'default':
         plt.figure(figsize=(5,5))
-        plt.plot(t,v); plt.ylabel('Vm (mV)'); plt.xlabel('Time (ms)')
+        plt.plot(t,v)
+        plt.ylabel('Vm (mV)')
+        plt.xlabel('Time (ms)')
     # TODO: Support plotting currents
     else:
         raise ValueError("Plot type: {} not supported.".format(plot_type))
         
 def set_vt(cell):
+    """
+    Set up voltage and time reocrding in a NEURON model
+    """
     v = h.Vector()
     v.record(cell(0.5)._ref_v, sec=cell)
     t = h.Vector()
@@ -231,7 +239,14 @@ def record_currents(cell, current_set):
     
 def record_concs(cell, concs_to_record):
     """
-    Record ionic concentrations from a model
+    Record ionic concentrations from a NEURON model
+    Inputs:
+    cell - a NEURON model segment
+    concs_to_record - list of strings describing which intracellular ionic concentrations to record
+    (see get_ionic_concentration_list() for accepted concentration names)
+
+    Outputs:
+    concs - list of hoc vectors recording ionic concentrations from the NEURON model segment.
     """
     if concs_to_record == None:
         concs = None
@@ -334,24 +349,42 @@ def build_parameter_set(num_models, parameter_data, minimum=None, maximum=None, 
     return parameter_sets, header
 
 def build_empty_parameter_set_details():
+    """
+    Returns dict describing the format to define a parameter set of a population of model
+    """
     parameter_set_details = {'num_models':None, 'parameter_data':None, 'minimum':None, 'maximum':None, 'save':False, 'output_filename':None}
     return parameter_set_details
     
 def build_empty_model_details():
+    """
+    # Helper to build dict to show how to define a mechanism when creating a population of models
+    """
     mechanism_vals = {'nav17tf': {'GNav17':'gna_nav17tf'}, }
     # mechanism val format is {name of mechanism in neuron : {public facing parameter name:name of parameter in neuron}}
     model_details = {'mechanisms':mechanism_vals}
     return  model_details
 
+"""
+26/07/19 - I believe this is unused, delete?
 def construct_parameter_names(list_of_terms):
+    
+    #Construct the name of a parameter (e.g. a conductance) from parts
+    #May be unused?
+    
     parameter_parts = list(itertools.product(*list_of_terms))
     parameter_names = ['_'.join(parameter) for parameter in parameter_parts]    
     return parameter_names
+"""
     
 """ --- Simulation functions --- """
     
 def build_empty_sim_protocols():
+    """
+    Returns dict describing the format to define a simulation protocol for a population of models
+    """
     sim_protocols_keys = ['delay', 'amp', 'dur', 'interval', 'num_stims', 'stim_func', 't_stop', 'v_init', 'currents_to_record'] 
+    return {protocol:None for protocol in sim_protocols_keys}
+
 
 def simulation(amp, dur, delay, interval=0, num_stims=1, stim_func=h.IClamp, mechanisms={'kdrtf':1., 'katf':3., 'nav18hw':1.}, t_stop=1000., make_plot=False, plot_type='default', model=None, ions=['Na','K'], mechanisms_to_record=None, record_ionic_currents=True, concs_to_record=None):
     """
@@ -506,8 +539,6 @@ def simulation_for_ab(amp, dur, delay, interval, num_stims=40, stim_func=h.IClam
     plt.plot(t,ik)
     return
     
-def simulation_vclamp():
-    """ Run a voltage clamp simulation """    
 
 """ --- Utility functions ---- """
     
@@ -529,8 +560,8 @@ def get_biomarker_list(biomarker_set='default'):
     
 def get_ionic_current_list():
     """
-    Names of supported ionic currents (whole ions, e.g. Na, Ca, K, not from individual mechanisms
-    like Nav 1.7.
+    Names of supported whole ionic currents (whole as in ions not channels, e.g. Na, Ca, K, rather than 
+    Nav 1.7, Kdr, etc.
     """
     return ['ina', 'ik', 'ica']
     
@@ -545,11 +576,14 @@ def get_dynamic_ion_mechanisms():
     Returns dict of mechanisms for dynamic ionic concentrations.
     Format is {ion_name:mechanism_name}
     """
-    ion_mechanisms = {'K':'k_conc', 'Na':'na_conc', 'Ca':'ca_conc'}
-    return ion_mechanisms
+    return {'K':'k_conc', 'Na':'na_conc', 'Ca':'ca_conc'}
 
 def get_default_simulation_kwargs(amp=None, model=None):
-    # Doesn't include amp as this needs to calculated
+    """
+    Returns default keyword arguments to set up a basic stimulus in a simulations
+    Doesn't include amp as this usually needs to calculated (e.g. to find rheobase)
+    or set to a specific value.
+    """
     default_kwargs = {
             'dur':500.,
             'delay':1000.,
@@ -559,18 +593,16 @@ def get_default_simulation_kwargs(amp=None, model=None):
             'mechanisms':None,
             'make_plot':False,
             'plot_type':'default'}
-    if amp is not None: default_kwargs['amp'] = amp
+    if amp: default_kwargs['amp'] = amp
     if model: default_kwargs['model'] = model
     return default_kwargs
     
 
-def scale_parameter(model, parameter_name, scaling_factor):
-    # Can modify parameter inplace
-    exec('model.{0} *= {1}'.format(parameter_name, scaling_factor))
-
 def recast_recorded_currents(currents):
-    """ Utility function to recast recorded currents as an np.array
-    so the results can't be changed by future simulations. """
+    """
+    Recast recorded currents to an np.array so the results can't be 
+    changed by future simulations, unlike hoc Vectors.
+    """
     recast_currents = {}
     for cur in currents:
         recast_currents[cur] = {}
@@ -583,6 +615,16 @@ def multiply_parameter(model, parameter, multiplier):
     assert type(parameter) == str
     val = getattr(model,parameter)
     setattr(model,parameter,val*multiplier)
+
+scale_parameter = multiply_parameter
+"""
+This implementation is obsolete use multiply parameter instead
+def scale_parameter(model, parameter_name, scaling_factor):
+    
+    # Multiplies a parameter in a NEURON model segment by a scaling factor inplace
+    
+    exec('model.{0} *= {1}'.format(parameter_name, scaling_factor))
+"""
 
 def convert_list_to_string(list_of_lists):
     """ 
