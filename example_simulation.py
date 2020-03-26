@@ -1,8 +1,7 @@
 """
-Example configuration file to run a new population of models simulation
+Example configuration file to run a new population of models simulation with an existing population of models
 """
 
-# Linux
 import matplotlib
 matplotlib.use('Agg')
 
@@ -11,25 +10,25 @@ import sys
 import os
 import multiprocessing as mp
 
-
 # TODO - update with new path setup cod
-# Add main path
+# Setup paths
 if 'Dropbox' in os.getcwd():
     sys.path.append(os.path.join(os.getcwd().split('Dropbox')[0],'Dropbox'))
 else:
     raise Exception('Not running in Dropbox directory.')
 
-# Import POM module requirements and NEURON
+# TODO - update
+# Import drg-pom and NEURON
 import neuron_paths
 neuron_paths.setup_paths()
 import Methods.pom_test as pom
 import Methods.simulation_helpers as sh
 from neuron import h
 
-# Setup parallelisation for the required number of cores
+# Define number of cpu cores to use
 # If not specified default to cpu count - 1
 if __name__ == '__main__':
-    sys.modules['__main__'].__spec__ = None # Without this something goes wrong with repeated runnings of this script in Python3
+    sys.modules['__main__'].__spec__ = None # Without this repeated runnings of this script in Python 3 fail
     # Set cores to cpu count or specified number
     cores = mp.cpu_count()-1
     if len(sys.argv) >= 2:
@@ -38,67 +37,31 @@ if __name__ == '__main__':
                 core_str = arg.rsplit('=')[-1]
                 cores = int(core_str)
                 print("Cores = {}".format(cores))
-            
-    """
-    Initialise population
-    -------------------
-    """
+
     start = time.time() # For benchmarking
-    sim_prefix = 'example_population'
-    pop_save_filename = '{}.pickle'.format(sim_prefix)
+    
+    " //-- Main Program begins here --// "
 
-    # Parameter set settings - one of parameter_data and parameter_filename
-    # must be set to None as they are mututally exclusive.
-    parameter_data = {'GNav17':[0.0,0.4], 'GNav18':[0.,4.0], 'GNav19':[0.,4.],
-            'GKdr':[0.,4.], 'GKA':[0.,40.], 'GKM':[0.,4.], 'GH':[0.,2.], 'GKleak':[0., 0.2]}
-    parameter_filename = None
+    " --- Load existing population of models --- "
 
-    model_details = {'mechanisms':{}}
-    model_details['mechanisms']['nav17vw_named'] = {'GNav17':'gbar_nav17vw_named'}
-    model_details['mechanisms']['nav18hw_named'] = {'GNav18':'gbar_nav18hw_named'}
-    model_details['mechanisms']['nav19hw'] = {'GNav19':'gbar_nav19hw'}
-    model_details['mechanisms']['kdrtf'] = {'GKdr':'gbar_kdrtf'}
-    model_details['mechanisms']['katf'] = {'GKA':'gbar_katf'}
-    model_details['mechanisms']['kmtf'] = {'GKM':'gbar_kmtf'}
-    model_details['mechanisms']['hcntf'] = {'GH': 'gbar_hcntf'}
-    model_details['mechanisms']['kleak'] = {'GKleak': 'gbar_kleak'}
+    pop_filename = os.path.join('example_population.pickle')
+    pop = pom.load(pop_initial_filename)
+    sim_name = 'example_simulation'
+    sim_save_filename = '{}.pickle'.format(sim_name)
 
-    # Ignore these if loading parameters using parameter_filename
-    num_models = 20000
-    save_parameter_set = True  
-    save_parameter_set_filename = 'new_example_project_parameters.csv' 
+
 
     # Simulation parameters
-    pop_name = sim_prefix
     save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
     save_dir = None
     benchmark = True
     rerun = False
     outputs = [] 
+ 
+    " --- Run Simulations --- "
 
-    " --- Construct population --- "
-
-    if parameter_data is not None:
-	parameter_set_details = {}
-	parameter_set_details['num_models'] = num_models
-	parameter_set_details['parameter_data'] = parameter_data 
-	parameter_set_details['save'] = True
-	parameter_set_details['output_filename'] = 'example_project_parameters.csv'   
-    else:
-	parameter_set_details = None 
-
-    pop = pom.PopulationOfModels(name=pop_name, 
-                                 simulation_protocols=None, 
-                                 model_details=model_details,
-                                 parameter_filename=None,
-                                 parameter_set_details=parameter_set_details)
-)
-
-    """ 
-    --- Run simulations --- 
-    """
-    
-    sim_name = 'ramp'
+    " --- Simulation 1 - Example Ramp Stimulus --- "
+    sim_name = 'example_ramp'
     sim_type = 'iclamp'
     protocols = {
          'amp': None,
@@ -119,13 +82,14 @@ if __name__ == '__main__':
                    simulation_type=sim_type, 
                    protocols=protocols,
                    cores=cores, 
-                   plot=do_plot, 
                    save_type=save_type, 
+                   save_dir=save_dir, 
                    benchmark=benchmark, 
-                   rerun=False)
+                   rerun=rerun)
 
 
-    sim_name = 'step' 
+    " --- Simulation 2 - Example Step Stimulus --- "
+    sim_name = 'example_step' 
     sim_type = 'iclamp'
     protocols = {
          'amp': None,
@@ -153,9 +117,8 @@ if __name__ == '__main__':
                    benchmark=benchmark, 
                    rerun=False)
 
-    """
-    Save and summarise
-    """
+    " --- Save Results --- "
+
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
     pop.pickle_pom(pop_save_filename)

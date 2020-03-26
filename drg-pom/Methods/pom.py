@@ -702,6 +702,10 @@ class PopulationOfModels(object):
     
     def setup_parameters(self, parameter_filename=None, parameter_set_details=None):
         """ Load or generate a parameter set for simulations. """    
+        # Check we only have one place to load parameters from
+        if (parameter_filename is not None) & (parameter_set_details is not None):
+            raise ValueError('Both parameter_filename and parameter_set_details are mutually exclusive, set one of them to None so we know which one to use.') 
+
         # If parameter_filename is provided, load parameters from there "
         if parameter_filename: 
             parameters, header = self.load_parameter_set(parameter_filename, load_comment=True, comment='#')    
@@ -777,15 +781,17 @@ class PopulationOfModels(object):
         self.simulations[name].rerun = rerun
         self.simulations[name].name_collision = name_collision
     
-    def run_simulation( self, 
-                        name, 
-                        simulation_type,
-                        protocols=None,
-                        cores=1,
-                        plot=False, save=False, save_type='fig', save_dir=None, 
-                        benchmark=True,
-                        rerun=False,
-                        ):
+    def run_simulation( 
+            self, 
+            name, 
+            simulation_type,
+            protocols=None,
+            cores=1,
+            save_type='fig',
+            save_dir=None, 
+            benchmark=True,
+            rerun=False,
+            ):
         """
         Runs simulations on all models in results, whether that is an initial sample or a calibrated population.
         
@@ -831,8 +837,7 @@ class PopulationOfModels(object):
         sim.pom_simulation(
             simulation_type=simulation_type,
             cores=cores,
-            plot=plot,
-            save=save, 
+            plot=plot, 
             save_type=save_type,
             save_dir=save_dir,
             benchmark=benchmark,
@@ -1141,8 +1146,14 @@ class Simulation(object):
         self.plotting_pointer = 0
         
         
-    def pom_simulation(self, simulation_type, cores=1, plot=False, save=False,
-            save_type='fig', save_dir=None, benchmark=True, rerun=False):
+    def pom_simulation(
+            self,
+            simulation_type,
+            cores=1,
+            save_type='fig',
+            save_dir=None,
+            rerun=False,            
+            ):
         """
         Run simulations 
         
@@ -1151,15 +1162,16 @@ class Simulation(object):
         simulation_type: string
         cores: int, default 1
         plot: bool, default False
-        save: bool, default False
-        save_type: str, default 'fig', options aredefined by allowed_save_types()
-        benchmark: bool, default True
+        save_type: str, default 'fig', options are defined in allowed_save_types()
+        save_dir: str, default None
+        rerun: bool, default False
         
         Returns
         -----------
         Dataframe of biomarker results indexed by their index in the population
         associated with this simulation class.
         """
+
         if (self.simulation_ran == True) & (self.rerun == False):
             raise ValueError("This simulation has already been ran, cannot run same simulation again"
             "with the same simulator with name: {} without specifying simulation is a rerun.".format(self.name))
@@ -1170,7 +1182,7 @@ class Simulation(object):
         
         # Construct options and metadata and add to protocol
         assert(save_type in allowed_save_types()), "Save type not recognised."
-        options = {'plot':plot, 'save':save, 'save_type':save_type, 'save_dir':save_dir}
+        options = {'save_type':save_type, 'save_dir':save_dir}
         self.options = options # save options so we can use them to process output
         self.protocols['options'] = options
         # Metadata is used for saving and plotting
@@ -1202,7 +1214,7 @@ class Simulation(object):
         self.count = 0
         for _, model_idx in enumerate(self.model_indices):   
             mechanisms = self.build_parameters(model_idx)
-            # @TODO - allow different cellular parameters and ionic concs to be input, as well as variation in parameters
+
             
             sim_kwargs = self.build_simulation_kwargs(
                     sim_id = model_idx,
@@ -1211,28 +1223,14 @@ class Simulation(object):
                     mechanisms = mechanisms)
             pool.apply_async(self.simulation_function, kwds=sim_kwargs, callback=self.log_result)
 
-            # @TODO - not sure how to estimate time to completion when we're using a Pool.
-            """
-            if benchmark:
-                output_frequency = 1 # Number of outputs to make - 100 equals every 1%
-                now = time.time()
-                reporting_period = np.ceil(len(self.model_indices)/output_frequency)
-                if i > 0:
-                    if (i == len(self.results.index)-1) | (i%reporting_period == 0):
-                        #clear_output()
-                        pass
-                    print("Simulation {} of {} started. Time taken = {:.1f}s. Estimated remaining time = {:.1f}s.".format(i+1, num_sims, now-start, (num_sims-i)*(now-start)/i))
-            """
          # Close and unblock pool, lock simulation
         pool.close()
         pool.join()
-
-        
-        
+ 
         if benchmark: print("Simulations finished in {} s".format(time.time()-start))
         
         # Clear out any remaining figs
-        if (save == True) & ('fig' in process_save_type(save_type)) & (len(self.traces) > 0):
+        if ('fig' in process_save_type(save_type)) & (len(self.traces) > 0):
             plotted = True
             timeout_counter = 0
             while(plotted):

@@ -2,7 +2,6 @@
 Example configuration file to run a new population of models simulation
 """
 
-# Linux
 import matplotlib
 matplotlib.use('Agg')
 
@@ -11,25 +10,25 @@ import sys
 import os
 import multiprocessing as mp
 
-
 # TODO - update with new path setup cod
-# Add main path
+# Setup paths
 if 'Dropbox' in os.getcwd():
     sys.path.append(os.path.join(os.getcwd().split('Dropbox')[0],'Dropbox'))
 else:
     raise Exception('Not running in Dropbox directory.')
 
-# Import POM module requirements and NEURON
+# TODO - update
+# Import drg-pom and NEURON
 import neuron_paths
 neuron_paths.setup_paths()
 import Methods.pom_test as pom
 import Methods.simulation_helpers as sh
 from neuron import h
 
-# Setup parallelisation for the required number of cores
+# Define number of cpu cores to use
 # If not specified default to cpu count - 1
 if __name__ == '__main__':
-    sys.modules['__main__'].__spec__ = None # Without this something goes wrong with repeated runnings of this script in Python3
+    sys.modules['__main__'].__spec__ = None # Without this repeated runnings of this script in Python 3 fail
     # Set cores to cpu count or specified number
     cores = mp.cpu_count()-1
     if len(sys.argv) >= 2:
@@ -38,14 +37,15 @@ if __name__ == '__main__':
                 core_str = arg.rsplit('=')[-1]
                 cores = int(core_str)
                 print("Cores = {}".format(cores))
-            
-    """
-    Initialise population
-    -------------------
-    """
+
     start = time.time() # For benchmarking
-    sim_prefix = 'example_population'
-    pop_save_filename = '{}.pickle'.format(sim_prefix)
+    
+    " //-- Main Program begins here --// "
+
+    " --- Define and Construct Population --- "
+
+    pop_name = 'example_population'
+    pop_save_filename = '{}.pickle'.format(sim_name)
 
     # Parameter set settings - one of parameter_data and parameter_filename
     # must be set to None as they are mututally exclusive.
@@ -69,14 +69,11 @@ if __name__ == '__main__':
     save_parameter_set_filename = 'new_example_project_parameters.csv' 
 
     # Simulation parameters
-    pop_name = sim_prefix
     save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
     save_dir = None
     benchmark = True
     rerun = False
     outputs = [] 
-
-    " --- Construct population --- "
 
     if parameter_data is not None:
 	parameter_set_details = {}
@@ -94,10 +91,9 @@ if __name__ == '__main__':
                                  parameter_set_details=parameter_set_details)
 )
 
-    """ 
-    --- Run simulations --- 
-    """
-    
+ 
+    " --- Run Simulations --- "
+
     sim_name = 'ramp'
     sim_type = 'iclamp'
     protocols = {
@@ -153,9 +149,33 @@ if __name__ == '__main__':
                    benchmark=benchmark, 
                    rerun=False)
 
-    """
-    Save and summarise
-    """
+    " --- Population Calibration --- "
+
+    biomarkers_to_calibrate = {
+        'ramp':['Threshold'],
+        'step':['AHPTau', 
+                 'APPeak',
+                 'APSlopeMax',
+                 'APSlopeMin',
+                 'APFullWidth',
+                 'RMP',
+                 'Rheobase'],
+    }
+    calibration_ranges = 'Davidson'
+    std = 1.5
+    verbose_calibration = False
+    for sim_name, biomarker_names in biomarkers_to_calibrate.items():
+        pop.calibrate_population(
+                biomarker_names=biomarker_names,
+                simulation_name=sim_name,
+                calibration_ranges=calibration_ranges,
+                stds=std,
+                verbose=verbose_calibration,
+                )    
+
+
+    " --- Save Population --- "
+
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
     pop.pickle_pom(pop_save_filename)
