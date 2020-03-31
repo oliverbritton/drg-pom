@@ -10,7 +10,7 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 import numbers
 import pyDOE
 import itertools
@@ -25,7 +25,7 @@ import neuron
 
 # We seem to need to load now to allow parallel scripts to work
 # Perhaps there is a way to reload if we need to?
-import Methods.Simulations.loadneuron as ln
+from .simulations import loadneuron as ln
 ln.load_neuron_mechanisms(verbose=True)
 
 def init_model(mechanisms=[],

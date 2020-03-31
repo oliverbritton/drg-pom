@@ -24,16 +24,17 @@ from IPython.display import clear_output
 
 
 import NeuronProjectStart
-import Methods.Biomarkers.NeuronBiomarkers as nb
-import Methods.Biomarkers.DavidsonBiomarkers as db
-import Methods.simulation_helpers as sh
+from .biomarkers import neuron_biomarkers as nb
+from .biomarkers import davidson_biomarkers as db
+from . import simulation_helpers as sh
 from neuron import h
 import neuron
 
 # We seem to need to load now to allow parallel scripts to work
 # Perhaps there is a way to reload if we need to?
-import Methods.Simulations.loadneuron as ln
+from .simulations import loadneuron as ln
 ln.load_neuron_mechanisms(verbose=True)
+ln.test()
 
 # --- Utiliy functions---
 

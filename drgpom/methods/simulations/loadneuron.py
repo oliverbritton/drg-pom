@@ -57,6 +57,8 @@ def get_mech_lib_name(platform):
         raise Exception('Platform {} not supported.'.format(sys.platform))
     return mech_lib_name
 
+
+
 def get_mechanism_dir(type='prototype'):
     """
     Returns the directory nrnmech.dll is stored in. 
@@ -65,6 +67,10 @@ def get_mechanism_dir(type='prototype'):
     TODO - look relative to project directory.
     """
     " Leave room for different dirs in the future "
+    return 'G:\\CLPC48\\drg-pom\\drgpom\\models'
+
+
+    """
     if type == 'prototype':
         if platform == 'windows':
             path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
@@ -82,6 +88,7 @@ def get_mechanism_dir(type='prototype'):
     else:
         raise ValueError('Unsupported type: {} given to get_mechanism_dir'.format(type))
     return path
+    """
     
     
 def thingy():
@@ -165,3 +172,8 @@ def test_load_mechanisms():
     load_neuron_mechanisms()
     load_neuron_mechanisms()
     print('We didn\'t crash!')
+
+def test():
+    import os
+    import inspect
+    print(inspect.getfile(inspect.currentframe()))

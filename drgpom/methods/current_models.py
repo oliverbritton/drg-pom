@@ -14,17 +14,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-" Abstract classes "
- 
-class Gate(object):
-    def __init__(self):
-        pass
-    
-class Current(object):
-    def __init__(self, initial_conditions=None):
-        self.initial_conditions = initial_conditions # Add initial conditions here
-        pass
-
 " Voltage clamp generator functions "
 
 

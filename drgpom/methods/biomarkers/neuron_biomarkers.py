@@ -1,13 +1,15 @@
-import sys
+# neuron_biomarkers.py
+# calculation of AP biomarkers from neuronal voltage traces
 
+import sys
 import numpy as np
 import pandas as pd
-
 from scipy import optimize
-import Methods.Biomarkers.DavidsonBiomarkers as db
-import Methods.simulation_helpers as sh
-import Methods.analysis as an
 from matplotlib import pyplot as plt
+
+from . import davidson_biomarkers as db
+from .. import simulation_helpers as sh
+from .. import analysis as an
 
 # Biomarkers to manage and analyse neuronal simulation data and potentially experimental
 # data too
