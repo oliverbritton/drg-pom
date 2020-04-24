@@ -824,7 +824,7 @@ def calculate_rheobase(cell_model, amp_step=0.1, amp_max=5., make_plot=False, si
         # Look for an AP, after throwing away the delay period, leave a 1 ms run up to catch the start
         run_up  = 1.
         delay = sim_kwargs['delay']
-        stim_period_indices = [t >= (delay-run_up)]
+        stim_period_indices = tuple(t >= (delay-run_up))
         t = t[stim_period_indices]
         v = v[stim_period_indices]        
         traces = split_trace_into_aps(t,v,threshold=0.,time_threshold=5.)

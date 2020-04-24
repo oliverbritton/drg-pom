@@ -16,16 +16,17 @@ import pyDOE
 import itertools
 
 # Load Neuron and DRG code
-sys.path.append('E:\\CLPC48\\Neuron Project')
-sys.path.append('E:\\CLPC48\\Neuron Project\Code')
-import NeuronProjectStart
+#sys.path.append('E:\\CLPC48\\Neuron Project')
+#sys.path.append('E:\\CLPC48\\Neuron Project\Code')
+#import NeuronProjectStart
+
 
 from neuron import h
 import neuron
 
 # We seem to need to load now to allow parallel scripts to work
 # Perhaps there is a way to reload if we need to?
-from .simulations import loadneuron as ln
+from . import loadneuron as ln
 ln.load_neuron_mechanisms(verbose=True)
 
 def init_model(mechanisms=[],

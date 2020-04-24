@@ -20,18 +20,16 @@ else:
     raise Exception('Platform {} not supported.'.format(sys.platform))
     
     
-def load_neuron_mechanisms(type='prototype', nrnmech_path=None, verbose=False, ):
+def load_neuron_mechanisms(nrnmech_path=None, verbose=False, ):
     """
     Main loading function, loads neuron mechanisms, iff they are not already loaded.
     Can only call nrn_load_dll once, calling it a second time causes a crash, so need to check
     we have loaded mechanisms before calling.
-    Can either use a predetermined path using type or supply a path to nrnmech.dll which
-    overrides type.
     """
 
     if are_mechanisms_loaded() == False:
         if nrnmech_path == None:
-            nrnmech_path = os.path.join(get_mechanism_dir(type), get_mech_lib_name(platform))
+            nrnmech_path = os.path.join(get_mechanism_dir(), get_mech_lib_name(platform))
         else:
             # If path is provided, check it contains library name
             if get_mech_lib_name(platform) not in nrnmech_path:
@@ -59,41 +57,18 @@ def get_mech_lib_name(platform):
 
 
 
-def get_mechanism_dir(type='prototype'):
+def get_mechanism_dir():
     """
-    Returns the directory nrnmech.dll is stored in. 
-    Inputs:
-    mech_type = 'prototype' - Defines which location to look in.  
-    TODO - look relative to project directory.
+    Returns the models directory the compiled nrnmech.dll is stored in. 
     """
-    " Leave room for different dirs in the future "
-    return 'G:\\CLPC48\\drg-pom\\drgpom\\models'
+    cur_path = (os.path.dirname(__file__))
+    mechanisms_path = os.path.abspath(os.path.join(cur_path, os.path.pardir, 'models'))
+    return mechanisms_path
 
 
+def check_num_name_mechs():
     """
-    if type == 'prototype':
-        if platform == 'windows':
-            path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\Prototypes'
-            if not os.path.exists(path):
-                path = 'C:\\Users\\olibriadmin\\Dropbox\\Backups\\Neuron\\Code\\Models\\Currents\\Prototypes' 
-        elif platform == 'linux':
-            path = '/home/scratch/olibri/Dropbox/Backups/Neuron/Code/Models/Currents/Prototypes/x86_64/.libs'
-        else:
-            raise Exception('Platform {} not supported.'.format(sys.platform))
-    elif type == 'IClamp':
-        if platform == 'windows':
-            path = 'E:\\CLPC48\\Neuron Project\\Code\\Models\\Currents\\IClamp'
-        else:
-            raise Exception('Platform {} not supported.'.format(sys.platform))
-    else:
-        raise ValueError('Unsupported type: {} given to get_mechanism_dir'.format(type))
-    return path
-    """
-    
-    
-def thingy():
-    """
-    Prototype for checking number and names of mechanisms.
+    Example function for checking number and names of mechanisms.
     Reminds me how to do string refs in hoc and get names of mechanisms.
     """
     from neuron import h
@@ -173,7 +148,3 @@ def test_load_mechanisms():
     load_neuron_mechanisms()
     print('We didn\'t crash!')
 
-def test():
-    import os
-    import inspect
-    print(inspect.getfile(inspect.currentframe()))

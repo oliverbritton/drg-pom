@@ -23,7 +23,7 @@ from functools import partial
 from IPython.display import clear_output
 
 
-import NeuronProjectStart
+#import NeuronProjectStart
 from .biomarkers import neuron_biomarkers as nb
 from .biomarkers import davidson_biomarkers as db
 from . import simulation_helpers as sh
@@ -32,9 +32,8 @@ import neuron
 
 # We seem to need to load now to allow parallel scripts to work
 # Perhaps there is a way to reload if we need to?
-from .simulations import loadneuron as ln
+from . import loadneuron as ln
 ln.load_neuron_mechanisms(verbose=True)
-ln.test()
 
 # --- Utiliy functions---
 
@@ -838,7 +837,6 @@ class PopulationOfModels(object):
         sim.pom_simulation(
             simulation_type=simulation_type,
             cores=cores,
-            plot=plot, 
             save_type=save_type,
             save_dir=save_dir,
             benchmark=benchmark,
@@ -982,10 +980,10 @@ class PopulationOfModels(object):
     
     
     " --- Storage functions --- "
-    def pickle_pom(self, filename=None):
+    def save(self, filename=None):
     # Serialise pom object as a pickle 
         if filename == None:
-            filename = '{}.pickle'.format(self.name)
+            filename = '{}.pkl'.format(self.name)
         # Remove hoc objects
         self.active_model = None
         """
@@ -1000,8 +998,6 @@ class PopulationOfModels(object):
         # Then pickle
         with open(filename, 'wb') as f:
             pickle.dump(self,f)
-    
-    save_pom = pickle_pom # Alias
 
     
     def save_parameter_set(self, filename, save_comment=True, comment='#'):
@@ -1153,6 +1149,7 @@ class Simulation(object):
             cores=1,
             save_type='fig',
             save_dir=None,
+            benchmark=True,
             rerun=False,            
             ):
         """
@@ -1165,6 +1162,7 @@ class Simulation(object):
         plot: bool, default False
         save_type: str, default 'fig', options are defined in allowed_save_types()
         save_dir: str, default None
+        benchmark: bool, default True
         rerun: bool, default False
         
         Returns
