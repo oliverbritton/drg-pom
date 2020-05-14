@@ -1,3 +1,5 @@
+import os
+
 try:
 	from setuptools import setup
 except ImportError:
@@ -6,7 +8,7 @@ except ImportError:
 config = {
 	'description': 'Population of models simulations for dorsal root ganglion neurons',
 	'author': 'Oliver Britton',
-	'url': 'https://github.com/oliverbritton/drg-pom'`,
+	'url': 'https://github.com/oliverbritton/drg-pom',
 	'download_url': 'https://github.com/oliverbritton/drg-pom/archive/master.zip',
 	'author_email': 'oliverjbritton@gmail.com',
 	'version': '0.1',
@@ -18,9 +20,15 @@ config = {
             'matplotlib',
             'seaborn',
             ],
-	'packages': ['drgpom'],
+	'packages': ['drgpom', 'drgpom.methods', 'drgpom.methods.biomarkers',
+            'drgpom.examples', 'drgpom.examples.data', 'drgpom.models'],
 	'scripts': [],
-	'name': 'drgpom'
+	'name': 'drgpom',
+        'include_package_data': True,
+        'package_data': {'drgpom':[os.path.join('examples','data', '*.*'),
+                                   os.path.join('examples','results','*.*'),
+                                   os.path.join('models','*.mod')]
+                        }
         
 }
 

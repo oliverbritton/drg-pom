@@ -20,31 +20,35 @@ else:
     raise Exception('Platform {} not supported.'.format(sys.platform))
     
     
-def load_neuron_mechanisms(nrnmech_path=None, verbose=False, ):
+def load_neuron_mechanisms(nrnmech_path=None, verbose=False,):
     """
     Main loading function, loads neuron mechanisms, iff they are not already loaded.
     Can only call nrn_load_dll once, calling it a second time causes a crash, so need to check
     we have loaded mechanisms before calling.
     """
-
-    if are_mechanisms_loaded() == False:
-        if nrnmech_path == None:
-            nrnmech_path = os.path.join(get_mechanism_dir(), get_mech_lib_name(platform))
+    
+    # Get paths
+    if nrnmech_path == None:
+        nrnmech_path = os.path.join(get_mechanism_dir(), get_mech_lib_name(platform))
+    else:
+        # If path is provided, check it contains library name
+        if get_mech_lib_name(platform) not in nrnmech_path:
+            nrnmech_path =  os.path.join(nrnmech_path, get_mech_lib_name(platform))
         else:
-            # If path is provided, check it contains library name
-            if get_mech_lib_name(platform) not in nrnmech_path:
-                nrnmech_path =  os.path.join(nrnmech_path, get_mech_lib_name(platform))
-            else:
-                pass
-
-        print('Loading {} from {}.'.format(get_mech_lib_name(platform), nrnmech_path))
+            pass
+    nrnmech_dir = nrnmech_path.rsplit(os.path.sep,1)[0]
+    
+    # Load mechanisms if needed
+    if are_mechanisms_loaded() == False:
+        print('Loading {} from {}.'.format(get_mech_lib_name(platform), nrnmech_dir))
         h.nrn_load_dll(nrnmech_path) # Neuron mechanism loading function
 
+    # If needed, check if mechanisms are loaded and report
     if verbose:
         if are_mechanisms_loaded():
-            print("Mechanisms are loaded.")
+           print("Ion channel models are loaded.")
         else:
-            print("Mechanisms NOT loaded!")
+            print(f"Ion channel models were not able to be loaded from {nrnmech_path}! Have you compiled the model files in the {nrnmech_dir} directory? See https://www.neuron.yale.edu/neuron/static/docs/nmodl/mswin.html or https://www.neuron.yale.edu/neuron/static/docs/nmodl/unix.html for details.")
 
 def get_mech_lib_name(platform):
     if platform == 'windows':

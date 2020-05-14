@@ -33,7 +33,7 @@ import neuron
 # We seem to need to load now to allow parallel scripts to work
 # Perhaps there is a way to reload if we need to?
 from . import loadneuron as ln
-ln.load_neuron_mechanisms(verbose=True)
+ln.load_neuron_mechanisms(verbose=False)
 
 # --- Utiliy functions---
 
@@ -42,14 +42,13 @@ def load_parameters(filename):
     return parameters
             
             
-def read_trace(filename, skiprows=0):
-    # Refactored to use numpy from pom.ReadTraceFile,
-    # read_trace and load_trace are synonyms for the same function
-    data = np.loadtxt(filename,skiprows=skiprows)
+def load_trace(filename, skiprows=0, delimiter=','):
+    # Load a saved voltage trace in csv format (use load() for .pickle/.pkl files
+    data = np.loadtxt(filename,skiprows=skiprows, delimiter=delimiter)
     trace = {'t':data[:,0], 'v':data[:,1]}
     return trace
   
-load_trace = read_trace # use either name to load/read traces
+read_trace = load_trace # use either name to load/read traces
 
    
 def save_trace(trace, filename):
@@ -131,7 +130,9 @@ def set_dataframe_types(df):
 
 def dump_exception(e, filename="debug.txt"):
     with open(filename, "w") as f: 
-        f.write(str(e))  
+        f.write(str(e)) 
+
+
 """   --- SIMULATION FUNCTIONS ---
     Simulation functions are defined outside of the Simulation class because of multiprocessing issues.
     Functions sent to other processes have to be serializable (picklable), and 
@@ -187,198 +188,192 @@ def simulate_iclamp(sim_id,
     -----------
     """
     # General setup
-
-    #with open('test.txt','w') as f:
-    #    f.write(str(mechanisms))
-    import neuron
-    from neuron import h
-    sim_type = 'iclamp'
-    
-    # Need to use strings as can't serialize hoc objects
-    # for parallelization
-    if stim_func == 'h.IClamp':
-        stim_func = h.IClamp
-    elif stim_func == 'h.IRamp':
-        stim_func = h.IRamp
-    else:
-        raise ValueError('stim_func: {} not found'.format(stim_func))
-
-    # Initialise results @TODO - shared code between simulations - combine into function
-    results = {}
-    results['sim_id'] = sim_id
-    results_names = biomarker_names 
-    for name in results_names:
-        results[name] = np.nan # @TODO - do this better to support biomarkers with variable lengths
-    results['Firing pattern'] = np.nan
-   
-    """ Setup model """    
-
-    # Build model with separate mechanisms and mechanism parameter names
-    cell = sh.build_model(mechanisms=mechanisms, mechanism_names=mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
-    h.celsius = celsius
-
-    # @TODO - put setting ionic conditions into a function to share with VClamp
-    # Set ionic conditions
-    ion_mechanisms = sh.get_dynamic_ion_mechanisms()   
-    for ion in ion_mechanisms:
-        if ion in ions:
-            cell.insert(ion_mechanisms[ion])
- 
-    
-    # --- Run simulations ---
-    # Assemble simulation kwargs
-    sim_kwargs = {
-        'ions':ions,
-        't_stop':t_stop,
-        'dur':dur,
-        'delay':delay,
-        'interval':interval,
-        'num_stims':num_stims,
-        'stim_func':stim_func,
-        } 
-
-    
-    # Rheobase simulation
-    rheobase = nb.calculate_rheobase(cell, amp_step=0.1, amp_max=5.0, 
-        make_plot=False, sim_kwargs=sim_kwargs)
-
-    # Courser grained rheobase if the first one fails. Amp max of 50 corresponds
-    # to maximum ramp stimulus amplitude used in the Nav 1.8 study.
-    if rheobase is nb.RHEO_FAIL:
-        rheobase = nb.calculate_rheobase(cell, amp_step=1.0, amp_max=50.0,
-            make_plot=False, sim_kwargs=sim_kwargs)
-   
-    # Only continue if we've found a rheobase
-    if rheobase is not nb.RHEO_FAIL:
-        rheobase_found = True
-    else:
-        rheobase_found = False # Or set all other biomarkers to np.nan?
-    
-    # TODO - just call sh.simulation(**sim_kwargs), adding extra args to those above as needed
-    if rheobase_found or (amp is not None) or ("rheobase_sim_for_stim_amp" in flags):    
-        stims = []
-        for stim_idx in range(num_stims):
-            stims.append(stim_func(0.5, sec=cell))
-            stims[-1].dur = dur
-            stims[-1].delay = delay + stim_idx*(dur + interval)
-            # Set amp
-            if amp is None:
-                # Normal condition: rheobase from this simulation is amp
-                if "rheobase_sim_for_stim_amp" not in flags:
-                    stims[-1].amp = rheobase # If amp is None use rheobase as amp
-                # Alternatively if flag is set: use the rheobase from another simulation as amp
-                else:
-                    stims[-1].amp = flags["rheobase_sim_for_stim_amp"]
-            else:
-                # Predetermined amplitude
-                stims[-1].amp = amp
- 
-        v,t = sh.set_vt(cell=cell)
-        vectors = sh.record_currents(cell, outputs)
-
-        h.finitialize(v_init) # Vital! And has to go after record
-        neuron.run(t_stop)
-
-        # Clean up outputs after simulation
-        v,t = np.array(v), np.array(t)
-
-        # Recast any recorded currents so they're not mutable
-        # by future simulations
-        vectors = sh.recast_recorded_currents(vectors)
-
-        # Sampling for v, currents, concs
-        if sampling_freq == 20000: # Hz
-        # TODO - use delta t between each element of t to calculate frequency,
-        # then downsample to required frequency.
-        # But at the moment we just need to match Davidson et al. (20 kHz).
-        # Neuron records at 40 kHz so just take every second element
-            t = t[::2]; v = v[::2] # 20 kHz
-
-        # Currents
-            for cur_name, cur in vectors.items():
-                for cur_component in cur:
-                    vectors[cur_name][cur_component] = vectors[cur_name][cur_component][::2]
-
-            # To do - concs
-        else:
-            raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
+    try:
+        import neuron
+        from neuron import h
+        sim_type = 'iclamp'
         
-        # --- Analyse simulation for biomarkers ---
-        traces = nb.split_trace_into_aps(t,v)
-        # This is the borked bit - TODO: fix this
-        biomarkers = nb.calculate_simple_biomarkers(traces, cell, how_to_handle_nans='remove')          
+        # Need to use strings as can't serialize hoc objects
+        # for parallelization
+        if stim_func == 'h.IClamp':
+            stim_func = h.IClamp
+        elif stim_func == 'h.IRamp':
+            stim_func = h.IRamp
+        else:
+            raise ValueError('stim_func: {} not found'.format(stim_func))
+
+        # Initialise results @TODO - shared code between simulations - combine into function
+        results = {}
+        results['sim_id'] = sim_id
+        results_names = biomarker_names 
+        for name in results_names:
+            results[name] = np.nan # @TODO - do this better to support biomarkers with variable lengths
+        results['Firing pattern'] = np.nan
        
-        try:
-            # Check flags for alternate biomarker calculations
-            for flag in flags:
+        """ Setup model """    
 
-                if flag == "ramp_threshold_sim_for_width":
-                    _threshold = flags[flag]
-                    biomarkers['APFullWidth'] = nb.average_biomarker_values(
-                            nb.calculate_ap_width(traces, alpha=0.0, threshold=_threshold, method='voltage'),
-                            how_to_handle_nans="remove")
-                    biomarkers['APHalfWidth'] = nb.average_biomarker_values(
-                            nb.calculate_ap_width(traces, alpha=0.5, threshold=_threshold, method='voltage'),
-                            how_to_handle_nans="remove")
+        # Build model with separate mechanisms and mechanism parameter names
+        cell = sh.build_model(mechanisms=mechanisms, mechanism_names=mechanism_names, conductances=None, mechanism_is_full_parameter_name=True)
+        h.celsius = celsius
 
-        except Exception as e:
-            with open("{}_{}.txt".format(sim_id,stim_func),'w') as f:
-                f.write(str(e))
-                biomarkers['APFullWidth'] = "FAILURE"
-                biomarkers['APHalfWidth'] = "FAILURE"
-
-        #print("biomarkers.keys: {}".format(biomarkers.keys())) #debug
-        #print("results.keys: {}".format(results.keys())) # debug
-
-        # Firing pattern
+        # @TODO - put setting ionic conditions into a function to share with VClamp
+        # Set ionic conditions
+        ion_mechanisms = sh.get_dynamic_ion_mechanisms()   
+        for ion in ion_mechanisms:
+            if ion in ions:
+                cell.insert(ion_mechanisms[ion])
+     
         
-        if num_stims == 1:
-            stim_start = delay
-            stim_end = delay + dur
-            try:
-                biomarkers['Firing pattern'] = nb.determine_firing_pattern(traces, stim_start, stim_end)
-            except Exception as e:
-                with open("{}_{}".format(sim_id,str(stim_func)),'w') as f:
-                    f.write(str(e))
+        # --- Run simulations ---
+        # Assemble simulation kwargs
+        sim_kwargs = {
+            'ions':ions,
+            't_stop':t_stop,
+            'dur':dur,
+            'delay':delay,
+            'interval':interval,
+            'num_stims':num_stims,
+            'stim_func':stim_func,
+            } 
+
+        
+        # Rheobase simulation
+        rheobase = nb.calculate_rheobase(cell, amp_step=0.1, amp_max=5.0, 
+            make_plot=False, sim_kwargs=sim_kwargs)
+
+        # Courser grained rheobase if the first one fails. Amp max of 50 corresponds
+        # to maximum ramp stimulus amplitude used in the Nav 1.8 study.
+        if rheobase is nb.RHEO_FAIL:
+            rheobase = nb.calculate_rheobase(cell, amp_step=1.0, amp_max=50.0,
+                make_plot=False, sim_kwargs=sim_kwargs)
+       
+        # Only continue if we've found a rheobase
+        if rheobase is not nb.RHEO_FAIL:
+            rheobase_found = True
         else:
-            biomarkers['Firing pattern'] = "Couldn't determine as num stims = {}, not 1".format(num_stims)
+            rheobase_found = False # Or set all other biomarkers to np.nan?
         
-        for result in biomarkers:
-            results[result] = biomarkers[result]
+        # TODO - just call sh.simulation(**sim_kwargs), adding extra args to those above as needed
+        if rheobase_found or (amp is not None) or ("rheobase_sim_for_stim_amp" in flags):    
+            stims = []
+            for stim_idx in range(num_stims):
+                stims.append(stim_func(0.5, sec=cell))
+                stims[-1].dur = dur
+                stims[-1].delay = delay + stim_idx*(dur + interval)
+                # Set amp
+                if amp is None:
+                    # Normal condition: rheobase from this simulation is amp
+                    if "rheobase_sim_for_stim_amp" not in flags:
+                        stims[-1].amp = rheobase # If amp is None use rheobase as amp
+                    # Alternatively if flag is set: use the rheobase from another simulation as amp
+                    else:
+                        stims[-1].amp = flags["rheobase_sim_for_stim_amp"]
+                else:
+                    # Predetermined amplitude
+                    stims[-1].amp = amp
+     
+            v,t = sh.set_vt(cell=cell)
+            vectors = sh.record_currents(cell, outputs)
+
+            h.finitialize(v_init) # Vital! And has to go after record
+            neuron.run(t_stop)
+
+            # Clean up outputs after simulation
+            v,t = np.array(v), np.array(t)
+
+            # Recast any recorded currents so they're not mutable
+            # by future simulations
+            vectors = sh.recast_recorded_currents(vectors)
+
+            # Sampling for v, currents, concs
+            if sampling_freq == 20000: # Hz
+            # TODO - use delta t between each element of t to calculate frequency,
+            # then downsample to required frequency.
+            # But at the moment we just need to match Davidson et al. (20 kHz).
+            # Neuron records at 40 kHz so just take every second element
+                t = t[::2]; v = v[::2] # 20 kHz
+
+            # Currents
+                for cur_name, cur in vectors.items():
+                    for cur_component in cur:
+                        vectors[cur_name][cur_component] = vectors[cur_name][cur_component][::2]
+
+                # To do - concs
+            else:
+                raise ValueError("Sampling frequencies other than 20 kHz not supported yet.")
             
-        # Build trace for output
-        trace = {'t':t, 'v':v}
-        for vector in vectors:
-            trace[vector] = vectors[vector]
+            # --- Analyse simulation for biomarkers ---
+            traces = nb.split_trace_into_aps(t,v)
+            biomarkers = nb.calculate_simple_biomarkers(traces, cell, how_to_handle_nans='remove')          
             
-    elif rheobase_found == False:
-        trace = None # pass an empty trace
-        # We have already set the biomarkers to np.nan by default
-    else: 
-        raise ValueError('rheobase_found is not valid')
+            try:
+                # Check flags for alternate biomarker calculations
+                for flag in flags:
 
-    # RMP
-    rmp_out = sh.simulation(amp=0.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=cell)
-    
-    # Could change sampling freq here but probably not necessary for RMP
-    rmp_traces = nb.SplitTraceIntoAPs(rmp_out['t'],rmp_out['v'])
-    
-    results['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
+                    if flag == "ramp_threshold_sim_for_width":
+                        _threshold = flags[flag]
+                        biomarkers['APFullWidth'] = nb.average_biomarker_values(
+                                nb.calculate_ap_width(traces, alpha=0.0, threshold=_threshold, method='voltage'),
+                                how_to_handle_nans="remove")
+                        biomarkers['APHalfWidth'] = nb.average_biomarker_values(
+                                nb.calculate_ap_width(traces, alpha=0.5, threshold=_threshold, method='voltage'),
+                                how_to_handle_nans="remove")
 
-    # Add rheobase
-    results['Rheobase'] = rheobase
+            except Exception as e:
+                with open("{}_{}.txt".format(sim_id,stim_func),'w') as f:
+                    f.write(str(e))
+                    biomarkers['APFullWidth'] = "FAILURE"
+                    biomarkers['APHalfWidth'] = "FAILURE"
 
-    # Output @TODO - wrap into function as code is mostly shared with simulate_vclamp
-    plot = options['plot']
-    save = options['save']
-    if save == True:
+            #print("biomarkers.keys: {}".format(biomarkers.keys())) #debug
+            #print("results.keys: {}".format(results.keys())) # debug
+
+            # Firing pattern
+            
+            if num_stims == 1:
+                stim_start = delay
+                stim_end = delay + dur
+                try:
+                    biomarkers['Firing pattern'] = nb.determine_firing_pattern(traces, stim_start, stim_end)
+                except Exception as e:
+                    with open("{}_{}".format(sim_id,str(stim_func)),'w') as f:
+                        f.write(str(e))
+            else:
+                biomarkers['Firing pattern'] = "Couldn't determine as num stims = {}, not 1".format(num_stims)
+            
+            for result in biomarkers:
+                results[result] = biomarkers[result]
+                
+            # Build trace for output
+            trace = {'t':t, 'v':v}
+            for vector in vectors:
+                trace[vector] = vectors[vector]
+                
+        elif rheobase_found == False:
+            trace = None # pass an empty trace
+            # We have already set the biomarkers to np.nan by default
+        else: 
+            raise ValueError('rheobase_found is not valid')
+
+        # RMP
+        rmp_out = sh.simulation(amp=0.0,dur=3000,delay=0,interval=0,num_stims=1,t_stop=3000.,make_plot=False,model=cell)
+        
+        # Could change sampling freq here but probably not necessary for RMP
+        rmp_traces = nb.SplitTraceIntoAPs(rmp_out['t'],rmp_out['v'])
+        
+        results['RMP'] = np.mean(nb.CalculateRMP(rmp_traces))
+
+        # Add rheobase
+        results['Rheobase'] = rheobase
+
+        # Output @TODO - wrap into function as code is mostly shared with simulate_vclamp
         save_type = options['save_type']
         save_types = process_save_type(save_type)
         if 'fig' in save_types:
             # Save results so we can aggregate multiple simulations and plot
             results['trace'] = trace
         if 'trace' in save_types:
-            filename = '{}.pickle'.format(sim_id)
+            filename = '{}.pkl'.format(sim_id)
             for name in ['simulation_name', 'population_name']: 
             # Last element in list will be the front-most part of the filename
                 if name in metadata.keys():
@@ -388,11 +383,17 @@ def simulate_iclamp(sim_id,
                 filename = os.path.join(options['save_dir'], filename)
             save_trace(trace, filename)
 
-    if plot: #@TODO 
-        pass
-    dump_exception(results)
-    return results
+        dump_exception(results, 'results_dump.txt')
 
+        return results
+    except Exception as e:
+        import traceback
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        with open('debug.txt', 'w') as f:
+            f.write('Error\n')
+            f.write(f'{exc_type}, {exc_obj}, {exc_tb.tb_lineno}\n')
+            f.write(str(options) + '\n')
+            f.write(str(traceback.format_exc()))
 
 def simulate_vclamp(sim_id,
                                     biomarker_names,
@@ -454,10 +455,7 @@ def simulate_vclamp(sim_id,
     sim_type = 'vclamp'
     
     # Output options
-    plot = options['plot']
-    save = options['save']
-    if save == True: 
-        save_type = options['save_type']
+    save_type = options['save_type']
     
     # Setup voltage clamp steps
     if delta == None:
@@ -539,26 +537,22 @@ def simulate_vclamp(sim_id,
             #ik = np.array(ik) + np.array(ih_na)
             
     # Output - code shared with iclamp (TODO - roll into one function)
-    plot = options['plot']
-    save = options['save']
-    if save == True: 
-        save_type = options['save_type']
-        save_types = process_save_type(save_type)
-        if 'fig' in save_types:
-            results['trace'] = trace
-        if 'trace' in save_types:
-            filename = '{}.pickle'.format(sim_id)
-            for name in ['simulation_name', 'population_name']: 
-            # Last element in list will be the front-most part of the filename
-                if name in metadata.keys():
-                    filename = '{}_{}'.format(metadata[name], filename)
+    save_type = options['save_type']
+    save_types = process_save_type(save_type)
+    if 'fig' in save_types:
+        # Save results so we can aggregate multiple simulations and plot
+        results['trace'] = trace
+    if 'trace' in save_types:
+        filename = '{}.pkl'.format(sim_id)
+        for name in ['simulation_name', 'population_name']: 
+        # Last element in list will be the front-most part of the filename
+            if name in metadata.keys():
+                filename = '{}_{}'.format(metadata[name], filename)
+        # If we don't want to save in the directory we're in
+        if options['save_dir']:
+            filename = os.path.join(options['save_dir'], filename)
+        save_trace(trace, filename)
 
-            save_trace(trace, filename)
-
-    
-    if plot: #@TODO 
-        pass        
-    
     return results
     
 """ ---CLASSES----
@@ -754,7 +748,7 @@ class PopulationOfModels(object):
             
     " --- Simulation functions --- "
     
-    def setup_simulation(self, name, simulation_type, protocols, options=None, rerun=False):
+    def setup_simulation(self, name, simulation_type, protocols, rerun=False):
         """
         Initialises a simulation 
         
@@ -776,7 +770,7 @@ class PopulationOfModels(object):
             
         # Assemble all the details about the simulation to give to the object
         protocols['simulation_type'] = simulation_type
-        self.simulations[name] = Simulation(name, protocols, options=options, population=self)
+        self.simulations[name] = Simulation(name, protocols, population=self)
         # Finally, set simulation rerun and collision properties
         self.simulations[name].rerun = rerun
         self.simulations[name].name_collision = name_collision
@@ -840,7 +834,7 @@ class PopulationOfModels(object):
             save_type=save_type,
             save_dir=save_dir,
             benchmark=benchmark,
-            rerun=rerun,)
+            rerun=rerun,)  
         print("Sim results:\n {}".format(sim.results)) # debug
         # Add simulation results to the main pom dataframe
         sim_results = sim.results
@@ -1109,7 +1103,7 @@ class Simulation(object):
     sim.empty_simulation_protocol(sim_name)
     
     """
-    def __init__(self, name, protocols, options=None, population=None):
+    def __init__(self, name, protocols, population=None):
         self.name = name
         self.protocols = protocols
         self.traces = {} # To store traces for plotting or analysis
@@ -1129,11 +1123,7 @@ class Simulation(object):
             raise ValueError('Population must be supplied to run simulation, for single cell simulations use simulation_helpers module.')
             
         # Options - output, saving, logging etc.
-        if options == None:
-            self.options = options
-        else:
-            assert False, "options not enabled in constructor" # @TODO do this better
-    
+        self.options = None
 
     def reset_simulation(self):
         """ 
@@ -1159,7 +1149,6 @@ class Simulation(object):
         -----------------
         simulation_type: string
         cores: int, default 1
-        plot: bool, default False
         save_type: str, default 'fig', options are defined in allowed_save_types()
         save_dir: str, default None
         benchmark: bool, default True
@@ -1201,6 +1190,9 @@ class Simulation(object):
         self.model_indices.sort() # No matter the order in the dataframe we use a consistent order across simulations, unless sort changes.
         self.model_indices = tuple(self.model_indices) # Make order immutable
 
+        if len(self.model_indices) < self.num_subplots:
+            self.num_subplots = len(self.model_indices)
+
         assert(len(self.model_indices) == len(set(self.model_indices))), "Duplicates in model indices." 
         print("Simulation set of {} simulations begun.".format(num_sims))
         start  = time.time()
@@ -1211,9 +1203,8 @@ class Simulation(object):
         #for run in range(num_runs):
 
         self.count = 0
-        for _, model_idx in enumerate(self.model_indices):   
+        for _, model_idx in enumerate(self.model_indices):  
             mechanisms = self.build_parameters(model_idx)
-
             
             sim_kwargs = self.build_simulation_kwargs(
                     sim_id = model_idx,
@@ -1225,7 +1216,9 @@ class Simulation(object):
          # Close and unblock pool, lock simulation
         pool.close()
         pool.join()
- 
+
+        with open(f'done.txt', 'w') as f:
+            f.write('pom simulation done')
         if benchmark: print("Simulations finished in {} s".format(time.time()-start))
         
         # Clear out any remaining figs
@@ -1472,6 +1465,8 @@ class Simulation(object):
         """
         Stores the result from a simulation using callback functionality. 
         """
+        with open(f'log_result_start.txt', 'w') as f:
+            f.write(str(result))
         keys = result.keys()
         biomarker_names = [key for key in keys if key not in ['sim_id', 'trace']]
         sim_id = result['sim_id']
@@ -1488,7 +1483,7 @@ class Simulation(object):
             
         # If we are doing figure plotting of multiple traces
         # store the trace in temporary storage
-        if (self.options['save'] == True) & ('fig' in process_save_type(self.options['save_type'])):
+        if 'fig' in process_save_type(self.options['save_type']):
                 self.traces[sim_id] = result['trace']
                 
         # Check for plotting
@@ -1507,7 +1502,7 @@ class Simulation(object):
         move the pointer to sim_id+traces_to_plot+1.
         """
         # Only do anything if the right save options are set
-        if (self.options['save'] == True) & ('fig' in process_save_type(self.options['save_type'])):
+        if 'fig' in process_save_type(self.options['save_type']):
             subplot_dim = int(np.ceil(np.sqrt(traces_to_plot))) # Number of subplots (square)
 
             # Check whether there are enough traces to make a plot

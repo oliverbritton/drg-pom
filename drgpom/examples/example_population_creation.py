@@ -10,20 +10,7 @@ import sys
 import os
 import multiprocessing as mp
 
-# TODO - update with new path setup cod
-# Setup paths
-if 'Dropbox' in os.getcwd():
-    sys.path.append(os.path.join(os.getcwd().split('Dropbox')[0],'Dropbox'))
-else:
-    raise Exception('Not running in Dropbox directory.')
-
-# TODO - update
-# Import drg-pom and NEURON
-import neuron_paths
-neuron_paths.setup_paths()
-import Methods.pom_test as pom
-import Methods.simulation_helpers as sh
-from neuron import h
+import drgpom as drg
 
 # Define number of cpu cores to use
 # If not specified default to cpu count - 1
@@ -45,14 +32,19 @@ if __name__ == '__main__':
     " --- Define and Construct Population --- "
 
     pop_name = 'example_population'
-    pop_save_filename = '{}.pickle'.format(sim_name)
+    pop_save_filename = 'results//{}.pkl'.format(pop_name)
 
-    # Parameter set settings - one of parameter_data and parameter_filename
-    # must be set to None as they are mututally exclusive.
+    # Parameter set settings - set either parameter_data and num_models, or parameter_filename to
+    # a non-None value, as generating population from parameter data is mututally exclusive with
+    # loading population parameters from an existing parameter set file. 
+    num_models = 200
     parameter_data = {'GNav17':[0.0,0.4], 'GNav18':[0.,4.0], 'GNav19':[0.,4.],
             'GKdr':[0.,4.], 'GKA':[0.,40.], 'GKM':[0.,4.], 'GH':[0.,2.], 'GKleak':[0., 0.2]}
+
+
     parameter_filename = None
 
+    # Defining parameters to vary for each ionic current and the names of each parameter
     model_details = {'mechanisms':{}}
     model_details['mechanisms']['nav17vw_named'] = {'GNav17':'gbar_nav17vw_named'}
     model_details['mechanisms']['nav18hw_named'] = {'GNav18':'gbar_nav18hw_named'}
@@ -63,11 +55,6 @@ if __name__ == '__main__':
     model_details['mechanisms']['hcntf'] = {'GH': 'gbar_hcntf'}
     model_details['mechanisms']['kleak'] = {'GKleak': 'gbar_kleak'}
 
-    # Ignore these if loading parameters using parameter_filename
-    num_models = 20000
-    save_parameter_set = True  
-    save_parameter_set_filename = 'new_example_project_parameters.csv' 
-
     # Simulation parameters
     save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
     save_dir = None
@@ -76,24 +63,23 @@ if __name__ == '__main__':
     outputs = [] 
 
     if parameter_data is not None:
-	parameter_set_details = {}
-	parameter_set_details['num_models'] = num_models
-	parameter_set_details['parameter_data'] = parameter_data 
-	parameter_set_details['save'] = True
-	parameter_set_details['output_filename'] = 'example_project_parameters.csv'   
+        parameter_set_details = {}
+        parameter_set_details['num_models'] = num_models
+        parameter_set_details['parameter_data'] = parameter_data 
+        parameter_set_details['save'] = True
+        parameter_set_details['output_filename'] = 'example_population_creating_parameters.csv'   
     else:
-	parameter_set_details = None 
+        parameter_set_details = None 
 
-    pop = pom.PopulationOfModels(name=pop_name, 
+    pop = drg.PopulationOfModels(name=pop_name, 
                                  simulation_protocols=None, 
                                  model_details=model_details,
-                                 parameter_filename=None,
+                                 parameter_filename=parameter_filename,
                                  parameter_set_details=parameter_set_details)
-)
 
- 
     " --- Run Simulations --- "
 
+    # Ramp stimulus simulation
     sim_name = 'ramp'
     sim_type = 'iclamp'
     protocols = {
@@ -114,13 +100,13 @@ if __name__ == '__main__':
     pop.run_simulation(name=sim_name, 
                    simulation_type=sim_type, 
                    protocols=protocols,
-                   cores=cores, 
-                   plot=do_plot, 
+                   cores=cores,
                    save_type=save_type, 
+                   save_dir=save_dir, 
                    benchmark=benchmark, 
                    rerun=False)
 
-
+    # Step stimulus simulation
     sim_name = 'step' 
     sim_type = 'iclamp'
     protocols = {
@@ -142,10 +128,9 @@ if __name__ == '__main__':
     pop.run_simulation(name=sim_name, 
                    simulation_type=sim_type, 
                    protocols=protocols,
-                   cores=cores, 
-                   plot=do_plot, 
-                   save=save_pop, 
+                   cores=cores,  
                    save_type=save_type, 
+                   save_dir=save_dir, 
                    benchmark=benchmark, 
                    rerun=False)
 
@@ -178,5 +163,5 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.pickle_pom(pop_save_filename)
+    pop.save(pop_save_filename)
     print("Current population saved to: {}".format(pop_save_filename))

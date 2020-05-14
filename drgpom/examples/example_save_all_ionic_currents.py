@@ -1,5 +1,6 @@
 """
-Example configuration file to run a new population of models simulation with an existing population of models
+Example configuration file to run a simulation saving the traces of all the ionic currents for each model. Be warned this will use a lot of disk space but is necessary if you want
+to analyse the ionic currents and plot currentscapes. 
 """
 
 import matplotlib
@@ -10,20 +11,7 @@ import sys
 import os
 import multiprocessing as mp
 
-# TODO - update with new path setup cod
-# Setup paths
-if 'Dropbox' in os.getcwd():
-    sys.path.append(os.path.join(os.getcwd().split('Dropbox')[0],'Dropbox'))
-else:
-    raise Exception('Not running in Dropbox directory.')
-
-# TODO - update
-# Import drg-pom and NEURON
-import neuron_paths
-neuron_paths.setup_paths()
-import Methods.pom_test as pom
-import Methods.simulation_helpers as sh
-from neuron import h
+import drgpom as drg
 
 # Define number of cpu cores to use
 # If not specified default to cpu count - 1
@@ -45,19 +33,22 @@ if __name__ == '__main__':
     " --- Load existing population of models --- "
 
     pop_filename = os.path.join('example_population.pickle')
-    pop = pom.load(pop_initial_filename)
-    sim_name = 'example_simulation'
+    pop = drg.load(pop_initial_filename)
+    sim_name = 'example_save_all_ionic_currents'
     sim_save_filename = '{}.pickle'.format(sim_name)
 
-
-
     # Simulation parameters
-    save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
     save_dir = None
     benchmark = True
     rerun = False
     outputs = [] 
- 
+
+    " ---// Setup for recording all ionic currents \\--- "
+    save_type = 'both' # Save both trace data files and figures - we need to save the trace data files to save the current data
+    outputs = list(pop.mechanisms.keys()) # This is vital - tells the simulator to save all "mechanisms" as outputs - mechanisms are what NEURON calls ionic current models.
+    print(f"Outputs are: {outputs}") # Prints out which currents we are saving.
+    " -------------------------------------------------- "
+
     " --- Run Simulations --- "
 
     " --- Simulation 1 - Example Ramp Stimulus --- "
@@ -71,7 +62,7 @@ if __name__ == '__main__':
          'interval': 0,
          'ions': ['Na','K'],
          'num_stims': 1,
-         'outputs': outputs,
+         'outputs': outputs, # This line is vital - here we pass the list of ionic currents to save to the simulation.
          'sampling_freq': 20000,
          'stim_func': 'h.IRamp',
          't_stop': 1500.,
@@ -99,7 +90,7 @@ if __name__ == '__main__':
          'interval': 0,
          'ions': ['Na','K'],
          'num_stims': 1,
-         'outputs': outputs,
+         'outputs': outputs, # This line is vital - here we pass the list of ionic currents to save to the simulation.
          'sampling_freq': 20000,
          'stim_func': 'h.IClamp',
          't_stop': 1500.,
@@ -111,9 +102,8 @@ if __name__ == '__main__':
                    simulation_type=sim_type, 
                    protocols=protocols,
                    cores=cores, 
-                   plot=do_plot, 
-                   save=save_pop, 
                    save_type=save_type, 
+                   save_dir=save_dir, 
                    benchmark=benchmark, 
                    rerun=False)
 
@@ -121,5 +111,5 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.pickle_pom(pop_save_filename)
-    print("Current population saved to: {}".format(pop_save_filename))
+    pop.save(pop_save_filename)
+    print("Current population saved to: {}".format(sim_save_filename))

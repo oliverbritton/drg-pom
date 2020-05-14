@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 " Creating dataframes and aggregating population biomarker data per simulation "
-print("Debug")
 
 def fill_in_grouped_sim_data(grouped_sim_data, results, biomarker,
                              sim_types, sim_type_amp_relationship,
@@ -636,7 +635,28 @@ def plot_biomarker_scatterplots(pop, biomarkers, stim_amps, sim_type,
                 # @TODO add saving
         
     return dfs
-            
+
+def plot_parameters(pop):
+# Plot all the parameters in a population in a grid of scatterplots
+
+    parameters = pop.results['Parameters'].copy()
+    parameter_ranges = {'GNav17':[0.0,0.4], 'GNav18':[0.,4.0], 'GNav19':[0.,4.],
+                'GKdr':[0.,4.], 'GKA':[0.,40.], 'GKM':[0.,4.], 'GH':[0.,2.], 'GKleak':[0., 0.2]}
+
+    for col in parameters:
+        parameters[col] /= parameter_ranges[col][1]/2
+
+    dark_grey = np.array([1,1,1])*(32/255)
+    sns.set(style="white")
+    sns.set_context(context="notebook", font_scale = 3.5,)
+    g = sns.pairplot(parameters, plot_kws = {'color': dark_grey}, diag_kws = {'color': dark_grey})
+    # Set scatter plot ranges
+    g.set(xticks=[0,2]); g.set(yticks=[0,2])
+    # Set histogram ranges
+    axes = g.axes
+    for i in range(len(parameters.columns)):
+        axes[i,i].set_xlim(0,2)
+
             
 " Utilities "
 

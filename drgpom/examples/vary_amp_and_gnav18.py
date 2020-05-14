@@ -1,5 +1,5 @@
 """
-Example configuration file to run a new population of models simulation with an existing population of models
+Example configuration file to run a set of simulations 
 """
 
 import matplotlib
@@ -33,8 +33,20 @@ if __name__ == '__main__':
 
     pop_filename = os.path.join('example_population.pickle')
     pop = drg.load(pop_initial_filename)
-    sim_name = 'example_simulation'
+    sim_name = 'vary_amp_and_gnav18'
     sim_save_filename = '{}.pickle'.format(sim_name)
+
+    """
+    Set up parameters for multiple simulations
+    We will provide a list of GNav 1.8 scaling factors 
+    and a list of stimulus amplitudes for a step stimulus function.
+    Then we will run a simulation for every possible combination of the 
+    two lists.
+    """
+    gnav18s = [0.5, 1.0, 1.5]
+    step_amplitudes = [1.0, 2.0, 3.0, 4.0, 5.0] # nA
+    simulation_factors = {'GNav18':gnav18s, 'Step Amp':step_amplitudes}
+    simulations = drg.construct_simulation_set(simulation_factors)
 
     # Simulation parameters
     save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
@@ -107,3 +119,4 @@ if __name__ == '__main__':
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
     pop.save(pop_save_filename)
     print("Current population saved to: {}".format(sim_save_filename))
+
