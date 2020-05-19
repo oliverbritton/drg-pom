@@ -2,6 +2,7 @@
 Example configuration file to run a new population of models simulation with an existing population of models
 """
 
+" //-- Initial setup --// "
 import matplotlib
 matplotlib.use('Agg')
 
@@ -16,7 +17,6 @@ import drgpom as drg
 # If not specified default to cpu count - 1
 if __name__ == '__main__':
     sys.modules['__main__'].__spec__ = None # Without this repeated runnings of this script in Python 3 fail
-    # Set cores to cpu count or specified number
     cores = mp.cpu_count()-1
     if len(sys.argv) >= 2:
         for arg in sys.argv[1:]: 
@@ -25,16 +25,16 @@ if __name__ == '__main__':
                 cores = int(core_str)
                 print("Cores = {}".format(cores))
 
-    start = time.time() # For benchmarking
+    start = time.time()
     
     " //-- Main Program begins here --// "
 
     " --- Load existing population of models --- "
 
-    pop_filename = os.path.join('example_population.pickle')
-    pop = drg.load(pop_initial_filename)
-    sim_name = 'example_simulation'
-    sim_save_filename = '{}.pickle'.format(sim_name)
+    pop_filename = os.path.join('data', 'example_population.pkl')
+    pop = drg.load(pop_filename)
+    name = 'example_simulation'
+    save_filename = '{}.pkl'.format(name)
 
     # Simulation parameters
     save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
@@ -61,6 +61,7 @@ if __name__ == '__main__':
          'stim_func': 'h.IRamp',
          't_stop': 1500.,
          'v_init': -65.,
+         'flags': {}
          }
 
     pop.run_simulation(name=sim_name, 
@@ -105,5 +106,6 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.save(pop_save_filename)
-    print("Current population saved to: {}".format(sim_save_filename))
+    pop.save(save_filename)
+    print("Current population saved to: {}".format(save_filename))
+    print("This simulation has finished running.")

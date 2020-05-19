@@ -31,8 +31,8 @@ if __name__ == '__main__':
 
     " --- Define and Construct Population --- "
 
-    pop_name = 'example_population_fullsize'
-    pop_save_filename = 'results//{}.pkl'.format(pop_name)
+    name = 'example_population_fullsize'
+    save_filename = '{}.pkl'.format(name)
 
     # Parameter set settings - set either parameter_data and num_models, or parameter_filename to
     # a non-None value, as generating population from parameter data is mututally exclusive with
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     else:
         parameter_set_details = None 
 
-    pop = drg.PopulationOfModels(name=pop_name, 
+    pop = drg.PopulationOfModels(name=name, 
                                  simulation_protocols=None, 
                                  model_details=model_details,
                                  parameter_filename=parameter_filename,
@@ -163,5 +163,5 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.save(pop_save_filename)
-    print("Current population saved to: {}".format(pop_save_filename))
+    pop.save(save_filename)
+    print("Current population saved to: {}".format(save_filename))

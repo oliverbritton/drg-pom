@@ -33,8 +33,8 @@ if __name__ == '__main__':
 
     pop_filename = os.path.join('example_population.pickle')
     pop = drg.load(pop_initial_filename)
-    sim_name = 'vary_amp_and_gnav18'
-    sim_save_filename = '{}.pickle'.format(sim_name)
+    name = 'vary_amp_and_gnav18'
+    save_filename = '{}.pkl'.format(name)
 
     """
     Set up parameters for multiple simulations
@@ -117,6 +117,6 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.save(pop_save_filename)
-    print("Current population saved to: {}".format(sim_save_filename))
+    pop.save(save_filename)
+    print("Current population saved to: {}".format(save_filename))
 

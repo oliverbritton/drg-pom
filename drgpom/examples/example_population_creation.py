@@ -31,8 +31,8 @@ if __name__ == '__main__':
 
     " --- Define and Construct Population --- "
 
-    pop_name = 'example_population'
-    pop_save_filename = 'results//{}.pkl'.format(pop_name)
+    name = 'example_population'
+    save_filename = '{}.pkl'.format(name)
 
     # Parameter set settings - set either parameter_data and num_models, or parameter_filename to
     # a non-None value, as generating population from parameter data is mututally exclusive with
@@ -55,23 +55,19 @@ if __name__ == '__main__':
     model_details['mechanisms']['hcntf'] = {'GH': 'gbar_hcntf'}
     model_details['mechanisms']['kleak'] = {'GKleak': 'gbar_kleak'}
 
-    # Simulation parameters
-    save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
-    save_dir = None
-    benchmark = True
-    rerun = False
-    outputs = [] 
+    save_parameter_set = True
+    parameter_set_filename = 'example_population_creation_parameters.csv'  
 
     if parameter_data is not None:
         parameter_set_details = {}
         parameter_set_details['num_models'] = num_models
         parameter_set_details['parameter_data'] = parameter_data 
-        parameter_set_details['save'] = True
-        parameter_set_details['output_filename'] = 'example_population_creating_parameters.csv'   
+        parameter_set_details['save'] = save_parameter_set
+        parameter_set_details['output_filename'] = parameter_set_filename   
     else:
         parameter_set_details = None 
 
-    pop = drg.PopulationOfModels(name=pop_name, 
+    pop = drg.PopulationOfModels(name=name, 
                                  simulation_protocols=None, 
                                  model_details=model_details,
                                  parameter_filename=parameter_filename,
@@ -79,6 +75,13 @@ if __name__ == '__main__':
 
     " --- Run Simulations --- "
 
+    # Simulation parameters
+    save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
+    save_dir = None
+    benchmark = True
+    rerun = False
+    outputs = [] 
+    
     # Ramp stimulus simulation
     sim_name = 'ramp'
     sim_type = 'iclamp'
@@ -163,5 +166,5 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.save(pop_save_filename)
-    print("Current population saved to: {}".format(pop_save_filename))
+    pop.save(save_filename)
+    print("Current population saved to: {}".format(save_filename))

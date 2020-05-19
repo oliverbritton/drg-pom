@@ -1,6 +1,6 @@
 """
 Example configuration file to run a simulation saving the traces of all the ionic currents for each model. Be warned this will use a lot of disk space but is necessary if you want
-to analyse the ionic currents and plot currentscapes. 
+to analyse the ionic currents and plot currentscapes. Check the comments for this script to see where to make changes to a normal simulation to save currents.
 """
 
 import matplotlib
@@ -32,20 +32,19 @@ if __name__ == '__main__':
 
     " --- Load existing population of models --- "
 
-    pop_filename = os.path.join('example_population.pickle')
+    pop_filename = os.path.join('data', 'example_population.pkl')
     pop = drg.load(pop_initial_filename)
-    sim_name = 'example_save_all_ionic_currents'
-    sim_save_filename = '{}.pickle'.format(sim_name)
+    name = 'example_save_all_ionic_currents'
+    save_filename = '{}.pkl'.format(name)
 
     # Simulation parameters
     save_dir = None
     benchmark = True
     rerun = False
-    outputs = [] 
 
     " ---// Setup for recording all ionic currents \\--- "
-    save_type = 'both' # Save both trace data files and figures - we need to save the trace data files to save the current data
-    outputs = list(pop.mechanisms.keys()) # This is vital - tells the simulator to save all "mechanisms" as outputs - mechanisms are what NEURON calls ionic current models.
+    save_type = 'both' # Save both trace data files and figures - we need to save the trace data files to save the ionic current data
+    outputs = list(pop.mechanisms.keys()) # This tells the simulator to save all "mechanisms" as outputs (mechanisms are what NEURON calls ionic current models).
     print(f"Outputs are: {outputs}") # Prints out which currents we are saving.
     " -------------------------------------------------- "
 
@@ -111,5 +110,5 @@ if __name__ == '__main__':
 
     print(pop.results.head())
     print("Time taken on {} cores = {}s.".format(cores,time.time()-start))
-    pop.save(pop_save_filename)
-    print("Current population saved to: {}".format(sim_save_filename))
+    pop.save(save_filename)
+    print("Current population saved to: {}".format(save_filename))
