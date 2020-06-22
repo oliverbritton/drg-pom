@@ -383,7 +383,7 @@ def simulate_iclamp(sim_id,
                 filename = os.path.join(options['save_dir'], filename)
             save_trace(trace, filename)
 
-        dump_exception(results, 'results_dump.txt')
+        #dump_exception(results, 'results_dump.txt') # Debug
 
         return results
     except Exception as e:
@@ -1217,8 +1217,6 @@ class Simulation(object):
         pool.close()
         pool.join()
 
-        with open(f'done.txt', 'w') as f:
-            f.write('pom simulation done')
         if benchmark: print("Simulations finished in {} s".format(time.time()-start))
         
         # Clear out any remaining figs
@@ -1465,8 +1463,6 @@ class Simulation(object):
         """
         Stores the result from a simulation using callback functionality. 
         """
-        with open(f'log_result_start.txt', 'w') as f:
-            f.write(str(result))
         keys = result.keys()
         biomarker_names = [key for key in keys if key not in ['sim_id', 'trace']]
         sim_id = result['sim_id']

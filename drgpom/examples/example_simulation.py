@@ -34,6 +34,7 @@ if __name__ == '__main__':
     pop_filename = os.path.join('data', 'example_population.pkl')
     pop = drg.load(pop_filename)
     name = 'example_simulation'
+    pop.name = name
     save_filename = '{}.pkl'.format(name)
 
     # Simulation parameters

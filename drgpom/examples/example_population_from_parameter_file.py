@@ -55,7 +55,7 @@ if __name__ == '__main__':
     model_details['mechanisms']['kleak'] = {'GKleak': 'gbar_kleak'}
 
     # Simulation parameters
-    save_type = 'both' # Allowed types are 'fig', 'trace', 'both', or 'none'
+    save_type = 'fig' # Allowed types are 'fig', 'trace', 'both', or 'none'
     save_dir = None
     benchmark = True
     rerun = False

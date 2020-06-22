@@ -1,13 +1,27 @@
 # DRG Pom visualisation module, adapted from work by Alonso and Marder, eLife, 2019.
 
-
-
 from pylab import *
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_currentscape(voltage, currents, figsize=(3,4)):
-    # make a copy of currents
+def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None):
+
+    voltage, currents = format_trace_for_currentscape(trace)
+    time = trace['t']
+
+    if start_time:
+        start_idx = np.argmin(abs(time-start_time))
+    else:
+        start_idx = 0
+    if end_time:
+        end_idx = np.argmin(abs(time-end_time))
+    else:
+        end_idx = len(time) - 1
+
+    time = time[start_idx:end_idx+1]
+    voltage = voltage[start_idx:end_idx+1]
+    currents = currents[:, start_idx:end_idx+1]
+
     # CURRENTSCAPE CALCULATION STARTS HERE. 
     curr=np.array(currents)	
     cpos= curr.copy()

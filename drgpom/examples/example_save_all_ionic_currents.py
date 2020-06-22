@@ -33,8 +33,9 @@ if __name__ == '__main__':
     " --- Load existing population of models --- "
 
     pop_filename = os.path.join('data', 'example_population.pkl')
-    pop = drg.load(pop_initial_filename)
+    pop = drg.load(pop_filename)
     name = 'example_save_all_ionic_currents'
+    pop.name = name
     save_filename = '{}.pkl'.format(name)
 
     # Simulation parameters

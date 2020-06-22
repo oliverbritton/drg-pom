@@ -31,9 +31,10 @@ if __name__ == '__main__':
 
     " --- Load existing population of models --- "
 
-    pop_filename = os.path.join('example_population.pickle')
-    pop = drg.load(pop_initial_filename)
+    pop_filename = os.path.join('data', 'example_population.pkl')
+    pop = drg.load(pop_filename)
     name = 'vary_amp_and_gnav18'
+    pop.name = name
     save_filename = '{}.pkl'.format(name)
 
     """

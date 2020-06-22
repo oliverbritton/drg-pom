@@ -67,7 +67,7 @@ if __name__ == '__main__':
         parameter_set_details['num_models'] = num_models
         parameter_set_details['parameter_data'] = parameter_data 
         parameter_set_details['save'] = True
-        parameter_set_details['output_filename'] = 'example_population_creating_parameters.csv'   
+        parameter_set_details['output_filename'] = 'example_population_creation_fullsize_parameters.csv'   
     else:
         parameter_set_details = None 
 
