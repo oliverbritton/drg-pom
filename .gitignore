@@ -3,4 +3,11 @@
 *.pyc
 *.swp
 *~
+*.o
+*.c
+build/
+.ipynb_checkpoints/
+dist/
+drgpom.egg-info/
+drg_pom.egg-info/
 

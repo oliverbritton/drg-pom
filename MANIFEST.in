@@ -1,0 +1,5 @@
+recursive-include examples/data example_population.pkl
+recursive-include examples/data calibration_biomarkers.csv
+recursive-include examples/results results.txt
+recursive-include models *.mod
+include test.pdf

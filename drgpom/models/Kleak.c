@@ -1,5 +1,6 @@
-/* Created by Language version: 6.2.0 */
+/* Created by Language version: 7.7.0 */
 /* VECTORIZED */
+#define NRN_VECTORIZED 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -21,10 +22,17 @@ extern int _method3;
 extern double hoc_Exp(double);
 #endif
  
-#define _threadargscomma_ _p, _ppvar, _thread, _nt,
-#define _threadargs_ _p, _ppvar, _thread, _nt
+#define nrn_init _nrn_init__kleak
+#define _nrn_initial _nrn_initial__kleak
+#define nrn_cur _nrn_cur__kleak
+#define _nrn_current _nrn_current__kleak
+#define nrn_jacob _nrn_jacob__kleak
+#define nrn_state _nrn_state__kleak
+#define _net_receive _net_receive__kleak 
  
+#define _threadargscomma_ _p, _ppvar, _thread, _nt,
 #define _threadargsprotocomma_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt,
+#define _threadargs_ _p, _ppvar, _thread, _nt
 #define _threadargsproto_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt
  	/*SUPPRESS 761*/
 	/*SUPPRESS 762*/
@@ -69,6 +77,15 @@ extern void hoc_register_limits(int, HocParmLimits*);
 extern void hoc_register_units(int, HocParmUnits*);
 extern void nrn_promote(Prop*, int, int);
 extern Memb_func* memb_func;
+ 
+#define NMODL_TEXT 1
+#if NMODL_TEXT
+static const char* nmodl_file_text;
+static const char* nmodl_filename;
+extern void hoc_reg_nmodl_text(int, const char*);
+extern void hoc_reg_nmodl_filename(int, const char*);
+#endif
+
  extern void _nrn_setdata_reg(int, void(*)(Prop*));
  static void _setdata(Prop* _prop) {
  _extcall_prop = _prop;
@@ -110,7 +127,7 @@ static void nrn_state(_NrnThread*, _Memb_list*, int);
 static void  nrn_jacob(_NrnThread*, _Memb_list*, int);
  /* connect range variables in _p that hoc is supposed to know about */
  static const char *_mechanism[] = {
- "6.2.0",
+ "7.7.0",
 "kleak",
  "gbar_kleak",
  0,
@@ -143,7 +160,7 @@ static void nrn_alloc(Prop* _prop) {
  static void _initlists();
  static void _update_ion_pointer(Datum*);
  extern Symbol* hoc_lookup(const char*);
-extern void _nrn_thread_reg(int, int, void(*f)(Datum*));
+extern void _nrn_thread_reg(int, int, void(*)(Datum*));
 extern void _nrn_thread_table_reg(int, void(*)(double*, Datum*, Datum*, _NrnThread*, int));
 extern void hoc_register_tolerance(int, HocStateTolerance*, Symbol***);
 extern void _cvode_abstol( Symbol**, double*, int);
@@ -157,9 +174,16 @@ extern void _cvode_abstol( Symbol**, double*, int);
  _mechtype = nrn_get_mechtype(_mechanism[1]);
      _nrn_setdata_reg(_mechtype, _setdata);
      _nrn_thread_reg(_mechtype, 2, _update_ion_pointer);
+ #if NMODL_TEXT
+  hoc_reg_nmodl_text(_mechtype, nmodl_file_text);
+  hoc_reg_nmodl_filename(_mechtype, nmodl_filename);
+#endif
   hoc_register_prop_size(_mechtype, 5, 3);
+  hoc_register_dparam_semantics(_mechtype, 0, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 1, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 2, "k_ion");
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
- 	ivoc_help("help ?1 kleak E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/Kleak.mod\n");
+ 	ivoc_help("help ?1 kleak F:/CLPC48/drg-pom/drgpom/models/Kleak.mod\n");
  hoc_register_limits(_mechtype, _hoc_parm_limits);
  hoc_register_units(_mechtype, _hoc_parm_units);
  }
@@ -205,7 +229,8 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  v = _v;
   ek = _ion_ek;
  initmodel(_p, _ppvar, _thread, _nt);
- }}
+ }
+}
 
 static double _nrn_current(double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt, double _v){double _current=0.;v=_v;{ {
    ik = gbar * ( v - ek ) ;
@@ -252,7 +277,9 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
 	NODERHS(_nd) -= _rhs;
   }
  
-}}
+}
+ 
+}
 
 static void nrn_jacob(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 double* _p; Datum* _ppvar; Datum* _thread;
@@ -274,7 +301,9 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
 	NODED(_nd) += _g;
   }
  
-}}
+}
+ 
+}
 
 static void nrn_state(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 
@@ -291,4 +320,54 @@ _first = 0;
 
 #if defined(__cplusplus)
 } /* extern "C" */
+#endif
+
+#if NMODL_TEXT
+static const char* nmodl_filename = "Kleak.mod";
+static const char* nmodl_file_text = 
+  "TITLE IKleak\n"
+  "\n"
+  "COMMENT\n"
+  "Simple potassium leak channel\n"
+  "\n"
+  "ENDCOMMENT\n"
+  "\n"
+  "UNITS {\n"
+  "\n"
+  "		 (mA) = (milliamp)\n"
+  "		 (mV) = (millivolt)\n"
+  "		 (S) = (siemens)\n"
+  "}\n"
+  "\n"
+  "NEURON {\n"
+  "		 SUFFIX kleak\n"
+  "		 USEION k READ ek WRITE ik\n"
+  "		 RANGE gbar, gk, ik	\n"
+  "\n"
+  "}\n"
+  "\n"
+  "PARAMETER {\n"
+  "		 gbar = 0.001 (S/cm2) <0,1e9>		 \n"
+  "}\n"
+  "\n"
+  "ASSIGNED {\n"
+  "		 v (mV)\n"
+  "		 celsius (degC)\n"
+  "		 ek (mV)\n"
+  "		 \n"
+  "		 ik (mA/cm2)\n"
+  "}\n"
+  "\n"
+  "? currents\n"
+  "BREAKPOINT {\n"
+  "		ik = gbar*(v - ek)\n"
+  "}\n"
+  "\n"
+  "\n"
+  "\n"
+  "\n"
+  "\n"
+  "\n"
+  "\n"
+  ;
 #endif

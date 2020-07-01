@@ -1,5 +1,6 @@
-/* Created by Language version: 6.2.0 */
+/* Created by Language version: 7.7.0 */
 /* VECTORIZED */
+#define NRN_VECTORIZED 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -21,10 +22,17 @@ extern int _method3;
 extern double hoc_Exp(double);
 #endif
  
-#define _threadargscomma_ _p, _ppvar, _thread, _nt,
-#define _threadargs_ _p, _ppvar, _thread, _nt
+#define nrn_init _nrn_init__IRamp
+#define _nrn_initial _nrn_initial__IRamp
+#define nrn_cur _nrn_cur__IRamp
+#define _nrn_current _nrn_current__IRamp
+#define nrn_jacob _nrn_jacob__IRamp
+#define nrn_state _nrn_state__IRamp
+#define _net_receive _net_receive__IRamp 
  
+#define _threadargscomma_ _p, _ppvar, _thread, _nt,
 #define _threadargsprotocomma_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt,
+#define _threadargs_ _p, _ppvar, _thread, _nt
 #define _threadargsproto_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt
  	/*SUPPRESS 761*/
 	/*SUPPRESS 762*/
@@ -69,6 +77,15 @@ extern void hoc_register_limits(int, HocParmLimits*);
 extern void hoc_register_units(int, HocParmUnits*);
 extern void nrn_promote(Prop*, int, int);
 extern Memb_func* memb_func;
+ 
+#define NMODL_TEXT 1
+#if NMODL_TEXT
+static const char* nmodl_file_text;
+static const char* nmodl_filename;
+extern void hoc_reg_nmodl_text(int, const char*);
+extern void hoc_reg_nmodl_filename(int, const char*);
+#endif
+
  extern Prop* nrn_point_prop_;
  static int _pointtype;
  static void* _hoc_create_pnt(_ho) Object* _ho; { void* create_point_process();
@@ -132,7 +149,7 @@ static void  nrn_jacob(_NrnThread*, _Memb_list*, int);
 }
  /* connect range variables in _p that hoc is supposed to know about */
  static const char *_mechanism[] = {
- "6.2.0",
+ "7.7.0",
 "IRamp",
  "delay",
  "dur",
@@ -173,7 +190,7 @@ static void nrn_alloc(Prop* _prop) {
 #define _tqitem &(_ppvar[2]._pvoid)
  static void _net_receive(Point_process*, double*, double);
  extern Symbol* hoc_lookup(const char*);
-extern void _nrn_thread_reg(int, int, void(*f)(Datum*));
+extern void _nrn_thread_reg(int, int, void(*)(Datum*));
 extern void _nrn_thread_table_reg(int, void(*)(double*, Datum*, Datum*, _NrnThread*, int));
 extern void hoc_register_tolerance(int, HocStateTolerance*, Symbol***);
 extern void _cvode_abstol( Symbol**, double*, int);
@@ -187,11 +204,18 @@ extern void _cvode_abstol( Symbol**, double*, int);
 	 _hoc_create_pnt, _hoc_destroy_pnt, _member_func);
  _mechtype = nrn_get_mechtype(_mechanism[1]);
      _nrn_setdata_reg(_mechtype, _setdata);
+ #if NMODL_TEXT
+  hoc_reg_nmodl_text(_mechtype, nmodl_file_text);
+  hoc_reg_nmodl_filename(_mechtype, nmodl_filename);
+#endif
   hoc_register_prop_size(_mechtype, 8, 3);
+  hoc_register_dparam_semantics(_mechtype, 0, "area");
+  hoc_register_dparam_semantics(_mechtype, 1, "pntproc");
+  hoc_register_dparam_semantics(_mechtype, 2, "netsend");
  pnt_receive[_mechtype] = _net_receive;
  pnt_receive_size[_mechtype] = 1;
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
- 	ivoc_help("help ?1 IRamp E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/IRamp.mod\n");
+ 	ivoc_help("help ?1 IRamp F:/CLPC48/drg-pom/drgpom/models/IRamp.mod\n");
  hoc_register_limits(_mechtype, _hoc_parm_limits);
  hoc_register_units(_mechtype, _hoc_parm_units);
  }
@@ -269,7 +293,8 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }
  v = _v;
  initmodel(_p, _ppvar, _thread, _nt);
-}}
+}
+}
 
 static double _nrn_current(double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt, double _v){double _current=0.;v=_v;{ {
    if ( on  == 0.0 ) {
@@ -332,7 +357,9 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }
 #endif
  
-}}
+}
+ 
+}
 
 static void nrn_jacob(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 double* _p; Datum* _ppvar; Datum* _thread;
@@ -360,7 +387,9 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  }
 #endif
  
-}}
+}
+ 
+}
 
 static void nrn_state(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 
@@ -377,4 +406,75 @@ _first = 0;
 
 #if defined(__cplusplus)
 } /* extern "C" */
+#endif
+
+#if NMODL_TEXT
+static const char* nmodl_filename = "IRamp.mod";
+static const char* nmodl_file_text = 
+  "COMMENT\n"
+  "iramp.mod\n"
+  "\n"
+  "Delivers a ramp current that starts at t = delay >=0.\n"
+  "The current starts at zero and increases linearly until t = delay+dur.\n"
+  "The current maximum amplitude is given by amp.\n"
+  "\n"
+  "Uses event delivery system to ensure compatibility with adaptive integration.\n"
+  "\n"
+  "ENDCOMMENT\n"
+  "\n"
+  "NEURON {\n"
+  "  POINT_PROCESS IRamp\n"
+  "  RANGE delay, dur, amp\n"
+  "  ELECTRODE_CURRENT i\n"
+  "}\n"
+  "\n"
+  "UNITS {\n"
+  "  (nA) = (nanoamp)\n"
+  "}\n"
+  "\n"
+  "PARAMETER {\n"
+  "  delay (ms)\n"
+  "  dur (ms)\n"
+  "  amp (nA)\n"
+  "}\n"
+  "\n"
+  "ASSIGNED {\n"
+  "  i (nA)\n"
+  "  on (1)\n"
+  "}\n"
+  "\n"
+  "INITIAL {\n"
+  "  i = 0\n"
+  "  on = 0\n"
+  "\n"
+  "  if (delay<0) { delay=0 }\n"
+  "  if (dur<0) { dur=0 }\n"
+  "\n"
+  "  : do nothing if dur == 0\n"
+  "  if (dur>0) {\n"
+  "    net_send(delay, 1)  : to turn it on and start ramp\n"
+  "  }\n"
+  "}\n"
+  "\n"
+  "\n"
+  "BREAKPOINT {\n"
+  "  if (on==0) {\n"
+  "    i = 0\n"
+  "  } else {\n"
+  "    i = amp * (t - delay)/dur\n"
+  "  }\n"
+  "}\n"
+  "\n"
+  "NET_RECEIVE (w) {\n"
+  "  : respond only to self-events with flag = 1\n"
+  "  if (flag == 1) {\n"
+  "    if (on==0) {\n"
+  "      on = 1  : turn it on\n"
+  "      net_send(dur, 1)  : to stop frequency ramp, freezing frequency at f1\n"
+  "    } else {\n"
+  "      on = 0  : turn it off\n"
+  "    }\n"
+  "  }\n"
+  "}\n"
+  ;
 #endif

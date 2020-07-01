@@ -1,5 +1,6 @@
-/* Created by Language version: 6.2.0 */
+/* Created by Language version: 7.7.0 */
 /* NOT VECTORIZED */
+#define NRN_VECTORIZED 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -21,10 +22,20 @@ extern int _method3;
 extern double hoc_Exp(double);
 #endif
  
-#define _threadargscomma_ /**/
-#define _threadargs_ /**/
+#define nrn_init _nrn_init__kmtf
+#define _nrn_initial _nrn_initial__kmtf
+#define nrn_cur _nrn_cur__kmtf
+#define _nrn_current _nrn_current__kmtf
+#define nrn_jacob _nrn_jacob__kmtf
+#define nrn_state _nrn_state__kmtf
+#define _net_receive _net_receive__kmtf 
+#define _f_rates _f_rates__kmtf 
+#define rates rates__kmtf 
+#define states states__kmtf 
  
+#define _threadargscomma_ /**/
 #define _threadargsprotocomma_ /**/
+#define _threadargs_ /**/
 #define _threadargsproto_ /**/
  	/*SUPPRESS 761*/
 	/*SUPPRESS 762*/
@@ -73,6 +84,15 @@ extern void hoc_register_limits(int, HocParmLimits*);
 extern void hoc_register_units(int, HocParmUnits*);
 extern void nrn_promote(Prop*, int, int);
 extern Memb_func* memb_func;
+ 
+#define NMODL_TEXT 1
+#if NMODL_TEXT
+static const char* nmodl_file_text;
+static const char* nmodl_filename;
+extern void hoc_reg_nmodl_text(int, const char*);
+extern void hoc_reg_nmodl_filename(int, const char*);
+#endif
+
  extern void _nrn_setdata_reg(int, void(*)(Prop*));
  static void _setdata(Prop* _prop) {
  _p = _prop->param; _ppvar = _prop->dparam;
@@ -143,9 +163,10 @@ static void _ode_spec(_NrnThread*, _Memb_list*, int);
 static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  
 #define _cvode_ieq _ppvar[3]._i
+ static void _ode_matsol_instance1(_threadargsproto_);
  /* connect range variables in _p that hoc is supposed to know about */
  static const char *_mechanism[] = {
- "6.2.0",
+ "7.7.0",
 "kmtf",
  "gbar_kmtf",
  0,
@@ -186,7 +207,7 @@ static void nrn_alloc(Prop* _prop) {
 };
  static void _update_ion_pointer(Datum*);
  extern Symbol* hoc_lookup(const char*);
-extern void _nrn_thread_reg(int, int, void(*f)(Datum*));
+extern void _nrn_thread_reg(int, int, void(*)(Datum*));
 extern void _nrn_thread_table_reg(int, void(*)(double*, Datum*, Datum*, _NrnThread*, int));
 extern void hoc_register_tolerance(int, HocStateTolerance*, Symbol***);
 extern void _cvode_abstol( Symbol**, double*, int);
@@ -200,11 +221,19 @@ extern void _cvode_abstol( Symbol**, double*, int);
  _mechtype = nrn_get_mechtype(_mechanism[1]);
      _nrn_setdata_reg(_mechtype, _setdata);
      _nrn_thread_reg(_mechtype, 2, _update_ion_pointer);
+ #if NMODL_TEXT
+  hoc_reg_nmodl_text(_mechtype, nmodl_file_text);
+  hoc_reg_nmodl_filename(_mechtype, nmodl_filename);
+#endif
   hoc_register_prop_size(_mechtype, 9, 4);
+  hoc_register_dparam_semantics(_mechtype, 0, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 1, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 2, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 3, "cvodeieq");
  	hoc_register_cvode(_mechtype, _ode_count, _ode_map, _ode_spec, _ode_matsol);
  	hoc_register_tolerance(_mechtype, _hoc_state_tol, &_atollist);
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
- 	ivoc_help("help ?1 kmtf E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/KMtf.mod\n");
+ 	ivoc_help("help ?1 kmtf F:/CLPC48/drg-pom/drgpom/models/KMtf.mod\n");
  hoc_register_limits(_mechtype, _hoc_parm_limits);
  hoc_register_units(_mechtype, _hoc_parm_units);
  }
@@ -242,14 +271,14 @@ static int _ode_spec1(_threadargsproto_);
  rates ( _threadargscomma_ v ) ;
  Dns = Dns  / (1. - dt*( ( ( ( - 1.0 ) ) ) / nsTau )) ;
  Dnf = Dnf  / (1. - dt*( ( ( ( - 1.0 ) ) ) / nfTau )) ;
- return 0;
+  return 0;
 }
  /*END CVODE*/
  static int states () {_reset=0;
  {
    rates ( _threadargscomma_ v ) ;
-    ns = ns + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / nsTau)))*(- ( ( ( ninf ) ) / nsTau ) / ( ( ( ( - 1.0) ) ) / nsTau ) - ns) ;
-    nf = nf + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / nfTau)))*(- ( ( ( ninf ) ) / nfTau ) / ( ( ( ( - 1.0) ) ) / nfTau ) - nf) ;
+    ns = ns + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / nsTau)))*(- ( ( ( ninf ) ) / nsTau ) / ( ( ( ( - 1.0 ) ) ) / nsTau ) - ns) ;
+    nf = nf + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / nfTau)))*(- ( ( ( ninf ) ) / nfTau ) / ( ( ( ( - 1.0 ) ) ) / nfTau ) - nf) ;
    }
   return 0;
 }
@@ -369,6 +398,10 @@ static void _ode_map(int _ieq, double** _pv, double** _pvdot, double* _pp, Datum
 	}
  }
  
+static void _ode_matsol_instance1(_threadargsproto_) {
+ _ode_matsol1 ();
+ }
+ 
 static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
    Datum* _thread;
    Node* _nd; double _v; int _iml, _cntml;
@@ -379,7 +412,7 @@ static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
     _nd = _ml->_nodelist[_iml];
     v = NODEV(_nd);
   ek = _ion_ek;
- _ode_matsol1 ();
+ _ode_matsol_instance1(_threadargs_);
  }}
  extern void nrn_update_ion_pointer(Symbol*, Datum*, int, int);
  static void _update_ion_pointer(Datum* _ppvar) {
@@ -494,8 +527,7 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
 }}
 
 static void nrn_state(_NrnThread* _nt, _Memb_list* _ml, int _type){
- double _break, _save;
-Node *_nd; double _v; int* _ni; int _iml, _cntml;
+Node *_nd; double _v = 0.0; int* _ni; int _iml, _cntml;
 #if CACHEVEC
     _ni = _ml->_nodeindices;
 #endif
@@ -512,17 +544,11 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
     _nd = _ml->_nodelist[_iml];
     _v = NODEV(_nd);
   }
- _break = t + .5*dt; _save = t;
  v=_v;
 {
   ek = _ion_ek;
- { {
- for (; t < _break; t += dt) {
- error =  states();
+ { error =  states();
  if(error){fprintf(stderr,"at line 45 in file KMtf.mod:\n        SOLVE states METHOD cnexp\n"); nrn_complain(_p); abort_run(error);}
- 
-}}
- t = _save;
  } }}
 
 }
@@ -539,3 +565,100 @@ static void _initlists() {
    _t_nfTau = makevector(201*sizeof(double));
 _first = 0;
 }
+
+#if NMODL_TEXT
+static const char* nmodl_filename = "KMtf.mod";
+static const char* nmodl_file_text = 
+  "TITLE IKM from Tigerholm 2014\n"
+  "\n"
+  "COMMENT\n"
+  "IKM from Tigerholm 2014\n"
+  "\n"
+  "ENDCOMMENT\n"
+  "\n"
+  "UNITS {\n"
+  "\n"
+  "		 (mA) = (milliamp)\n"
+  "		 (mV) = (millivolt)\n"
+  "		 (S) = (siemens)\n"
+  "}\n"
+  "\n"
+  "NEURON {\n"
+  "		 SUFFIX kmtf\n"
+  "		 USEION k READ ek WRITE ik\n"
+  "		 RANGE gbar, gk, ik	\n"
+  "	     GLOBAL ninf, nsTau, nfTau\n"
+  "}\n"
+  "\n"
+  "PARAMETER {\n"
+  "		 gbar = 0.0018 (S/cm2) <0,1e9>		 \n"
+  "}\n"
+  "\n"
+  "STATE {\n"
+  "		ns nf\n"
+  "}\n"
+  "\n"
+  "ASSIGNED {\n"
+  "		 v (mV)\n"
+  "		 celsius (degC)\n"
+  "		 ek (mV)\n"
+  "		 \n"
+  "		 gk (S/cm2)\n"
+  "		 ik (mA/cm2)\n"
+  "		 ninf\n"
+  "		 nsTau (ms) nfTau (ms)\n"
+  "}\n"
+  "\n"
+  "LOCAL nexp\n"
+  "\n"
+  "? currents\n"
+  "BREAKPOINT {\n"
+  "        SOLVE states METHOD cnexp\n"
+  "        gk = gbar*(ns/4 + 3*nf/4)\n"
+  "		ik = gk*(v - ek)\n"
+  "}\n"
+  "\n"
+  "INITIAL {\n"
+  "	rates(v)\n"
+  "	ns = ninf\n"
+  "	nf = ninf\n"
+  "}\n"
+  "\n"
+  "? states\n"
+  "DERIVATIVE states {\n"
+  "		rates(v)\n"
+  "		ns' = (ninf-ns)/nsTau\n"
+  "		nf' = (ninf-nf)/nfTau\n"
+  "}\n"
+  "\n"
+  "LOCAL q10\n"
+  "\n"
+  "? rates\n"
+  "PROCEDURE rates(v(mV)) { : Computes rate and other constants at current v.\n"
+  "						 : Call once from HOC to initialize inf at resting v.\n"
+  "						 LOCAL nfTau_alpha, nfTau_beta\n"
+  "						 TABLE ninf, nsTau, nfTau DEPEND celsius FROM -100 TO 100 WITH 200\n"
+  "						 \n"
+  "UNITSOFF\n"
+  "		\n"
+  "		\n"
+  "		q10 = 3.3\n"
+  "		ninf = 1/(1 + exp(-(v+30)/6))\n"
+  "		nsTau = nsTauCalc(v,q10)\n"
+  "		\n"
+  "		nfTau_alpha = 0.00395*exp((v+30)/40)\n"
+  "		nfTau_beta = 0.00395*exp(-(v+30)/20)*q10\n"
+  "		nfTau = 1/(nfTau_alpha + nfTau_beta)\n"
+  "		\n"
+  "}\n"
+  "UNITSON\n"
+  "\n"
+  "FUNCTION nsTauCalc(x,q10) {  : Equation for nsTau\n"
+  "		if (x < -60) {\n"
+  "				 nsTauCalc =  219*q10\n"
+  "		}else{\n"
+  "				nsTauCalc = 13*x + 1000*q10\n"
+  "		}\n"
+  "}\n"
+  ;
+#endif

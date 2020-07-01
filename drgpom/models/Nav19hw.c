@@ -1,5 +1,6 @@
-/* Created by Language version: 6.2.0 */
+/* Created by Language version: 7.7.0 */
 /* NOT VECTORIZED */
+#define NRN_VECTORIZED 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -21,10 +22,20 @@ extern int _method3;
 extern double hoc_Exp(double);
 #endif
  
-#define _threadargscomma_ /**/
-#define _threadargs_ /**/
+#define nrn_init _nrn_init__nav19hw
+#define _nrn_initial _nrn_initial__nav19hw
+#define nrn_cur _nrn_cur__nav19hw
+#define _nrn_current _nrn_current__nav19hw
+#define nrn_jacob _nrn_jacob__nav19hw
+#define nrn_state _nrn_state__nav19hw
+#define _net_receive _net_receive__nav19hw 
+#define _f_rates _f_rates__nav19hw 
+#define rates rates__nav19hw 
+#define states states__nav19hw 
  
+#define _threadargscomma_ /**/
 #define _threadargsprotocomma_ /**/
+#define _threadargs_ /**/
 #define _threadargsproto_ /**/
  	/*SUPPRESS 761*/
 	/*SUPPRESS 762*/
@@ -74,6 +85,15 @@ extern void hoc_register_limits(int, HocParmLimits*);
 extern void hoc_register_units(int, HocParmUnits*);
 extern void nrn_promote(Prop*, int, int);
 extern Memb_func* memb_func;
+ 
+#define NMODL_TEXT 1
+#if NMODL_TEXT
+static const char* nmodl_file_text;
+static const char* nmodl_filename;
+extern void hoc_reg_nmodl_text(int, const char*);
+extern void hoc_reg_nmodl_filename(int, const char*);
+#endif
+
  extern void _nrn_setdata_reg(int, void(*)(Prop*));
  static void _setdata(Prop* _prop) {
  _p = _prop->param; _ppvar = _prop->dparam;
@@ -152,9 +172,10 @@ static void _ode_spec(_NrnThread*, _Memb_list*, int);
 static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  
 #define _cvode_ieq _ppvar[3]._i
+ static void _ode_matsol_instance1(_threadargsproto_);
  /* connect range variables in _p that hoc is supposed to know about */
  static const char *_mechanism[] = {
- "6.2.0",
+ "7.7.0",
 "nav19hw",
  "gbar_nav19hw",
  0,
@@ -196,7 +217,7 @@ static void nrn_alloc(Prop* _prop) {
 };
  static void _update_ion_pointer(Datum*);
  extern Symbol* hoc_lookup(const char*);
-extern void _nrn_thread_reg(int, int, void(*f)(Datum*));
+extern void _nrn_thread_reg(int, int, void(*)(Datum*));
 extern void _nrn_thread_table_reg(int, void(*)(double*, Datum*, Datum*, _NrnThread*, int));
 extern void hoc_register_tolerance(int, HocStateTolerance*, Symbol***);
 extern void _cvode_abstol( Symbol**, double*, int);
@@ -210,11 +231,19 @@ extern void _cvode_abstol( Symbol**, double*, int);
  _mechtype = nrn_get_mechtype(_mechanism[1]);
      _nrn_setdata_reg(_mechtype, _setdata);
      _nrn_thread_reg(_mechtype, 2, _update_ion_pointer);
+ #if NMODL_TEXT
+  hoc_reg_nmodl_text(_mechtype, nmodl_file_text);
+  hoc_reg_nmodl_filename(_mechtype, nmodl_filename);
+#endif
   hoc_register_prop_size(_mechtype, 11, 4);
+  hoc_register_dparam_semantics(_mechtype, 0, "na_ion");
+  hoc_register_dparam_semantics(_mechtype, 1, "na_ion");
+  hoc_register_dparam_semantics(_mechtype, 2, "na_ion");
+  hoc_register_dparam_semantics(_mechtype, 3, "cvodeieq");
  	hoc_register_cvode(_mechtype, _ode_count, _ode_map, _ode_spec, _ode_matsol);
  	hoc_register_tolerance(_mechtype, _hoc_state_tol, &_atollist);
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
- 	ivoc_help("help ?1 nav19hw E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/Nav19hw.mod\n");
+ 	ivoc_help("help ?1 nav19hw F:/CLPC48/drg-pom/drgpom/models/Nav19hw.mod\n");
  hoc_register_limits(_mechtype, _hoc_parm_limits);
  hoc_register_units(_mechtype, _hoc_parm_units);
  }
@@ -256,15 +285,15 @@ static int _ode_spec1(_threadargsproto_);
  Dm = Dm  / (1. - dt*( ( ( ( - 1.0 ) ) ) / mtau )) ;
  Dh = Dh  / (1. - dt*( ( ( ( - 1.0 ) ) ) / htau )) ;
  Ds = Ds  / (1. - dt*( ( ( ( - 1.0 ) ) ) / stau )) ;
- return 0;
+  return 0;
 }
  /*END CVODE*/
  static int states () {_reset=0;
  {
    rates ( _threadargscomma_ v ) ;
-    m = m + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / mtau)))*(- ( ( ( minf ) ) / mtau ) / ( ( ( ( - 1.0) ) ) / mtau ) - m) ;
-    h = h + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / htau)))*(- ( ( ( hinf ) ) / htau ) / ( ( ( ( - 1.0) ) ) / htau ) - h) ;
-    s = s + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / stau)))*(- ( ( ( sinf ) ) / stau ) / ( ( ( ( - 1.0) ) ) / stau ) - s) ;
+    m = m + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / mtau)))*(- ( ( ( minf ) ) / mtau ) / ( ( ( ( - 1.0 ) ) ) / mtau ) - m) ;
+    h = h + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / htau)))*(- ( ( ( hinf ) ) / htau ) / ( ( ( ( - 1.0 ) ) ) / htau ) - h) ;
+    s = s + (1. - exp(dt*(( ( ( - 1.0 ) ) ) / stau)))*(- ( ( ( sinf ) ) / stau ) / ( ( ( ( - 1.0 ) ) ) / stau ) - s) ;
    }
   return 0;
 }
@@ -387,6 +416,10 @@ static void _ode_map(int _ieq, double** _pv, double** _pvdot, double* _pp, Datum
 	}
  }
  
+static void _ode_matsol_instance1(_threadargsproto_) {
+ _ode_matsol1 ();
+ }
+ 
 static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
    Datum* _thread;
    Node* _nd; double _v; int _iml, _cntml;
@@ -397,7 +430,7 @@ static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
     _nd = _ml->_nodelist[_iml];
     v = NODEV(_nd);
   ena = _ion_ena;
- _ode_matsol1 ();
+ _ode_matsol_instance1(_threadargs_);
  }}
  extern void nrn_update_ion_pointer(Symbol*, Datum*, int, int);
  static void _update_ion_pointer(Datum* _ppvar) {
@@ -514,8 +547,7 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
 }}
 
 static void nrn_state(_NrnThread* _nt, _Memb_list* _ml, int _type){
- double _break, _save;
-Node *_nd; double _v; int* _ni; int _iml, _cntml;
+Node *_nd; double _v = 0.0; int* _ni; int _iml, _cntml;
 #if CACHEVEC
     _ni = _ml->_nodeindices;
 #endif
@@ -532,17 +564,11 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
     _nd = _ml->_nodelist[_iml];
     _v = NODEV(_nd);
   }
- _break = t + .5*dt; _save = t;
  v=_v;
 {
   ena = _ion_ena;
- { {
- for (; t < _break; t += dt) {
- error =  states();
+ { error =  states();
  if(error){fprintf(stderr,"at line 46 in file Nav19hw.mod:\n        SOLVE states METHOD cnexp\n"); nrn_complain(_p); abort_run(error);}
- 
-}}
- t = _save;
  } }}
 
 }
@@ -563,3 +589,105 @@ static void _initlists() {
    _t_stau = makevector(201*sizeof(double));
 _first = 0;
 }
+
+#if NMODL_TEXT
+static const char* nmodl_filename = "Nav19hw.mod";
+static const char* nmodl_file_text = 
+  "TITLE Nav 1.9 from Huang Waxman\n"
+  "\n"
+  "COMMENT\n"
+  "INav1.9 from Huang et al. 2014 (Derived from human Nav 1.9 in rat)\n"
+  "Conductance is rounded up from Tigerholm\n"
+  "\n"
+  "ENDCOMMENT\n"
+  "\n"
+  "UNITS {\n"
+  "\n"
+  "		 (mA) = (milliamp)\n"
+  "		 (mV) = (millivolt)\n"
+  "		 (S) = (siemens)\n"
+  "}\n"
+  "\n"
+  "NEURON {\n"
+  "		 SUFFIX nav19hw\n"
+  "		 USEION na READ ena WRITE ina\n"
+  "		 RANGE gbar, gna, ina	\n"
+  "	     GLOBAL minf, hinf, sinf, mtau, htau, stau\n"
+  "}\n"
+  "\n"
+  "PARAMETER {\n"
+  "		 gbar = 0.0001 (S/cm2) <0,1e9>		 \n"
+  "}\n"
+  "\n"
+  "STATE {\n"
+  "		 m h s\n"
+  "}\n"
+  "\n"
+  "ASSIGNED {\n"
+  "		 v (mV)\n"
+  "		 celsius (degC)\n"
+  "		 ena (mV)\n"
+  "		 \n"
+  "		 gna (S/cm2)\n"
+  "		 ina (mA/cm2)\n"
+  "		 minf hinf sinf\n"
+  "		 mtau (ms) htau (ms) stau (ms)\n"
+  "}\n"
+  "\n"
+  "LOCAL mexp, hexp, sexp\n"
+  "\n"
+  "? currents\n"
+  "BREAKPOINT {\n"
+  "        SOLVE states METHOD cnexp\n"
+  "        gna = gbar*m*h*s\n"
+  "		ina = gna*(v - ena)\n"
+  "}\n"
+  "\n"
+  "INITIAL {\n"
+  "	rates(v)\n"
+  "	m = minf\n"
+  "	h = hinf\n"
+  "	s = sinf\n"
+  "}\n"
+  "\n"
+  "? states\n"
+  "DERIVATIVE states {\n"
+  "		rates(v)\n"
+  "		m' = (minf-m)/mtau\n"
+  "		h' = (hinf-h)/htau\n"
+  "		s' = (sinf-s)/stau\n"
+  "}\n"
+  "\n"
+  ":LOCAL q10\n"
+  "\n"
+  "? rates\n"
+  "PROCEDURE rates(v(mV)) { : Computes rate and other constants at current v.\n"
+  "						 : Call once from HOC to initialize inf at resting v.\n"
+  "						 LOCAL alpha_m, beta_m, alpha_h, beta_h, alpha_s, beta_s\n"
+  "						 TABLE minf, mtau, hinf, htau, sinf, stau DEPEND celsius FROM -100 TO 100 WITH 200\n"
+  "						 \n"
+  "UNITSOFF\n"
+  "		alpha_m = 0.751/(1 + exp(-(v+32.26)/13.71))\n"
+  "		beta_m = 5.68/(1 + exp((v+123.71)/13.94))\n"
+  "		?hyperpolarisation of activation gate closing\n"
+  "\n"
+  "		minf = alpha_m/(alpha_m + beta_m)\n"
+  "		mtau = 1/(alpha_m + beta_m)\n"
+  "		\n"
+  "		alpha_h = 0.082/(1 + exp((v+113.69)/17.4))\n"
+  "		beta_h = 0.24/(1 + exp(-(v-10.1)/17.2))\n"
+  "		\n"
+  "		hinf = alpha_h/(alpha_h + beta_h)\n"
+  "		htau = 1/(alpha_h + beta_h)\n"
+  "		\n"
+  "		alpha_s = 0.019/(1 + exp((v+154.51)/11.46))\n"
+  "		beta_s = 0.000376/(1 + exp(-(v+60.92)/15.79))\n"
+  "		\n"
+  "		sinf = alpha_s/(alpha_s + beta_s)\n"
+  "		stau = 1/(alpha_s + beta_s)\n"
+  "		\n"
+  "		\n"
+  "}\n"
+  "UNITSON\n"
+  ;
+#endif

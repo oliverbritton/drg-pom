@@ -1,5 +1,6 @@
-/* Created by Language version: 6.2.0 */
+/* Created by Language version: 7.7.0 */
 /* VECTORIZED */
+#define NRN_VECTORIZED 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -21,10 +22,18 @@ extern int _method3;
 extern double hoc_Exp(double);
 #endif
  
-#define _threadargscomma_ _p, _ppvar, _thread, _nt,
-#define _threadargs_ _p, _ppvar, _thread, _nt
+#define nrn_init _nrn_init__k_conc
+#define _nrn_initial _nrn_initial__k_conc
+#define nrn_cur _nrn_cur__k_conc
+#define _nrn_current _nrn_current__k_conc
+#define nrn_jacob _nrn_jacob__k_conc
+#define nrn_state _nrn_state__k_conc
+#define _net_receive _net_receive__k_conc 
+#define conc conc__k_conc 
  
+#define _threadargscomma_ _p, _ppvar, _thread, _nt,
 #define _threadargsprotocomma_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt,
+#define _threadargs_ _p, _ppvar, _thread, _nt
 #define _threadargsproto_ double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt
  	/*SUPPRESS 761*/
 	/*SUPPRESS 762*/
@@ -69,6 +78,15 @@ extern void hoc_register_limits(int, HocParmLimits*);
 extern void hoc_register_units(int, HocParmUnits*);
 extern void nrn_promote(Prop*, int, int);
 extern Memb_func* memb_func;
+ 
+#define NMODL_TEXT 1
+#if NMODL_TEXT
+static const char* nmodl_file_text;
+static const char* nmodl_filename;
+extern void hoc_reg_nmodl_text(int, const char*);
+extern void hoc_reg_nmodl_filename(int, const char*);
+#endif
+
  extern void _nrn_setdata_reg(int, void(*)(Prop*));
  static void _setdata(Prop* _prop) {
  _extcall_prop = _prop;
@@ -114,9 +132,10 @@ static void _ode_spec(_NrnThread*, _Memb_list*, int);
 static void _ode_matsol(_NrnThread*, _Memb_list*, int);
  
 #define _cvode_ieq _ppvar[4]._i
+ static void _ode_matsol_instance1(_threadargsproto_);
  /* connect range variables in _p that hoc is supposed to know about */
  static const char *_mechanism[] = {
- "6.2.0",
+ "7.7.0",
 "k_conc",
  0,
  0,
@@ -156,7 +175,7 @@ static void nrn_alloc(Prop* _prop) {
  static void _thread_cleanup(Datum*);
  static void _update_ion_pointer(Datum*);
  extern Symbol* hoc_lookup(const char*);
-extern void _nrn_thread_reg(int, int, void(*f)(Datum*));
+extern void _nrn_thread_reg(int, int, void(*)(Datum*));
 extern void _nrn_thread_table_reg(int, void(*)(double*, Datum*, Datum*, _NrnThread*, int));
 extern void hoc_register_tolerance(int, HocStateTolerance*, Symbol***);
 extern void _cvode_abstol( Symbol**, double*, int);
@@ -173,12 +192,21 @@ extern void _cvode_abstol( Symbol**, double*, int);
      _nrn_setdata_reg(_mechtype, _setdata);
      _nrn_thread_reg(_mechtype, 0, _thread_cleanup);
      _nrn_thread_reg(_mechtype, 2, _update_ion_pointer);
+ #if NMODL_TEXT
+  hoc_reg_nmodl_text(_mechtype, nmodl_file_text);
+  hoc_reg_nmodl_filename(_mechtype, nmodl_filename);
+#endif
   hoc_register_prop_size(_mechtype, 5, 5);
+  hoc_register_dparam_semantics(_mechtype, 0, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 1, "k_ion");
+  hoc_register_dparam_semantics(_mechtype, 2, "#k_ion");
+  hoc_register_dparam_semantics(_mechtype, 4, "cvodeieq");
+  hoc_register_dparam_semantics(_mechtype, 3, "diam");
  	nrn_writes_conc(_mechtype, 0);
  	hoc_register_cvode(_mechtype, _ode_count, _ode_map, _ode_spec, _ode_matsol);
  	hoc_register_tolerance(_mechtype, _hoc_state_tol, &_atollist);
  	hoc_register_var(hoc_scdoub, hoc_vdoub, hoc_intfunc);
- 	ivoc_help("help ?1 k_conc E:/CLPC48/Neuron Project/Code/Models/Currents/Prototypes/k_conc.mod\n");
+ 	ivoc_help("help ?1 k_conc F:/CLPC48/drg-pom/drgpom/models/k_conc.mod\n");
  hoc_register_limits(_mechtype, _hoc_parm_limits);
  hoc_register_units(_mechtype, _hoc_parm_units);
  }
@@ -293,6 +321,10 @@ static void _ode_map(int _ieq, double** _pv, double** _pvdot, double* _pp, Datum
  	_pv[0] = &(_ion_ki);
  }
  
+static void _ode_matsol_instance1(_threadargsproto_) {
+ _cvode_sparse_thread(&_thread[_cvspth1]._pvoid, 1, _dlist1, _p, _ode_matsol1, _ppvar, _thread, _nt);
+ }
+ 
 static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
    double* _p; Datum* _ppvar; Datum* _thread;
    Node* _nd; double _v; int _iml, _cntml;
@@ -304,7 +336,7 @@ static void _ode_matsol(_NrnThread* _nt, _Memb_list* _ml, int _type) {
     v = NODEV(_nd);
   ik = _ion_ik;
   ki = _ion_ki;
- _cvode_sparse_thread(&_thread[_cvspth1]._pvoid, 1, _dlist1, _p, _ode_matsol1, _ppvar, _thread, _nt);
+ _ode_matsol_instance1(_threadargs_);
  }}
  
 static void _thread_cleanup(Datum* _thread) {
@@ -348,7 +380,8 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
  initmodel(_p, _ppvar, _thread, _nt);
   _ion_ki = ki;
   nrn_wrote_conc(_k_sym, (&(_ion_ki)) - 1, _style_k);
-}}
+}
+}
 
 static double _nrn_current(double* _p, Datum* _ppvar, Datum* _thread, _NrnThread* _nt, double _v){double _current=0.;v=_v;{
 } return _current;
@@ -374,7 +407,9 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
     _v = NODEV(_nd);
   }
  
-}}
+}
+ 
+}
 
 static void nrn_jacob(_NrnThread* _nt, _Memb_list* _ml, int _type) {
 double* _p; Datum* _ppvar; Datum* _thread;
@@ -396,12 +431,15 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
 	NODED(_nd) += _g;
   }
  
-}}
+}
+ 
+}
 
 static void nrn_state(_NrnThread* _nt, _Memb_list* _ml, int _type) {
- double _break, _save;
 double* _p; Datum* _ppvar; Datum* _thread;
-Node *_nd; double _v; int* _ni; int _iml, _cntml;
+Node *_nd; double _v = 0.0; int* _ni; int _iml, _cntml;
+double _dtsav = dt;
+if (secondorder) { dt *= 0.5; }
 #if CACHEVEC
     _ni = _ml->_nodeindices;
 #endif
@@ -419,22 +457,21 @@ for (_iml = 0; _iml < _cntml; ++_iml) {
     _nd = _ml->_nodelist[_iml];
     _v = NODEV(_nd);
   }
- _break = t + .5*dt; _save = t;
  v=_v;
 {
   ik = _ion_ik;
   ki = _ion_ki;
- { {
- for (; t < _break; t += dt) {
-  sparse_thread(&_thread[_spth1]._pvoid, 1, _slist1, _dlist1, _p, &t, dt, conc, _linmat1, _ppvar, _thread, _nt);
-  
-}}
- t = _save;
+ {  sparse_thread(&_thread[_spth1]._pvoid, 1, _slist1, _dlist1, _p, &t, dt, conc, _linmat1, _ppvar, _thread, _nt);
+     if (secondorder) {
+    int _i;
+    for (_i = 0; _i < 1; ++_i) {
+      _p[_slist1[_i]] += dt*_p[_dlist1[_i]];
+    }}
  } {
    }
   _ion_ki = ki;
 }}
-
+ dt = _dtsav;
 }
 
 static void terminal(){}
@@ -449,4 +486,46 @@ _first = 0;
 
 #if defined(__cplusplus)
 } /* extern "C" */
+#endif
+
+#if NMODL_TEXT
+static const char* nmodl_filename = "k_conc.mod";
+static const char* nmodl_file_text = 
+  "\n"
+  "COMMENT\n"
+  "Concentration of potassium (no buffering)\n"
+  "(equivalent modified euler with standard method and\n"
+  "equivalent to diagonalized linear solver with CVODE )\n"
+  "ENDCOMMENT\n"
+  "\n"
+  "NEURON {\n"
+  "   SUFFIX k_conc\n"
+  "   USEION k READ ik WRITE ki\n"
+  "}\n"
+  "\n"
+  "UNITS {\n"
+  "   (mM) = (milli/liter)\n"
+  "   (um) = (micron)\n"
+  "   FARADAY = (faraday) (coulomb)\n"
+  "   PI = (pi) (1)\n"
+  "}\n"
+  "\n"
+  "ASSIGNED {\n"
+  "   ik (milliamp/cm2)\n"
+  "   diam (um)\n"
+  "}\n"
+  "\n"
+  "STATE {\n"
+  "   ki (mM)\n"
+  "}\n"
+  "\n"
+  "BREAKPOINT {\n"
+  "   SOLVE conc METHOD sparse\n"
+  "}\n"
+  "\n"
+  "KINETIC conc {\n"
+  "   COMPARTMENT PI*diam*diam/4 {ki}\n"
+  "   ~ ki << (-ik/(FARADAY)*PI*diam*(1e4))\n"
+  "}\n"
+  ;
 #endif
