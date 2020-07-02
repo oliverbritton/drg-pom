@@ -4,7 +4,7 @@ from pylab import *
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None):
+def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None, legend=True):
 
     voltage, currents = format_trace_for_currentscape(trace)
     time = trace['t']
@@ -110,6 +110,9 @@ def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None):
     plt.xlim(0,xmax)
     plt.axis('off') 
     plt.subplots_adjust(wspace=0, hspace=0)
+
+    if legend:
+        plot_currentscape_legend_x(trace)
     
     return fig
 
@@ -209,7 +212,18 @@ def plot_pie_chart(currents, title='', legend=['Nav17','Nav18','Nav19','Kdr','KA
     sizes_pos = c_norm_pos
     sizes_neg = abs(c_norm_neg)
     #sizes=sizes_pos/2
-    #print(sum(sizes))
+    #print(sum(sizes))def plot_currentscape_legend(trace):
+    # Plot legend for currents
+    currents = [i for i in list(trace.keys()) if i not in ['t', 'v']]
+    current_nums = np.arange(len(currents)+1)[::-1]
+    image = np.array([current_nums,]).reshape(-1,1)
+    plt.rcParams["axes.grid"] = False
+    fig, ax = plt.subplots(1,1)
+    plt.imshow(image, cmap="Set1")
+    ax.set_yticks(current_nums)
+    ax.set_yticklabels(currents, rotation=0)
+    ax.set_xticklabels('')
+    plt.ylim(0.5, len(currents)+0.5)
 
     fig1, ax1 = plt.subplots()    
     ax1.pie(sizes_neg[::1]/2, colors=color_set[::1], autopct=autopct, shadow=False, startangle=0, counterclock=False)
@@ -248,6 +262,32 @@ def format_trace_for_currentscape(trace, current_names=None, return_current_name
     else:
         return voltage_trace, currents
 
+
+def plot_currentscape_legend_x(trace):
+    # Plot legend for currents horizontally
+    currents = [i for i in list(trace.keys()) if i not in ['t', 'v']]
+    current_nums = np.arange(len(currents)+1)
+    image = np.array([current_nums,])
+    plt.rcParams["axes.grid"] = False
+    fig, ax = plt.subplots(1,1)
+    plt.imshow(image, cmap="Set1")
+    ax.set_xticks(current_nums)
+    ax.set_xticklabels(currents, rotation=90)
+    ax.set_yticklabels('')
+    plt.xlim(-0.5,len(currents)-0.5)
+    
+def plot_currentscape_legend_y(trace):
+    # Plot legend for currents vertically
+    currents = [i for i in list(trace.keys()) if i not in ['t', 'v']]
+    current_nums = np.arange(len(currents)+1)[::-1]
+    image = np.array([current_nums,]).reshape(-1,1)
+    plt.rcParams["axes.grid"] = False
+    fig, ax = plt.subplots(1,1)
+    plt.imshow(image, cmap="Set1")
+    ax.set_yticks(current_nums)
+    ax.set_yticklabels(currents, rotation=0)
+    ax.set_xticklabels('')
+    plt.ylim(0.5, len(currents)+0.5)
 
 	
 

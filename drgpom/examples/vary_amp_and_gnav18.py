@@ -57,62 +57,81 @@ if __name__ == '__main__':
     outputs = [] 
  
     " --- Run Simulations --- "
+    count = 0
+    for simulation in simulations:
+        count += 1
+        print(f"Running simulation {count} of {len(simulations)}.")
+        parameter_scaling = {key:val for key,val in simulation.items() if key in pop.parameter_designations.keys()}
+        ramp_amp = simulation['Step Amp'] * 10
+        step_amp  = simulation['Step Amp']
 
-    " --- Simulation 1 - Example Ramp Stimulus --- "
-    sim_name = 'example_ramp'
-    sim_type = 'iclamp'
-    protocols = {
-         'amp': None,
-         'celsius': 32.0,
-         'delay': 500,
-         'dur': 500,
-         'interval': 0,
-         'ions': ['Na','K'],
-         'num_stims': 1,
-         'outputs': outputs,
-         'sampling_freq': 20000,
-         'stim_func': 'h.IRamp',
-         't_stop': 1500.,
-         'v_init': -65.,
-         }
-
-    pop.run_simulation(name=sim_name, 
-                   simulation_type=sim_type, 
-                   protocols=protocols,
-                   cores=cores, 
-                   save_type=save_type, 
-                   save_dir=save_dir, 
-                   benchmark=benchmark, 
-                   rerun=rerun)
+        str_parameter_scaling = '_'.join(['{}_{}'.format(key,val) for key,val in parameter_scaling.items()])
+        str_ramp_amp = '{}_pA'.format(int(ramp_amp*1000)) # Convert from nA to pA
+        str_step_amp = '{}_pA'.format(int(step_amp*1000)) # Convert from nA to pA
 
 
-    " --- Simulation 2 - Example Step Stimulus --- "
-    sim_name = 'example_step' 
-    sim_type = 'iclamp'
-    protocols = {
-         'amp': None,
-         'celsius': 32.0,
-         'delay': 500,
-         'dur': 800,
-         'interval': 0,
-         'ions': ['Na','K'],
-         'num_stims': 1,
-         'outputs': outputs,
-         'sampling_freq': 20000,
-         'stim_func': 'h.IClamp',
-         't_stop': 1500.,
-         'v_init': -65.,
-         'flags': {'ramp_threshold_sim_for_width':'ramp'} # Use the threshold from the ramp simulation to compute ap full width
-         }
+        sim_name = name + '_ramp_{}_{}'.format(str_ramp_amp, str_parameter_scaling)
+        sim_type = 'iclamp'
+        protocols = {
+             'celsius': 32.0,
+             'delay': 500,
+             'dur': 500,
+             'interval': 0,
+             'ions': ['Na','K'],
+             'num_stims': 1,
+             'outputs': [],
+             'sampling_freq': 20000,
+             'stim_func': 'h.IRamp',
+             't_stop': 1500.,
+             'v_init': -65.,
+             }
 
-    pop.run_simulation(name=sim_name, 
-                   simulation_type=sim_type, 
-                   protocols=protocols,
-                   cores=cores, 
-                   save_type=save_type, 
-                   save_dir=save_dir, 
-                   benchmark=benchmark, 
-                   rerun=False)
+        # Add simulation protocols for ramp
+        protocols['parameter_scaling'] = parameter_scaling
+        protocols['amp'] = ramp_amp
+        print("Running simulation {}, with parameter scaling: {} and amp: {}".format(sim_name, protocols['parameter_scaling'], protocols['amp']))
+
+        pop.run_simulation(name=sim_name, 
+                       simulation_type=sim_type, 
+                       protocols=protocols,
+                       cores=cores, 
+                       save_type=save_type, 
+                       save_dir=save_dir,
+                       benchmark=benchmark, 
+                       rerun=rerun)
+
+
+        sim_name = name + '_step_{}_{}'.format(str_step_amp, str_parameter_scaling)
+        sim_type = 'iclamp'
+        protocols = {
+             'celsius': 32.0,
+             'delay': 500,
+             'dur': 800,
+             'interval': 0,
+             'ions': ['Na','K'],
+             'num_stims': 1,
+             'outputs': [],
+             'sampling_freq': 20000,
+             'stim_func': 'h.IClamp',
+             't_stop': 1500.,
+             'v_init': -65.,
+             'flags': {'ramp_threshold_sim_for_width':'ramp'} # Use the threshold from the ramp simulation to compute ap full width
+             }
+
+        # Add simulation protocols for step
+        protocols['parameter_scaling'] = parameter_scaling
+        protocols['amp'] = step_amp
+        print("Running simulation {}, with parameter scaling: {} and amp: {}".format(sim_name, protocols['parameter_scaling'], protocols['amp']))
+
+
+        pop.run_simulation(name=sim_name, 
+                       simulation_type=sim_type, 
+                       protocols=protocols,
+                       cores=cores, 
+                       save_type=save_type,
+                       save_dir=save_dir,
+                       benchmark=benchmark, 
+                       rerun=rerun)
 
     " --- Save Results --- "
 
