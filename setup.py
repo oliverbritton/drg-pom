@@ -11,7 +11,7 @@ config = {
 	'url': 'https://github.com/oliverbritton/drg-pom',
 	'download_url': 'https://github.com/oliverbritton/drg-pom/archive/master.zip',
 	'author_email': 'oliverjbritton@gmail.com',
-	'version': '1.0.2',
+	'version': '1.0.3',
 	'install_requires': [
             'nose2',
             'numpy<1.16.3',
