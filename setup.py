@@ -27,7 +27,8 @@ config = {
         'include_package_data': True,
         'package_data': {'drgpom':[os.path.join('examples','data', '*.*'),
                                    os.path.join('examples','results','*.*'),
-                                   os.path.join('models','*.mod')]
+                                   os.path.join('models','*.mod')],
+                                   os.path.join('examples','*.ipynb'),
                         }
         
 }
