@@ -11,7 +11,7 @@ config = {
 	'url': 'https://github.com/oliverbritton/drg-pom',
 	'download_url': 'https://github.com/oliverbritton/drg-pom/archive/master.zip',
 	'author_email': 'oliverjbritton@gmail.com',
-	'version': '1.0.4',
+	'version': '1.0.5',
 	'install_requires': [
             'nose2',
             'numpy<1.16.3',
@@ -27,7 +27,6 @@ config = {
         'include_package_data': True,
         'package_data': {'drgpom':[
                                    os.path.join('examples','data', '*.*'),
-                                   os.path.join('examples','results','*.*'),
                                    os.path.join('models','*.mod'),
                                    os.path.join('examples','*.ipynb'),
                                    ]
