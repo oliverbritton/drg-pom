@@ -4,7 +4,7 @@ from pylab import *
 from matplotlib import pyplot as plt
 import numpy as np
 
-def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None, legend=True):
+def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None, legend=True, title=None):
 
     voltage, currents = format_trace_for_currentscape(trace)
     time = trace['t']
@@ -72,7 +72,9 @@ def plot_currentscape(trace, figsize=(6,8), start_time=None, end_time=None, lege
     plt.vlines(1,-50,-20,lw=1)
     plt.ylim(-75,70)
     plt.xlim(0,xmax)
-    plt.axis('off')         
+    plt.axis('off')
+    if title:
+        plt.title(title)
 
     def plot_log_lines(seq=[0.01, 0.1, 1.]):
         for val in seq:
